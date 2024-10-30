@@ -1,0 +1,23 @@
+name: eryph
+
+variables:
+- name: email
+  required: true
+- name: invitationCode
+  required: true
+
+fodder:  
+- name: install-eryph
+  type: shellscript
+  filename: eryph.ps1
+  content: |
+    #ps1
+      if ($Command = Get-Command eryph-zero -CommandType Application -ErrorAction Ignore) {
+        # eryph-zero is on the PATH, assume it's installed
+        Write-Warning "'eryph-zero' was found at '$($Command.Path)'."
+        exit 0
+    }
+
+
+    iex "& { $(irm https://raw.githubusercontent.com/eryph-org/eryph/main/src/apps/src/Eryph-zero/install.ps1) } -EMail {{ email }} -InvitationCode {{ invitationCode }}"
+    exit 1003 

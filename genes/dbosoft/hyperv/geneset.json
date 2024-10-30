@@ -1,0 +1,6 @@
+{
+  "geneset": "dbosoft/hyperv",
+  "public": true,
+  "short_description": "Hyper-V",
+  "description": "Genes for installing and configuring Hyper-V"
+}

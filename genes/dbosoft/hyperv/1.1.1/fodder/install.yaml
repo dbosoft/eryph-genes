@@ -1,0 +1,40 @@
+name: install
+fodder:  
+- name: install-hyperv
+  type: shellscript
+  filename: hyperv.ps1
+  content: |
+    #ps1
+    if((Get-Command "Get-WindowsFeature")){
+
+        $HyperVPSFeature = Get-WindowsFeature -Name 'Hyper-V-PowerShell'
+        $RestartRequired = $false
+      if($HyperVPSFeature.Installed -eq $false){
+        Write-Warning "Hyper-V PowerShell is not installed. Installing feature..."
+            $result = $HyperVPSFeature | Install-WindowsFeature
+            $RestartRequired = $result.RestartNeeded
+      }
+
+      $HyperVFeature = Get-WindowsFeature -Name 'Hyper-V'
+      if($HyperVFeature.Installed -eq $false){
+        Write-Warning "Hyper-V is not installed. Installing feature..."
+            $result = $HyperVFeature | Install-WindowsFeature
+            $RestartRequired = $result.RestartNeeded
+      }
+
+        if($RestartRequired){
+        Write-Warning "A restart is required to complete the installation of Hyper-V features."
+        exit 1003 
+      }
+        
+    } else{
+        $HyperVFeature = Get-WindowsOptionalFeature -FeatureName Microsoft-Hyper-V-All -Online
+        # Check if Hyper-V is enabled
+        if($HyperVFeature.State -ne "Enabled") {
+            Write-Warning "Hyper-V is not installed. Installing feature..."
+            Enable-WindowsOptionalFeature -FeatureName Microsoft-Hyper-V-All -Online
+
+            Write-Warning "A restart is required to complete the installation of Hyper-V features."
+        exit 1003 
+        }
+    }
