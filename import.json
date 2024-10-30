@@ -1,0 +1,94 @@
+
+[
+    {"ubuntu-20.04": {
+        "osType": "linux",
+        "pack": "dbosoft/ubuntu-20.04/{date}",        
+        "update": [ 
+            "dbosoft/ubuntu-20.04/latest" 
+        ]
+    }},
+    {"ubuntu-22.04": {
+        "osType": "linux",
+        "pack": "dbosoft/ubuntu-22.04/{date}",        
+        "update": [ 
+            "dbosoft/ubuntu-22.04/latest" 
+        ]
+    }},
+    {"ubuntu-23.04": {
+        "osType": "linux",
+        "pack": "dbosoft/ubuntu-23.04/{date}",        
+        "update": [ 
+            "dbosoft/ubuntu-23.04/latest" 
+        ]
+    }},
+    {"winsrv2016-standard": {
+        "osType": "windows",
+        "pack": "dbosoft/winsrv2016-standard/{date}",        
+        "update": [ 
+            "dbosoft/winsrv2016-standard/latest" 
+        ]
+    }},
+    {"winsrv2016-standardcore": {
+        "osType": "windows",
+        "pack": "dbosoft/winsrv2016-standardcore/{date}",        
+        "update": [ 
+            "dbosoft/winsrv2016-standardcore/latest" 
+        ]
+    }},
+    {"winsrv2019-standard": {
+        "osType": "windows",
+        "pack": "dbosoft/winsrv2019-standard/{date}",        
+        "update": [ 
+            "dbosoft/winsrv2019-standard/latest" 
+        ]
+    }},
+    {"winsrv2019-standardcore": {
+        "osType": "windows",
+        "pack": "dbosoft/winsrv2019-standardcore/{date}",        
+        "update": [ 
+            "dbosoft/winsrv2019-standardcore/latest" 
+        ]
+    }},
+    {"winsrv2022-standard": {
+        "osType": "windows",
+        "pack": "dbosoft/winsrv2022-standard/{date}",        
+        "update": [ 
+            "dbosoft/winsrv2022-standard/latest" 
+        ]
+    }},
+    {"winsrv2022-datacenter": {
+        "osType": "windows",
+        "pack": "dbosoft/winsrv2022-datacenter/{date}",        
+        "update": [ 
+            "dbosoft/winsrv2022-datacenter/latest" 
+        ]
+    }},
+    {"win10-2004-enterprise": {
+        "osType": "windows",
+        "pack": "dbosoft/win10-2004-enterprise/{date}",        
+        "update": [ 
+            "dbosoft/win10-2004-enterprise/latest" 
+        ]
+    }},
+    {"win10-20h2-enterprise": {
+        "osType": "windows",
+        "pack": "dbosoft/win10-20h2-enterprise/{date}",        
+        "update": [ 
+            "dbosoft/win10-20h2-enterprise/latest" 
+        ]
+    }},
+    {"win11-21h1-enterprise": {
+        "osType": "windows",
+        "pack": "dbosoft/win11-21h1-enterprise/{date}",        
+        "update": [ 
+            "dbosoft/win11-21h1-enterprise/latest" 
+        ]
+    }},
+    {"win11-22h2-enterprise": {
+        "osType": "windows",
+        "pack": "dbosoft/win11-22h2-enterprise/{date}",        
+        "update": [ 
+            "dbosoft/win11-22h2-enterprise/latest" 
+        ]
+    }}
+]

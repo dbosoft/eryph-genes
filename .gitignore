@@ -1,0 +1,3 @@
+*.part
+compressed
+.packed/

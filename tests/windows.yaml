@@ -1,0 +1,7 @@
+
+name: catlettest-windows
+parent: {{cut}}
+
+fodder:
+- source: gene:dbosoft/starter-food:win-starter
+
