@@ -1,0 +1,7 @@
+{
+    "geneset": "dbosoft/winsrv2022-standard",
+    "public": true,
+    "description": "Base catlet of Windows Server 2022 Standard",
+    "short_description": "Windows Server 2022 Standard",
+    "description_markdown_file": "readme.md"
+}
