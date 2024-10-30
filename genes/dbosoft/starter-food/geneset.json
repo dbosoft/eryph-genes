@@ -1,0 +1,8 @@
+{
+    "geneset": "dbosoft/starter-food",
+    "public": true,
+    "short_description": "Starter food",
+    "description": "This geneset contains fodder for hungry starters. It configures a unsecure default user and password. Do not use in production!",
+    "description_markdown": null,
+    "description_markdown_file": "readme.md"
+}

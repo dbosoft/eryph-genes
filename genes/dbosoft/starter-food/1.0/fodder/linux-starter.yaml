@@ -1,0 +1,13 @@
+ 
+name: linux-starter
+fodder:
+- name: admin-linux
+  type: cloud-config
+  secret: true
+  content: |
+    system_info:
+      default_user:
+        name: admin
+    password: admin
+    chpasswd:
+      expire: false

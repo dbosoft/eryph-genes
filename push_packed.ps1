@@ -2,7 +2,7 @@
 Push-Location $PSScriptRoot
 
 $InformationPreference= 'Continue'
-$changedGenesets = Get-ChildItem -Recurse -Directory | where { $_.Name -eq '.packed' } | 
+$changedGenesets = Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq '.packed' } | 
         Resolve-Path -Relative | 
         ForEach-Object { $_.Replace(".\genes\", "").Replace("\.packed", "").Replace("\", "/")}
 
