@@ -1,3 +1,10 @@
+resources:
+  repositories:
+  - repository: basecatlets # The name used to reference this repository in the checkout step
+    type: github
+    endpoint: eryph-org
+    name: eryph-org/basecatlets-hyperv
+
 
 pool:
   name: eryph
@@ -14,10 +21,6 @@ jobs:
         warningPreference: 'continue'
         informationPreference: 'continue'
         verbosePreference: 'continue'
-    - task: CmdLine@2
-      displayName: clone basecatlet repo
-      inputs:
-        script: 'git clone https://github.com/eryph-org/basecatlets-hyperv.git'
 
 - job: build
   dependsOn: Init
@@ -27,7 +30,9 @@ jobs:
       ubuntu-20.04: 
         template: ubuntu-20.04
   steps:
+  - checkout: self
+  - checkout: basecatlets
   - task: PowerShell@2
     inputs:
       filePath: './build.ps1'
-      arguments: '-Filter $(template) -BuildPath basecatlets-hyperv\builds'
+      arguments: '-Filter $(template) -BuildPath $(Build.SourcesDirectory)\basecatlets\builds'
