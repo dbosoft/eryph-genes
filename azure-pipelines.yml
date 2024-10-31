@@ -48,8 +48,8 @@ jobs:
   strategy:
     maxParallel: 1
     matrix: 
-      ubuntu-22.04: 
-        template: ubuntu-22.04
+      winsrv2022-standard: 
+        template: winsrv2022-standard
   steps:
   - checkout: self
   - checkout: basecatlets
