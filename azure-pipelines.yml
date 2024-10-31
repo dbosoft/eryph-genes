@@ -34,5 +34,5 @@ jobs:
   - checkout: basecatlets
   - task: PowerShell@2
     inputs:
-      filePath: './build.ps1'
-      arguments: '-Filter $(template) -BuildPath $(Build.SourcesDirectory)\basecatlets\builds'
+      filePath: '.\eryph-genes\build.ps1'
+      arguments: '-Filter $(template) -BuildPath $(Build.SourcesDirectory)\basecatlets-hyperv\builds'
