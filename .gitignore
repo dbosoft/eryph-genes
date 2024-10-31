@@ -1,3 +1,5 @@
 *.part
 compressed
 .packed/
+.ssh/sshkey
+.ssh/sshkey.pub

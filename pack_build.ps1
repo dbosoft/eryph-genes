@@ -9,13 +9,16 @@ param (
     $BuildPath,
 
     [Parameter(Mandatory=$false)]
-    [switch] $IgnoreMissing
+    [switch] $IgnoreMissing,
+
+    [Parameter(Mandatory=$false)]
+    [switch] $RemoveBuild
 )
 $InformationPreference= 'Continue'
 
 push-Location $PSScriptRoot
 $importSpecs = Get-Content -Raw -Path "import.json" | ConvertFrom-Json
-$keys = $importSpecs | % { $_ | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name } | Where-Object {$_ -like $TemplateName}
+$keys = $importSpecs | ForEach-Object { $_ | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name } | Where-Object {$_ -like $TemplateName}
 
 $resolvedBuildPath = Resolve-Path $BuildPath
 
@@ -25,7 +28,7 @@ if((Test-Path $resolvedBuildPath -PathType Container) -eq $false)
     return
 }
 
-$keys | % {
+$keys | ForEach-Object {
     $importSpec = $importSpecs.$_
     $TemplateName = $_
     $buildGeneset = Join-Path $resolvedBuildPath -ChildPath "$TemplateName-stage1\$TemplateName"
@@ -77,4 +80,7 @@ $keys | % {
         & eryph-packer geneset-tag pack $updateTarget --workdir genes  
     }
 
+    if($RemoveBuild){
+        Remove-Item -Path $buildGeneset -Recurse -Force
+    }
 }

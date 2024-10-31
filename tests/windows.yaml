@@ -1,7 +1,13 @@
 
-name: catlettest-windows
+name: catlettest
 parent: {{cut}}
 
 fodder:
 - source: gene:dbosoft/starter-food:win-starter
 
+- name: RemoteAccess
+  type: shellscript
+  filename: enable_access.ps1
+  content: |
+    Enable-PSRemoting -Force
+    Get-NetFirewallRule -name *ICMP4* | Set-NetFirewallRule -Enabled True

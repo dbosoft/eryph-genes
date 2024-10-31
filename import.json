@@ -56,6 +56,13 @@
             "dbosoft/winsrv2022-standard/latest" 
         ]
     }},
+    {"winsrv2022-standardcore": {
+        "osType": "windows",
+        "pack": "dbosoft/winsrv2022-standardcore/{date}",        
+        "update": [ 
+            "dbosoft/winsrv2022-standardcore/latest" 
+        ]
+    }},    
     {"winsrv2022-datacenter": {
         "osType": "windows",
         "pack": "dbosoft/winsrv2022-datacenter/{date}",        
@@ -63,6 +70,27 @@
             "dbosoft/winsrv2022-datacenter/latest" 
         ]
     }},
+    {"winsrv2025-standard": {
+        "osType": "windows",
+        "pack": "dbosoft/winsrv2025-standard/{date}",        
+        "update": [ 
+            "dbosoft/winsrv2025-standard/latest" 
+        ]
+    }},
+    {"winsrv2025-standardcore": {
+        "osType": "windows",
+        "pack": "dbosoft/winsrv2025-standardcore/{date}",        
+        "update": [ 
+            "dbosoft/winsrv2025-standardcore/latest" 
+        ]
+    }},    
+    {"winsrv2025-datacenter": {
+        "osType": "windows",
+        "pack": "dbosoft/winsrv2025-datacenter/{date}",        
+        "update": [ 
+            "dbosoft/winsrv2025-datacenter/latest" 
+        ]
+    }},    
     {"win10-2004-enterprise": {
         "osType": "windows",
         "pack": "dbosoft/win10-2004-enterprise/{date}",        

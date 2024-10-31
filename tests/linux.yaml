@@ -1,0 +1,13 @@
+
+name: catlettest
+parent: {{cut}}
+
+variables:
+  - name: sshKey
+    required: true
+
+fodder:
+- source: gene:dbosoft/starter-food:linux-starter
+  variables:
+    - name: sshPublicKey
+      value: "{{ sshKey }}"

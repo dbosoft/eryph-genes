@@ -15,9 +15,9 @@ $keys | % {
     $latest = $spec."update"
     
     if($os -eq "windows") {
-        $starterContent = gc -raw .\templates\win-starter.yaml
+        $starterContent = gc -raw .\src\templates\win-starter.yaml
     } else{
-        $starterContent = gc -raw .\templates\linux-starter.yaml
+        $starterContent = gc -raw .\src\templates\linux-starter.yaml
     }
 
     $latestPath = "genes\"+ $latest.Replace('/', '\\')
