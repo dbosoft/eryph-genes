@@ -6,9 +6,14 @@ jobs:
  - job: Init
    steps:
      - task: PowerShell@2
+       displayName: setup tools
        inputs:
          filePath: './prepare.ps1'
          arguments: '$(UserMail) $(InvitationCode)'
+         warningPreference: 'continue'
+         informationPreference: 'continue'
+         verbosePreference: 'continue'
      - task: CmdLine@2
+       displayName: clone basecatlet repo
        inputs:
          script: 'git clone https://github.com/eryph-org/basecatlets-hyperv.git'
