@@ -53,6 +53,8 @@ jobs:
   steps:
   - checkout: self
   - checkout: basecatlets
+    clean: true
+
   - task: CmdLine@2
     inputs:
       script: 'mkdir $(Build.SourcesDirectory)\basecatlets-hyperv\builds'
