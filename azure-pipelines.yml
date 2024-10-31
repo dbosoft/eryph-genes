@@ -22,27 +22,6 @@ jobs:
         informationPreference: 'continue'
         verbosePreference: 'continue'
 
-- job: buildretry
-  dependsOn: Init
-  strategy:
-    maxParallel: 1
-    matrix: 
-      ubuntu-20.04: 
-        template: ubuntu-20.04
-  steps:
-  - checkout: self
-  - checkout: basecatlets
-
-  - task: CmdLine@2
-    inputs:
-      script: 'mkdir $(Build.SourcesDirectory)\basecatlets-hyperv\builds'
-    
-  - task: PowerShell@2
-    retryCountOnTaskFailure: 3
-    inputs:
-      filePath: '.\eryph-genes\build.ps1'
-      arguments: '-Filter $(template) -BuildPath $(Build.SourcesDirectory)\basecatlets-hyperv\builds'
-
 - job: build
   dependsOn: Init
   strategy:
