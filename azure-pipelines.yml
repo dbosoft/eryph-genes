@@ -32,6 +32,11 @@ jobs:
   steps:
   - checkout: self
   - checkout: basecatlets
+
+  - task: CmdLine@2
+    inputs:
+      script: 'mkdir $(Build.SourcesDirectory)\basecatlets-hyperv\builds'
+    
   - task: PowerShell@2
     retryCountOnTaskFailure: 3
     inputs:
@@ -48,6 +53,10 @@ jobs:
   steps:
   - checkout: self
   - checkout: basecatlets
+  - task: CmdLine@2
+    inputs:
+      script: 'mkdir $(Build.SourcesDirectory)\basecatlets-hyperv\builds'
+    
   - task: PowerShell@2
     inputs:
       filePath: '.\eryph-genes\build.ps1'
