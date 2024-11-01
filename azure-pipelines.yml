@@ -24,6 +24,7 @@ jobs:
 
 - job: build
   dependsOn: Init
+  timeoutInMinutes: 120
   strategy:
     maxParallel: 1
     matrix: 
