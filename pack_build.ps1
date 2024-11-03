@@ -83,4 +83,6 @@ $keys | ForEach-Object {
     if($RemoveBuild){
         Remove-Item -Path $buildGeneset -Recurse -Force
     }
+
+    Write-Output packTarget
 }

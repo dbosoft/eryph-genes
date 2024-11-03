@@ -7,6 +7,7 @@ param (
     [Parameter(Mandatory=$true)]
     [string] $GenepoolPath,
 
+    [Parameter(Mandatory=$true)]
     [string] $OsType
 )
 $InformationPreference= 'Continue'
@@ -26,6 +27,9 @@ Write-Host "Geneset source path: $GenesetPackagedPath"
 $gensetTargetPath = Join-Path $GenepoolPath $Geneset.Replace('/', '\')
 Write-Host "Geneset target path: $gensetTargetPath"
 
+Write-Information "Removing previous test catlet (if any)" -InformationAction Continue
+Get-Catlet | Where-Object Name -eq catlettest| Remove-Catlet -Force
+
 if(Test-Path $gensetTargetPath -PathType Container){
     Write-Warning "Removing existing geneset tag from genepool" -InformationAction Continue
     Remove-Item $gensetTargetPath -Recurse -Force
@@ -37,11 +41,7 @@ if((Test-Path $gensetTargetPath) -eq $false) {
 
 Copy-Item $GenesetPackagedPath\*  -Destination $gensetTargetPath -Force -Recurse
 
-
 $template = Get-Content tests\$osType.yaml -Raw
-
-Write-Information "Removing previous test catlet (if any)" -InformationAction Continue
-Get-Catlet | Where-Object Name -eq catlettest| Remove-Catlet -Force
 $cutTemplate = $template.Replace("{{cut}}", $Geneset)
 
 Write-Information "Building test catlet" -InformationAction Continue
@@ -75,7 +75,19 @@ if($OsType -eq "windows"){
     $plainPassword = "InitialPassw0rd"
     $securePassword = ConvertTo-SecureString -String $plainPassword -AsPlainText -Force
     $Credentials = New-Object System.Management.Automation.PSCredential("Admin", $securePassword)
-    $session = new-PSSession -ComputerName $ip -Credential $Credentials -UseSSL -Authentication Basic -SessionOption $opt
+
+    $stopwatch.Restart()
+    do{
+        $session = new-PSSession -ComputerName $ip `
+                -Credential $Credentials -UseSSL -Authentication Basic `
+                -SessionOption $opt -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 10
+        Write-Information "Waiting for remote session..." -InformationAction Continue
+        if($stopwatch.Elapsed.TotalMinutes -gt 10){
+            Write-Error "Timeout waiting for remote session"
+            exit -1
+        }
+    } until ($session)
 
     Invoke-Command -Session $session -scriptblock {
        

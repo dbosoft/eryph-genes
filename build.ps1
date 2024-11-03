@@ -48,8 +48,14 @@ $keys | ForEach-Object {
 
     & $BuildScript -Filter $TemplateName
     Set-Location $PSScriptRoot
-    .\.\pack_build.ps1 $TemplateName -BuildPath $resolvedBuildPath -RemoveBuild
-    .\.\test-packed.ps1 -Geneset $TemplateName -GenepoolPath $GenepoolPath -OsType $osType
+    $packed = .\.\pack_build.ps1 $TemplateName -BuildPath $resolvedBuildPath -RemoveBuild
+
+    if((Test-Path $packed -PathType Container) -eq $false){
+        Write-Warning "Could not find packed build $packed"
+        return
+    }
+
+    .\.\test_packed.ps1 -Geneset $packed -GenepoolPath $GenepoolPath -OsType $osType
 }
 }finally{
     pop-Location
