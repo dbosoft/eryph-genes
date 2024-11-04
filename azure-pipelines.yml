@@ -22,34 +22,16 @@ jobs:
         informationPreference: 'continue'
         verbosePreference: 'continue'
 
-- job: buildretry
-  dependsOn: Init
-  strategy:
-    maxParallel: 1
-    matrix: 
-      ubuntu-20.04: 
-        template: ubuntu-20.04
-  steps:
-  - checkout: self
-  - checkout: basecatlets
-
-  - task: CmdLine@2
-    inputs:
-      script: 'mkdir $(Build.SourcesDirectory)\basecatlets-hyperv\builds'
-    
-  - task: PowerShell@2
-    retryCountOnTaskFailure: 3
-    inputs:
-      filePath: '.\eryph-genes\build.ps1'
-      arguments: '-Filter $(template) -BuildPath $(Build.SourcesDirectory)\basecatlets-hyperv\builds'
-
 - job: build
   dependsOn: Init
+  timeoutInMinutes: 120
   strategy:
     maxParallel: 1
     matrix: 
-      ubuntu-22.04: 
-        template: ubuntu-22.04
+      ubuntu-23.04: 
+        template: ubuntu-23.04        
+      winsrv2022-standard: 
+        template: winsrv2022-standard
   steps:
   - checkout: self
   - checkout: basecatlets
