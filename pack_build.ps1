@@ -56,16 +56,16 @@ $keys | ForEach-Object {
         $geneSetPath = split-path $packTargetPath -parent
 
         if((Test-Path $geneSetPath) -ne $true){
-            & eryph-packer geneset init $packTarget --public --workdir genes
+            & eryph-packer geneset init $packTarget --public --workdir genes | Out-Null
         }
 
         if((Test-Path $packTargetPath) -ne $true){
-            & eryph-packer geneset-tag init $packTarget  --workdir genes
+            & eryph-packer geneset-tag init $packTarget  --workdir genes  | Out-Null
         }
         
-        & eryph-packer geneset-tag add-vm $packTarget $buildGeneset  --workdir genes  
-        & eryph-packer geneset-tag pack $packTarget --workdir genes    
-        git add $geneSetPath
+        & eryph-packer geneset-tag add-vm $packTarget $buildGeneset  --workdir genes   | Out-Null
+        & eryph-packer geneset-tag pack $packTarget --workdir genes   | Out-Null  
+        git add $geneSetPath  | Out-Null
     }
 
     $updateTarget = $importSpec.update
@@ -76,13 +76,13 @@ $keys | ForEach-Object {
         if((Test-Path $updatePath) -ne $true){
             & eryph-packer geneset-tag init $updateTarget --workdir genes
         }
-        & eryph-packer geneset-tag ref $updateTarget $packTarget  --workdir genes
-        & eryph-packer geneset-tag pack $updateTarget --workdir genes  
+        & eryph-packer geneset-tag ref $updateTarget $packTarget  --workdir genes | Out-Null
+        & eryph-packer geneset-tag pack $updateTarget --workdir genes  | Out-Null
     }
 
     if($RemoveBuild){
         Remove-Item -Path $buildGeneset -Recurse -Force
     }
 
-    Write-Output packTarget
+    Write-Output $packTarget
 }

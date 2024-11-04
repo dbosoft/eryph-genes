@@ -3,3 +3,4 @@ compressed
 .packed/
 .ssh/sshkey
 .ssh/sshkey.pub
+node_modules/
