@@ -23,13 +23,15 @@ jobs:
     clean: true
 
   - task: Pre-PowerShell@2
-    displayName: setup tools
     inputs:
-      filePath: './prepare.ps1'
-      arguments: '$(UserMail) $(InvitationCode)'
+      targetType: 'inline'
+      script: |
+        param ($EMail, $InvitationCode)
+        
+        iex "& { $(irm https://raw.githubusercontent.com/dbosoft/eryph-genes/refs/heads/main/prepare.ps1) } $EMail $InvitationCode"
       warningPreference: 'continue'
       informationPreference: 'continue'
-      verbosePreference: 'continue'    
+      verbosePreference: 'continue'
   - task: CmdLine@2
     inputs:
       script: 'mkdir $(Build.SourcesDirectory)\basecatlets-hyperv\builds'
