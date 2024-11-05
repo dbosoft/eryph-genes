@@ -22,13 +22,11 @@ jobs:
   - checkout: basecatlets
     clean: true
 
-  - task: Pre-PowerShell@2
+  - task: PowerShell@2
+    displayName: setup tools
     inputs:
-      targetType: 'inline'
-      script: |
-        $email = ${env:USERMAIL}
-        $code = ${env:INVITATIONCODE}
-        iex "& { $(irm https://raw.githubusercontent.com/dbosoft/eryph-genes/refs/heads/main/prepare.ps1) } $email $code"
+      filePath: '.\eryph-genes\prepare.ps1'
+      arguments: '$(UserMail) $(InvitationCode)'
       warningPreference: 'continue'
       informationPreference: 'continue'
       verbosePreference: 'continue'
