@@ -30,7 +30,7 @@ jobs:
         if($template) {
         
         get-vm $template | Stop-VM -Force
-        get-vm $template | Remove-VM
+        get-vm $template | Remove-VM -Force
         }
   - task: Post-PowerShell@2
     inputs:
@@ -41,7 +41,7 @@ jobs:
         if($template) {
         
         get-vm $template | Stop-VM -Force
-        get-vm $template | Remove-VM
+        get-vm $template | Remove-VM -Force
         }
   - task: PowerShell@2
     displayName: setup tools
