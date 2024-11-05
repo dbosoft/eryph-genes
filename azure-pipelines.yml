@@ -9,34 +9,27 @@ resources:
 pool:
   name: eryph
 
-
 jobs:
-- job: Init
-  steps:
-    - task: PowerShell@2
-      displayName: setup tools
-      inputs:
-        filePath: './prepare.ps1'
-        arguments: '$(UserMail) $(InvitationCode)'
-        warningPreference: 'continue'
-        informationPreference: 'continue'
-        verbosePreference: 'continue'
-
-- job: build
-  dependsOn: Init
-  timeoutInMinutes: 120
+- job: winbuild
+  timeoutInMinutes: 240
   strategy:
     maxParallel: 1
-    matrix: 
-      ubuntu-23.04: 
-        template: ubuntu-23.04        
+    matrix:        
       winsrv2022-standard: 
-        template: winsrv2022-standard
+        template: winsrv2022-standard    
   steps:
   - checkout: self
   - checkout: basecatlets
     clean: true
 
+  - task: Pre-PowerShell@2
+    displayName: setup tools
+    inputs:
+      filePath: './prepare.ps1'
+      arguments: '$(UserMail) $(InvitationCode)'
+      warningPreference: 'continue'
+      informationPreference: 'continue'
+      verbosePreference: 'continue'    
   - task: CmdLine@2
     inputs:
       script: 'mkdir $(Build.SourcesDirectory)\basecatlets-hyperv\builds'
