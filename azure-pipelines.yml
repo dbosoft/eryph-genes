@@ -21,7 +21,28 @@ jobs:
   - checkout: self
   - checkout: basecatlets
     clean: true
-
+  - task: Pre-PowerShell@2
+    inputs:
+      targetType: 'inline'
+      script: |
+        $template = $env:template
+        
+        if($template) {
+        
+        get-vm $template | Stop-VM -Force
+        get-vm $template | Remove-VM
+        }
+  - task: Post-PowerShell@2
+    inputs:
+      targetType: 'inline'
+      script: |
+        $template = $env:template
+        
+        if($template) {
+        
+        get-vm $template | Stop-VM -Force
+        get-vm $template | Remove-VM
+        }
   - task: PowerShell@2
     displayName: setup tools
     inputs:
