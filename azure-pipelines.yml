@@ -25,7 +25,10 @@ jobs:
   - task: Pre-PowerShell@2
     inputs:
       targetType: 'inline'
-      script: 'iex "& { $(irm https://raw.githubusercontent.com/dbosoft/eryph-genes/refs/heads/main/prepare.ps1) } ${env:USERMAIL} ${env:INVITATIONCODE}"'
+      script: |
+        $email = ${env:USERMAIL}
+        $code = ${env:INVITATIONCODE}
+        iex "& { $(irm https://raw.githubusercontent.com/dbosoft/eryph-genes/refs/heads/main/prepare.ps1) } $email $code"
       warningPreference: 'continue'
       informationPreference: 'continue'
       verbosePreference: 'continue'
