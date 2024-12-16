@@ -9,22 +9,9 @@ resources:
 pool:
   name: eryph
 
-
 jobs:
-- job: Init
-  steps:
-    - task: PowerShell@2
-      displayName: setup tools
-      inputs:
-        filePath: './prepare.ps1'
-        arguments: '$(UserMail) $(InvitationCode)'
-        warningPreference: 'continue'
-        informationPreference: 'continue'
-        verbosePreference: 'continue'
-
 - job: build
-  dependsOn: Init
-  timeoutInMinutes: 120
+  timeoutInMinutes: 240
   strategy:
     maxParallel: 1
     matrix: 
@@ -37,12 +24,30 @@ jobs:
       winsrv2016-standard: 
         template: winsrv2016-standard               
       winsrv2022-standard: 
-        template: winsrv2022-standard 
+        template: winsrv2022-standard   
   steps:
   - checkout: self
   - checkout: basecatlets
     clean: true
-
+  - task: Pre-PowerShell@2
+    inputs:
+      targetType: 'inline'
+      script: |
+        $template = $env:template
+        
+        if($template) {
+        
+        get-vm $template -ErrorAction Continue | Stop-VM -Force
+        get-vm $template -ErrorAction Continue | Remove-VM -Force
+        }
+  - task: PowerShell@2
+    displayName: setup tools
+    inputs:
+      filePath: '.\eryph-genes\prepare.ps1'
+      arguments: '$(UserMail) $(InvitationCode)'
+      warningPreference: 'continue'
+      informationPreference: 'continue'
+      verbosePreference: 'continue'
   - task: CmdLine@2
     inputs:
       script: 'mkdir $(Build.SourcesDirectory)\basecatlets-hyperv\builds'
