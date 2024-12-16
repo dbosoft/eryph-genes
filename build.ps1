@@ -46,11 +46,17 @@ $keys | ForEach-Object {
 
     $osType = $importSpec.osType
 
-    & $BuildScript -Filter $TemplateName
-    Set-Location $PSScriptRoot
-    $packed = .\.\pack_build.ps1 $TemplateName -BuildPath $resolvedBuildPath -RemoveBuild
-    Set-Location $PSScriptRoot
-    .\.\test_packed.ps1 -Geneset $packed -GenepoolPath $GenepoolPath -OsType $osType
+    try{
+
+        & $BuildScript -Filter $TemplateName
+        Set-Location $PSScriptRoot
+        $packed = .\.\pack_build.ps1 $TemplateName -BuildPath $resolvedBuildPath -RemoveBuild
+        Set-Location $PSScriptRoot
+        .\.\test_packed.ps1 -Geneset $packed -GenepoolPath $GenepoolPath -OsType $osType
+
+    }catch{
+        Write-Error $_
+    }
 }
 }finally{
     pop-Location
