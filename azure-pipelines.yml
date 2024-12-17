@@ -15,8 +15,6 @@ jobs:
   strategy:
     maxParallel: 1
     matrix: 
-      ubuntu-20.04: 
-        template: ubuntu-20.04
       ubuntu-22.04: 
         template: ubuntu-22.04
       winsrv2019-standard: 
