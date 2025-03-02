@@ -1,14 +1,14 @@
 
-# Windows Server 2025 Standard
+# {{ manifest.short_description }}
 
-This geneset contains the base catlet for Windows Server 2025 Standard.
+This geneset contains the base catlet for {{ manifest.short_description }}.
 
 ## Usage
 
 The base catlet can be used as parent catlet like this
 
 ``` ps
-New-Catlet -Parent "dbosoft/winsrv2025-standard"
+New-Catlet -Parent "{{ geneset }}"
 ```
 
 However, this base catlet does not include a default user. 
@@ -17,7 +17,7 @@ You should therefore set up your own fodder to create an initial local user or t
 Alternatively, you can use the starter catlet, which creates a default user admin with an initial password of "InitialPassw0rd".
 
 ``` ps
-New-Catlet -Parent "dbosoft/winsrv2025-standard/starter"
+New-Catlet -Parent "{{ geneset }}/starter"
 ```
 
 See also https://genepool.eryph.io/b/dbosoft/starter-food for other defaults and options for starter food. 

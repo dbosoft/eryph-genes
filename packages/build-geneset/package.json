@@ -1,0 +1,21 @@
+{
+  "name": "@dbosoft/build-geneset",
+  "private": true,
+  "bin": {
+    "build-geneset": "./dist/build-geneset/index.js",
+    "build-geneset-tag": "./dist/build-geneset-tag/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/**"
+  },
+  "dependencies": {
+    "find-monorepo-root": "^1.0.3",
+    "glob": "^11.0.1",
+    "handlebars": "^4.7.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.8",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.2"
+  }
+}

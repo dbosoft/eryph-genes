@@ -12,12 +12,12 @@ variables:
 fodder:
 - name: admin-windows
   type: cloud-config
-  secure: true
+  secret: true
   content: |
     users:
-      - name: '{{ AdminUsername }}'
+      - name: {{ AdminUsername }}
         groups: [ "Administrators" ]
-        passwd: '{{ AdminPassword }}'
+        passwd: {{ AdminPassword }}
 
 - name: remote-desktop
   type: shellscript

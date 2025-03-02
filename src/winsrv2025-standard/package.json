@@ -1,12 +1,13 @@
 {
-  "name": "@dbosoft/hyperv",
+  "name": "@dbosoft/winsrv2025-standard",
   "private": true,
   "scripts": {
     "build": "build-geneset",
     "publish": "build-geneset publish"
   },
   "dependencies": {
-    "@dbosoft/hyperv-default": "workspace:*"
+    "templates": "workspace:*",
+    "@dbosoft/win-starter-catlet": "workspace:*"
   },
   "devDependencies": {
     "@dbosoft/build-geneset": "workspace:*"

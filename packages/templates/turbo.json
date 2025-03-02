@@ -1,13 +1,14 @@
 {
     "$schema": "https://turbo.build/schema.json",
+    "extends": ["//"],
     "tasks": {
       "build": {
         "dependsOn": ["^build"],
-        "outputs": ["dist/**"]
+        "outputs": []
       },
       "publish": {
         "dependsOn": ["^publish"],
-        "outputs": ["dist/**"]
+        "outputs": []
       },
       "dev": {
         "persistent": true,

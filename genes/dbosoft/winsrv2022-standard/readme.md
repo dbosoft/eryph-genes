@@ -28,6 +28,6 @@ See also https://genepool.eryph.io/b/dbosoft/starter-food for other defaults and
 All base catlets from dbosoft contain no valid windows license and are build using a evaluation image.
 This means that the license will expire after some time since the initial build and will need to be rearmed (see https://sid-500.com/2017/08/08/windows-server-2016-evaluation-how-to-extend-the-trial-period/).
 
-However you should not use the windows base catlets in production. 
+However you should not use the windows base catlets in production.
 
 Instead, it is recommended that you create your own base catlet with Windows activation enabled. You can use the https://github.com/eryph-org/basecatlets-hyperv project as a starting point for your own base catlets and customizations. See the cloudbase init documentation for supported methods to activate windows: https://cloudbase-init.readthedocs.io/en/latest/plugins.html#licensing-main

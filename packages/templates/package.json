@@ -1,0 +1,8 @@
+{
+  "name": "templates",
+  "private": true,
+  "scripts": {
+    "build": "",
+    "publish": ""
+  }
+}

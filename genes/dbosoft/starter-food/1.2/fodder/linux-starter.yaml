@@ -1,3 +1,4 @@
+ 
 name: linux-starter
 
 variables:
@@ -20,10 +21,10 @@ fodder:
   secret: true
   content: |
     users:
-    - name: '{{ username }}'
-      plain_text_passwd: '{{ password }}'
-      groups: adm
+    - name: {{ username }}
+      plain_text_passwd: {{ password }}
+      group: admin
       lock_passwd: {{ lockPassword }}
       sudo: 'ALL=(ALL) NOPASSWD: ALL'
       ssh_authorized_keys:
-      - '{{ sshPublicKey }}'
+      - {{ sshPublicKey }}

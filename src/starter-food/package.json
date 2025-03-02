@@ -1,12 +1,12 @@
 {
-  "name": "@dbosoft/hyperv",
+  "name": "@dbosoft/starter-food",
   "private": true,
   "scripts": {
     "build": "build-geneset",
     "publish": "build-geneset publish"
   },
   "dependencies": {
-    "@dbosoft/hyperv-default": "workspace:*"
+    "@dbosoft/starter-food-default": "workspace:*"
   },
   "devDependencies": {
     "@dbosoft/build-geneset": "workspace:*"

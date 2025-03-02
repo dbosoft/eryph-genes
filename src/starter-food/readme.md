@@ -28,22 +28,22 @@ fodder:
 The starter food linux-starter contains a default user configuration with username admin and password admin. 
 Following variables can be used to configure the defaults:
 
-- username
+- username  
   default value: admin
   
   Name of the created user
 
-- name: password
+- name: password  
   default value: admin
 
   Password of the created user
 
-- lockPassword
+- lockPassword  
   default value: false    
 
   Boolean value to disable password login - to be used to disable password with public key login enabled only - see sshPublicKey
 
-- sshPublicKey
+- sshPublicKey  
   
   Optional value for a ssh public key (as a string), that will be configured for created user as ssh key.
 
