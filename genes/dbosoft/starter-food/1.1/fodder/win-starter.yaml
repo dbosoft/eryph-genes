@@ -12,8 +12,8 @@ variables:
 fodder:
 - name: admin-windows
   type: cloud-config
-  secure: true
-  content: |
+  secret: true
+  content:
     users:
       - name: {{ AdminUsername }}
         groups: [ "Administrators" ]
@@ -21,8 +21,8 @@ fodder:
 
 - name: remote-desktop
   type: shellscript
-  fileName: enable_rd.ps1  #this is only required due to a bug in cloudbase-init
-  content: |
+  filename: enable_rd.ps1  #this is only required due to a bug in cloudbase-init
+  content: 
     #ps1
     Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\" -Name "fDenyTSConnections" -Value 0
     Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp\" -Name "UserAuthentication" -Value 1
@@ -30,7 +30,7 @@ fodder:
 
 - name: ssh-server
   type: shellscript
-  fileName: enable_sshd.ps1  #this is only required due to a bug in cloudbase-init
+  filename: enable_sshd.ps1  #this is only required due to a bug in cloudbase-init
   content: |
     Get-WindowsCapability -Online | Where-Object Name -like 'OpenSSH.Server*' | Add-WindowsCapability -Online
     

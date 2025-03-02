@@ -1,0 +1,4 @@
+ 
+parent: dbosoft/ubuntu-23.04/latest
+fodder:
+ - source: gene:dbosoft/starter-food:linux-starter

@@ -2,7 +2,7 @@ name: win-starter
 fodder:
 - name: admin-windows
   type: cloud-config
-  secure: true
+  secret: true
   content: |
     users:
       - name: Admin
