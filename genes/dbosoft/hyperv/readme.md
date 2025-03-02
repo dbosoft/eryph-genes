@@ -2,4 +2,4 @@
 
 This is the geneset dbosoft/hyperv.
 
-The latest tag is dbosoft/hyperv/next.
+The latest tag is dbosoft/hyperv/1.2.

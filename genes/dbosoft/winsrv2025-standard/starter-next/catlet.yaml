@@ -1,5 +1,0 @@
- 
-parent: dbosoft/winsrv2025-standard/latest
-fodder:
- - source: gene:dbosoft/starter-food:win-starter
-
