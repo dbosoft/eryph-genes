@@ -21,6 +21,13 @@
             "dbosoft/ubuntu-23.04/latest" 
         ]
     }},
+    {"ubuntu-24.04": {
+        "osType": "linux",
+        "pack": "dbosoft/ubuntu-24.04/{date}",        
+        "update": [ 
+            "dbosoft/ubuntu-24.04/latest" 
+        ]
+    }},    
     {"winsrv2016-standard": {
         "osType": "windows",
         "pack": "dbosoft/winsrv2016-standard/{date}",        
@@ -117,6 +124,13 @@
         "pack": "dbosoft/win11-22h2-enterprise/{date}",        
         "update": [ 
             "dbosoft/win11-22h2-enterprise/latest" 
+        ]
+    }},
+    {"win11-24h2-enterprise": {
+        "osType": "windows",
+        "pack": "dbosoft/win11-24h2-enterprise/{date}",        
+        "update": [ 
+            "dbosoft/win11-24h2-enterprise/latest" 
         ]
     }}
 ]
