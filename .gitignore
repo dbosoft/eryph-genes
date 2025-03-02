@@ -4,3 +4,8 @@ compressed
 .ssh/sshkey
 .ssh/sshkey.pub
 node_modules/
+
+.vscode/
+.ssh/
+.turbo
+dist

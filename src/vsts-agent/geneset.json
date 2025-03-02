@@ -1,0 +1,6 @@
+{
+  "geneset": "dbosoft/vsts-agent",
+  "public": true,
+  "short_description": "Azure DevOps agent catlet",
+  "description": "Catlet that configures itself as Azure DevOps agent"
+}

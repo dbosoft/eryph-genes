@@ -1,0 +1,23 @@
+{
+  "name": "build-genes",
+  "private": true,
+  "bin": {
+    "build-tag": "./dist/build-tag/index.js",
+    "build-geneset": "./dist/build-geneset/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/**"
+  },
+  "dependencies": {
+    "@npmcli/package-json": "^6.1.1",
+    "@types/node": "^22.13.8",
+    "@types/npmcli__package-json": "^4.0.4",
+    "gulp": "^5.0.0",
+    "gulp-using": "^0.1.1"
+  },
+  "devDependencies": {
+    "@types/gulp": "^4.0.17",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.2"
+  }
+}

@@ -8,7 +8,10 @@ param (
     [string] $GenepoolPath,
 
     [Parameter(Mandatory=$true)]
-    [string] $OsType
+    [string] $OsType,
+
+    [Parameter(Mandatory=$false)]
+    [switch] $KeepVM
 )
 $InformationPreference= 'Continue'
 $ErrorActionPreference = 'Stop'
@@ -120,7 +123,7 @@ else{
             -Command 'ls /' `
             -Hostname $ip `
             -Username  'admin' `
-            -KeyFilePath $sshKeyPath
+            -KeyFilePath $sshKeyPath   
         if (!$finished) {
             $finished = ""
         }        
@@ -130,6 +133,13 @@ else{
 }
 
 Write-Information "Test for $Geneset completed - cleaning up" -InformationAction Continue
+
+if($KeepVM){
+    Write-Information "Keeping VM as requsted..." -InformationAction Continue
+    return
+}
+
+
 $cut | Remove-Catlet -Force
 
 

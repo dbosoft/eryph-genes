@@ -1,0 +1,13 @@
+{
+  "name": "@dbosoft/hyperv",
+  "private": true,
+  "scripts": {
+    "build": "build-geneset"
+  },
+  "dependencies": {
+    "@dbosoft/hyperv_default": "workspace:*"
+  },
+  "devDependencies": {
+    "build-genes": "workspace:*"
+  }
+}

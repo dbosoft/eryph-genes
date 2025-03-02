@@ -9,5 +9,6 @@ fodder:
   type: shellscript
   filename: enable_access.ps1
   content: |
+    Get-NetConnectionProfile | Set-NetConnectionProfile -NetworkCategory Private
     Enable-PSRemoting -Force
-    Get-NetFirewallRule -name *ICMP4* | Set-NetFirewallRule -Enabled True
+    Get-NetFirewallRule -name *ICMP4* | Set-NetFirewallRule -Enabled True -Profile Private

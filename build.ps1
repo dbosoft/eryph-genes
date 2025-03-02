@@ -40,6 +40,7 @@ $keys | ForEach-Object {
     $importSpec = $importSpecs.$_
     $TemplateName = $_
 
+
     if($Filter -and $TemplateName -notlike $Filter){
         return
     }
@@ -55,7 +56,9 @@ $keys | ForEach-Object {
         .\.\test_packed.ps1 -Geneset $packed -GenepoolPath $GenepoolPath -OsType $osType
 
     }catch{
-        Write-Error $_
+        $ErrorActionPreference = 'Continue'
+        Write-Error $_ 
+        $ErrorActionPreference = 'Stop'
     }
 }
 }finally{

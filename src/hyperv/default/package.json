@@ -1,0 +1,11 @@
+{
+  "name": "@dbosoft/hyperv_default",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "build-tag"
+  },
+  "devDependencies": {
+    "build-genes": "workspace:*"
+  }
+}
