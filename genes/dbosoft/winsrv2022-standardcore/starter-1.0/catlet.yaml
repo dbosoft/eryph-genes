@@ -1,0 +1,5 @@
+ 
+parent: dbosoft/winsrv2022-standardcore/latest
+fodder:
+ - source: gene:dbosoft/starter-food:win-starter
+

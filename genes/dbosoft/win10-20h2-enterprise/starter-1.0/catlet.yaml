@@ -1,0 +1,5 @@
+ 
+parent: dbosoft/win10-20h2-enterprise/latest
+fodder:
+ - source: gene:dbosoft/starter-food:win-starter
+

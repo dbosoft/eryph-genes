@@ -1,0 +1,7 @@
+{
+  "version": "1.1",
+  "geneset": "dbosoft/win11-21h1-enterprise",
+  "public": true,
+  "short_description": "win11-21h1-enterprise",
+  "description_markdown_file": "readme.md"
+}

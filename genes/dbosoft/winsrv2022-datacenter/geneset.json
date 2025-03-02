@@ -1,0 +1,7 @@
+{
+  "version": "1.1",
+  "geneset": "dbosoft/winsrv2022-datacenter",
+  "public": true,
+  "short_description": "winsrv2022-datacenter",
+  "description_markdown_file": "readme.md"
+}

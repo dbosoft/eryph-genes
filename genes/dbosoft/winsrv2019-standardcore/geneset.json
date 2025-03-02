@@ -1,0 +1,7 @@
+{
+  "version": "1.1",
+  "geneset": "dbosoft/winsrv2019-standardcore",
+  "public": true,
+  "short_description": "winsrv2019-standardcore",
+  "description_markdown_file": "readme.md"
+}

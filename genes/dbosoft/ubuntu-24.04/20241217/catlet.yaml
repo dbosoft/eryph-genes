@@ -1,7 +1,7 @@
 cpu:
   count: 2
 memory:
-  startup: 4096
+  startup: 2048
 drives:
 - name: sda
 network_adapters:
@@ -9,4 +9,4 @@ network_adapters:
 capabilities:
 - name: secure_boot
   details:
-  - Template:MicrosoftWindows
+  - Template:MicrosoftUEFICertificateAuthority
