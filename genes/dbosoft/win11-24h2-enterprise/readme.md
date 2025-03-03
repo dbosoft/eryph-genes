@@ -24,7 +24,7 @@ New-Catlet -Parent "dbosoft/win11-24h2-enterprise/starter"
 
 See also [starter-food](/b/dbosoft/starter-food) for other defaults and variables for starter food. 
   
-
+&nbsp; 
 
 ## Windows license
 
@@ -48,7 +48,6 @@ You can use the [eryph-org/basecatlets-hyperv](https://github.com/eryph-org/base
 
 ----
 
-
 # Versioning
 
 This geneset contains 2 kinds of tags:
@@ -61,9 +60,7 @@ This geneset contains 2 kinds of tags:
   Starter catlets are versioned with a major-minor version scheme.
 
   The started catlets are very light and contain only reference to the base catlet and the starter food.
-  
-&nbsp;  
-  
+
 
 
 ----
@@ -74,7 +71,6 @@ This geneset is maintained by dbosoft and is open for contributions.
 
 You can find the repository for this geneset on [github.com/dbosoft/eryph-genes](https://github.com/dbosoft/eryph-genes).  
 
-  
   
 
 # License

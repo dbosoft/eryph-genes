@@ -1,5 +1,5 @@
 {
-  "name": "@dbosoft/hyperv",
+  "name": "@dbosoft/ubuntu-22-04",
   "private": true,
   "scripts": {
     "build": "build-geneset",
@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "templates": "workspace:*",
-    "@dbosoft/hyperv-default": "workspace:*"
+    "@dbosoft/linux-starter-catlet": "workspace:*"
   },
   "devDependencies": {
     "@dbosoft/build-geneset": "workspace:*"

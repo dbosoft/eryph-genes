@@ -45,6 +45,9 @@ importers:
       '@dbosoft/hyperv-default':
         specifier: workspace:*
         version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
     devDependencies:
       '@dbosoft/build-geneset':
         specifier: workspace:*
@@ -55,6 +58,12 @@ importers:
       '@dbosoft/build-geneset':
         specifier: workspace:*
         version: link:../../../packages/build-geneset
+
+  src/linux-starter-catlet:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
 
   src/starter-food:
     dependencies:
@@ -74,6 +83,58 @@ importers:
       '@dbosoft/build-geneset':
         specifier: workspace:*
         version: link:../../../packages/build-geneset
+
+  src/ubuntu-20-04:
+    dependencies:
+      '@dbosoft/linux-starter-catlet':
+        specifier: workspace:*
+        version: link:../linux-starter-catlet
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/ubuntu-22-04:
+    dependencies:
+      '@dbosoft/linux-starter-catlet':
+        specifier: workspace:*
+        version: link:../linux-starter-catlet
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/ubuntu-23-04:
+    dependencies:
+      '@dbosoft/linux-starter-catlet':
+        specifier: workspace:*
+        version: link:../linux-starter-catlet
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/ubuntu-24-04:
+    dependencies:
+      '@dbosoft/linux-starter-catlet':
+        specifier: workspace:*
+        version: link:../linux-starter-catlet
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
 
   src/win-starter-catlet:
     devDependencies:

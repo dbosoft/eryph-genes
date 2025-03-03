@@ -108,7 +108,6 @@ This geneset is maintained by dbosoft and is open for contributions.
 You can find the repository for this geneset on [github.com/dbosoft/eryph-genes](https://github.com/dbosoft/eryph-genes).  
 
   
-  
 
 # License
 

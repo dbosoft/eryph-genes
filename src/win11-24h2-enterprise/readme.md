@@ -1,3 +1,3 @@
 {{> windows-basecatlet }}
 
-{{> windows-basecatlet-footer }}
+{{> basecatlet-footer }}

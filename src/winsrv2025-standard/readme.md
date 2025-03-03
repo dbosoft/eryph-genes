@@ -2,4 +2,4 @@
 
 {{> windows-basecatlet-server }}
 
-{{> windows-basecatlet-footer }}
+{{> basecatlet-footer }}

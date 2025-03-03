@@ -1,4 +1,0 @@
- 
-parent: {{parent}}
-fodder:
- - source: gene:dbosoft/starter-food:linux-starter
