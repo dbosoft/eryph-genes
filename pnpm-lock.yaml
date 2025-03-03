@@ -61,6 +61,9 @@ importers:
       '@dbosoft/starter-food-default':
         specifier: workspace:*
         version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
     devDependencies:
       '@dbosoft/build-geneset':
         specifier: workspace:*
@@ -73,6 +76,19 @@ importers:
         version: link:../../../packages/build-geneset
 
   src/win-starter-catlet:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/win11-24h2-enterprise:
+    dependencies:
+      '@dbosoft/win-starter-catlet':
+        specifier: workspace:*
+        version: link:../win-starter-catlet
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
     devDependencies:
       '@dbosoft/build-geneset':
         specifier: workspace:*

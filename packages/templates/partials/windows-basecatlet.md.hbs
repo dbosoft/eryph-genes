@@ -11,23 +11,36 @@ The base catlet can be used as parent catlet like this
 New-Catlet -Parent "{{ geneset }}"
 ```
 
-However, this base catlet does not include a default user. 
-You should therefore set up your own fodder to create an initial local user or to join a domain. 
+This base catlet does not include a default user.  
+You should therefore set up your own fodder to create an initial local user or to automatically join a domain.  
 
-Alternatively, you can use the starter catlet, which creates a default user admin with an initial password of "InitialPassw0rd".
+Alternatively, you can use the Starter Catlet, which creates a default admin user with an initial password of "InitialPassw0rd".
+
 
 ``` ps
 New-Catlet -Parent "{{ geneset }}/starter"
 ```
 
-See also https://genepool.eryph.io/b/dbosoft/starter-food for other defaults and options for starter food. 
+
+See also [starter-food](/b/dbosoft/starter-food) for other defaults and variables for starter food. 
+  
 
 
 ## Windows license
 
-All base catlets from dbosoft contain no valid windows license and are build using a evaluation image.
-This means that the license will expire after some time since the initial build and will need to be rearmed (see https://sid-500.com/2017/08/08/windows-server-2016-evaluation-how-to-extend-the-trial-period/).
+All base catlets from dbosoft contain no valid windows license and are build using a evaluation image.  
+This means that the license will expire after some time since the initial build and will need to be rearmed (see also [here](https://sid-500.com/2017/08/08/windows-server-2016-evaluation-how-to-extend-the-trial-period/)).
 
-However you should not use the windows base catlets in production.
+If the catlet can access the Internet at startup, the automatic activation will be activated for 90-180 days (depending on the Windows version).  
+  
+&nbsp;  
+Legal note: By activating the Windows license, you also accept the Windows evaluation license.   
+&nbsp;  
+  
+**You should not use the windows base catlets in production.**
+&nbsp;  
 
-Instead, it is recommended that you create your own base catlet with Windows activation enabled. You can use the https://github.com/eryph-org/basecatlets-hyperv project as a starting point for your own base catlets and customizations. See the cloudbase init documentation for supported methods to activate windows: https://cloudbase-init.readthedocs.io/en/latest/plugins.html#licensing-main
+Instead, it is recommended that you create your own base catlet that contains or activates your own license.  
+&nbsp;  
+You can use the [eryph-org/basecatlets-hyperv](https://github.com/eryph-org/basecatlets-hyperv) project as a starting point for your own base catlets and customizations. 
+

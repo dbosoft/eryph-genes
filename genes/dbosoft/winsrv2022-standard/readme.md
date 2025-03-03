@@ -11,23 +11,103 @@ The base catlet can be used as parent catlet like this
 New-Catlet -Parent "dbosoft/winsrv2022-standard"
 ```
 
-However, this base catlet does not include a default user. 
-You should therefore set up your own fodder to create an initial local user or to join a domain. 
+This base catlet does not include a default user.  
+You should therefore set up your own fodder to create an initial local user or to automatically join a domain.  
 
-Alternatively, you can use the starter catlet, which creates a default user admin with an initial password of "InitialPassw0rd".
+Alternatively, you can use the Starter Catlet, which creates a default admin user with an initial password of "InitialPassw0rd".
+
 
 ``` ps
 New-Catlet -Parent "dbosoft/winsrv2022-standard/starter"
 ```
 
-See also https://genepool.eryph.io/b/dbosoft/starter-food for other defaults and options for starter food. 
+
+See also [starter-food](/b/dbosoft/starter-food) for other defaults and variables for starter food. 
+  
 
 
 ## Windows license
 
-All base catlets from dbosoft contain no valid windows license and are build using a evaluation image.
-This means that the license will expire after some time since the initial build and will need to be rearmed (see https://sid-500.com/2017/08/08/windows-server-2016-evaluation-how-to-extend-the-trial-period/).
+All base catlets from dbosoft contain no valid windows license and are build using a evaluation image.  
+This means that the license will expire after some time since the initial build and will need to be rearmed (see also [here](https://sid-500.com/2017/08/08/windows-server-2016-evaluation-how-to-extend-the-trial-period/)).
 
-However you should not use the windows base catlets in production.
+If the catlet can access the Internet at startup, the automatic activation will be activated for 90-180 days (depending on the Windows version).  
+  
+&nbsp;  
+Legal note: By activating the Windows license, you also accept the Windows evaluation license.   
+&nbsp;  
+  
+**You should not use the windows base catlets in production.**
+&nbsp;  
 
-Instead, it is recommended that you create your own base catlet with Windows activation enabled. You can use the https://github.com/eryph-org/basecatlets-hyperv project as a starting point for your own base catlets and customizations. See the cloudbase init documentation for supported methods to activate windows: https://cloudbase-init.readthedocs.io/en/latest/plugins.html#licensing-main
+Instead, it is recommended that you create your own base catlet that contains or activates your own license.  
+&nbsp;  
+You can use the [eryph-org/basecatlets-hyperv](https://github.com/eryph-org/basecatlets-hyperv) project as a starting point for your own base catlets and customizations. 
+
+
+
+----    
+  
+# General Information
+
+## Server Catlets Naming Convention
+
+The naming convention for the server catlets is as follows:
+
+`winsrv<version>-<edition>`
+  
+&nbsp;  
+
+where
+
+- `<version>` is the Windows version, e.g. `2022` or `2025`
+- `<edition>` is the Windows edition, e.g. `standard`, `datacenter`, `standardcore`, `datacentercore`
+
+
+We currently only build the `standard` and `standardcore` editions regularly. Some genesets also have a `datacenter` edition. 
+
+
+## Monthly Builds
+
+We **plan** to build the server catlets monthly. The build date is part of the tag name.
+The tag `latest` is updated with each released version.  
+
+Currently the builds have to be triggered manually. We are working on automating this process. 
+
+
+
+----
+
+
+# Versioning
+
+This geneset contains 2 kinds of tags:
+
+- Base catlets  
+  Base catlets are versioned by a timestamp which is the build date of the catlet.  
+  The tag latest is updated with each released version. 
+
+- Starter catlets  
+  Starter catlets are versioned with a major-minor version scheme.
+
+  The started catlets are very light and contain only reference to the base catlet and the starter food.
+  
+&nbsp;  
+  
+
+
+----
+
+# Contributing
+
+This geneset is maintained by dbosoft and is open for contributions.  
+
+You can find the repository for this geneset on [github.com/dbosoft/eryph-genes](https://github.com/dbosoft/eryph-genes).  
+
+  
+  
+
+# License
+
+All public dbosoft genesets are licensed under the [MIT License](https://opensource.org/licenses/MIT).
+

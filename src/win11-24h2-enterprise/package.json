@@ -1,5 +1,5 @@
 {
-  "name": "@dbosoft/starter-food",
+  "name": "@dbosoft/win11-24h2-enterprise",
   "private": true,
   "scripts": {
     "build": "build-geneset",
@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "templates": "workspace:*",
-    "@dbosoft/starter-food-default": "workspace:*"
+    "@dbosoft/win-starter-catlet": "workspace:*"
   },
   "devDependencies": {
     "@dbosoft/build-geneset": "workspace:*"
