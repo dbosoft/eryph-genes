@@ -136,6 +136,44 @@ importers:
         specifier: workspace:*
         version: link:../../packages/build-geneset
 
+  src/vsts:
+    dependencies:
+      '@dbosoft/vsts-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/vsts-agent:
+    dependencies:
+      '@dbosoft/vsts-agent-win2022':
+        specifier: workspace:*
+        version: link:win2022
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/vsts-agent/win2022:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
+  src/vsts/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/win-starter-catlet:
     devDependencies:
       '@dbosoft/build-geneset':

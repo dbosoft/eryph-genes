@@ -2,5 +2,6 @@
   "geneset": "dbosoft/vsts",
   "public": true,
   "short_description": "VSTS / Azure DevOps Agent",
-  "description": "Genes for installing and configuring a VSTS / Azure DevOps agent"
+  "description": "Genes for installing and configuring a VSTS / Azure DevOps agent",
+  "description_markdown_file": "readme.md"
 }
