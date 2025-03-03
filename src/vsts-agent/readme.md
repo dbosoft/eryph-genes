@@ -17,7 +17,5 @@ The catlet requires some variables from the [dbosoft/vsts](/b/dbosoft/vsts) gene
 
 
 
-{{> food_versioning_major_minor }}
-
 {{> footer }}
 
