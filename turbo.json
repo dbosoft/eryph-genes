@@ -3,11 +3,11 @@
     "tasks": {
       "build": {
         "dependsOn": ["^build"],
-        "outputs": ["dist/**"]
+        "outputs": ["dist/**", "../../genes/**"]
       },
       "publish": {
         "dependsOn": ["^publish"],
-        "outputs": ["dist/**"]
+        "outputs": ["dist/**", "../../genes/**"]
       },
       "dev": {
         "persistent": true,
