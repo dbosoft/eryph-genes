@@ -69,8 +69,10 @@ async function main() {
 
     const filesGlob = './**/*.{md,md.hbs,yaml,yaml.hbs}'
 
-    const files = glob.sync(filesGlob, { absolute: false });
+    const files = glob.sync(filesGlob, { absolute: false, 
+        ignore: ['./node_modules/**', './dist/**'] });
     for (const file of files) {
+
         const srcPath = path.join('.', file);
         const destPath = path.join(destinationDir, file);
         const destDir = path.dirname(destPath);
