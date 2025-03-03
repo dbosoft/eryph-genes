@@ -1,14 +1,14 @@
 
-# Windows 10 20H2 Enterprise
+# Windows 11 22H2 Enterprise
 
-This geneset contains the base catlet for Windows 10 20H2 Enterprise.
+This geneset contains the base catlet for Windows 11 22H2 Enterprise.
 
 ## Usage
 
 The base catlet can be used as parent catlet like this
 
 ``` ps
-New-Catlet -Parent "dbosoft/win10-20h2-enterprise"
+New-Catlet -Parent "dbosoft/win11-21h2-enterprise"
 ```
 
 This base catlet does not include a default user.  
@@ -18,7 +18,7 @@ Alternatively, you can use the Starter Catlet, which creates a default admin use
 
 
 ``` ps
-New-Catlet -Parent "dbosoft/win10-20h2-enterprise/starter"
+New-Catlet -Parent "dbosoft/win11-21h2-enterprise/starter"
 ```
 
 
