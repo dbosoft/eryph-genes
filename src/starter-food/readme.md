@@ -30,7 +30,7 @@ Linux starter food is in the fooder gene `linux-starter`  and contains currently
 
 ## Default user
 
-The starter food linux-starter contains a default user configuration with username admin and password admin. 
+The starter food admin-linux contains a default user configuration with username admin and password admin. 
 Following variables can be used to configure the defaults:
 
 - **username**  
@@ -62,7 +62,7 @@ If the entire gene is referenced all fodder configurations will be fed into the 
 
 ## Default user
 
-The starter food linux-starter contains a default user configuration with username admin and password admin. 
+The starter food admin-windows contains a default user configuration with username admin and password admin. 
 Following variables can be used to configure the defaults:
 
 - **AdminUsername**  
