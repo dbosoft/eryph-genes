@@ -2,6 +2,16 @@
 
 This geneset contains starter food that could be consumed by catlets for quick starts.
 
+## Default users and passwords in starter tags
+
+tldr - these are the default users and passwords when using a dbosoft starter tag:
+
+| OS      | Username | Password       |
+| --------| ---------| -------------- |
+| Linux   | admin    | admin          |
+| Windows | Admin    |InitialPassw0rd |
+
+
 ## Usage
 
 Dbosoft base catlets that supports starter food contain a tag "starter" that uses the latest base catlet version and latest starter food version. 
@@ -62,7 +72,7 @@ If the entire gene is referenced all fodder configurations will be fed into the 
 
 ## Default user
 
-The starter food admin-windows contains a default user configuration with username admin and password admin. 
+The starter food admin-windows contains a default user configuration with username admin and password 'InitialPassw0rd'. 
 Following variables can be used to configure the defaults:
 
 - **AdminUsername**  
