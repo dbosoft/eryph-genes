@@ -31,6 +31,30 @@ fodder:
  - source: gene:dbosoft/starter-food:linux-starter
 ```
 
+If you use the starter in your own catlets, you should also bind the variables to catlet variables. Here is an example that forces the Windows username and password to be set.
+
+```yaml
+
+# variables of catlet
+variables:
+  - name: Username
+    required: true
+  - name: Password
+    required: true
+    secret: true
+
+fodder:
+# bind your own variables to the variables of the fodder gene
+ - source: gene:dbosoft/starter-food:win-starter
+   variables:
+     - name: AdminUsername
+       value: "\{{ Username }}"
+     - name: AdminPassword
+       value: "\{{ Password }}"
+
+```
+
+
 -----
 
 # Linux starter food
