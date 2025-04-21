@@ -1,0 +1,41 @@
+name: setup
+
+variables:
+- name: dsc_cert_dn
+  value: "CN=DSC_Certificate"
+  required: true
+
+fodder:
+  - name: dsc-nuget
+    type: shellscript
+    filename: dsc_nuget.ps1
+    content: |
+        #ps1
+        
+        # enable nuget package provider
+        Get-PackageProvider NuGet -ForceBootstrap | Out-Null
+
+  - name: dsc-cert
+    type: shellscript
+    filename: dsc_cert.ps1
+    content: |
+        #ps1
+ 
+        # create a temporary self-signed certificate for DSC secure credentials
+
+        # Define the certificate parameters
+        $certSubject = "{{ dsc_cert_dn }}"
+        $certificateStore = "Cert:\LocalMachine\My"
+
+        # Check if the certificate already exists
+        $existingCert = Get-ChildItem -Path $certificateStore | Where-Object { $_.Subject -eq $certSubject }
+
+        if (-not $existingCert) {
+            # Create a new self-signed certificate
+            New-SelfSignedCertificate `
+                -DnsName "DSC_Certificate" `
+                -CertStoreLocation $certificateStore `
+                -KeyLength 2048 `
+                -KeyUsage DataEncipherment, KeyEncipherment `
+                -TextExtension @("2.5.29.37={text}1.3.6.1.4.1.311.80.1") | Out-Null
+         }         

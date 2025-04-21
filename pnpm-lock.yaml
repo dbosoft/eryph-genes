@@ -245,6 +245,25 @@ importers:
         specifier: workspace:*
         version: link:../../packages/build-geneset
 
+  src/windsc:
+    dependencies:
+      '@dbosoft/windsc-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/windsc/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/winsrv2022-standard:
     dependencies:
       '@dbosoft/win-starter-catlet':
