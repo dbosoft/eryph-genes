@@ -1,0 +1,7 @@
+{
+  "geneset": "dbosoft/windsc",
+  "public": true,
+  "short_description": "Windows DSC configuring",
+  "description": "Configuration for Windows DSC (Desired State Configuration)",
+  "description_markdown_file": "readme.md"
+}
