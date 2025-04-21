@@ -1,0 +1,38 @@
+# fodder to join a domain with domain admin credentials
+name: join-domain
+
+variables:
+    - name: domain_name
+      required: true
+    - name: domain_admin
+      required: true
+    - name: domain_admin_password
+      secret: true
+      required: true
+
+fodder:
+    - name: join-domain
+      type: shellscript
+      filename: join_domain.ps1
+      secret: true
+      content: |
+          #ps1
+
+          $newDomain = "{{ domain_name }}".ToLowerInvariant()
+          $currentDomain = (Get-WmiObject Win32_ComputerSystem).Domain
+          $currentDomain = $currentDomain.ToLowerInvariant()
+
+          if(currentDomain -eq $newDomain){
+            exit 0
+          }
+
+          Write-Information "Adding computer to domain $newDomain"
+          $Username = '{{ domain_admin }}'
+          $Password = '{{ domain_admin_password }}'
+          $securePassword = ConvertTo-SecureString -AsPlainText $Password -Force 
+          $domainCredential = New-Object System.Management.Automation.PSCredential ($username, $securePassword)
+
+          add-computer -DomainCredential $domainCredential -DomainName $newDomain -ErrorAction Stop
+
+          Write-Information "Rebooting"
+          exit 1003

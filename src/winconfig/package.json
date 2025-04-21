@@ -1,0 +1,15 @@
+{
+  "name": "@dbosoft/winconfig",
+  "private": true,
+  "scripts": {
+    "build": "build-geneset",
+    "publish": "build-geneset publish"
+  },
+  "dependencies": {
+    "templates": "workspace:*",
+    "@dbosoft/winconfig-default": "workspace:*"
+  },
+  "devDependencies": {
+    "@dbosoft/build-geneset": "workspace:*"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "geneset": "dbosoft/winconfig",
+  "public": true,
+  "short_description": "Windows Computer Configuration",
+  "description": "This geneset contains fodder genes for common configuration tasks of a Windows catlet.",
+  "description_markdown_file": "readme.md"
+}

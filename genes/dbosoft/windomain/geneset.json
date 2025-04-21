@@ -1,0 +1,7 @@
+{
+  "geneset": "dbosoft/windomain",
+  "public": true,
+  "short_description": "Windows Domain Configuration",
+  "description": "Configuration to set up a Windows Domain with Active Directory and DNS.",
+  "description_markdown_file": "readme.md"
+}

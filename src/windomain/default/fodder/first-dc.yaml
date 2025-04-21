@@ -1,0 +1,173 @@
+# fodder to create a first domain controller in a new forest
+name: first-dc
+
+variables:
+  - name: domain_name
+    required: true
+  - name: domain_admin
+    required: true
+  - name: domain_admin_password
+    secret: true
+    required: true
+  - name: safe_mode_password
+    secret: true
+    required: true
+  - name: forest_mode
+    required: true
+    value: WinThreshold
+  - name: domain_mode
+    required: true
+    value: WinThreshold    
+
+# requires gene:dbosoft/windsc:setup in catlet
+
+fodder:
+  - name: first-node
+    type: shellscript
+    secret: true
+    filename: dc_firstnode.ps1
+    content: |
+      #ps1
+
+      # certificate is only used to satisfy the DSC
+      # requirement to use a certificate for storing credentials in 
+      # MOF files. 
+
+      # setup will create a file c:\DCInstallStatus.txt that can be 
+      # waited for.
+
+      $certSubject = "CN=DSC_Certificate"
+      $certificateStore = "Cert:\LocalMachine\My"
+
+      $cert = Get-ChildItem -Path $certificateStore | Where-Object { $_.Subject -eq $certSubject }
+      Export-Certificate -Cert $cert -FilePath "c:\dc_dsccert.cer"
+
+      if (-not $cert) {
+          throw "Certificate with subject $certSubject not found. Ensure that catlet has gene dbosoft/windsc:setup"
+      }
+
+      $Username = '{{ domain_admin }}'
+      $Password = '{{ domain_admin_password }}'
+      $securePassword = ConvertTo-SecureString -AsPlainText $Password -Force 
+      $domainCredential = New-Object System.Management.Automation.PSCredential ($username, $securePassword)
+
+      $Password = '{{ safe_mode_password }}'
+      $securePassword = ConvertTo-SecureString -AsPlainText $Password -Force 
+      $saveModePwd = New-Object System.Management.Automation.PSCredential ('_', $securePassword)
+
+
+      $config = @'
+      Configuration DCInstall
+          {
+              param
+              (
+                  [Parameter(Mandatory = $true)]
+                  [ValidateNotNullOrEmpty()]
+                  [System.Management.Automation.PSCredential]
+                  $Credential,
+
+                  [Parameter(Mandatory = $true)]
+                  [ValidateNotNullOrEmpty()]
+                  [System.Management.Automation.PSCredential]
+                  $SafeModePassword
+              )
+
+              Import-DscResource -ModuleName PSDesiredStateConfiguration
+              Import-DscResource -ModuleName ActiveDirectoryDsc
+
+              node $AllNodes.NodeName
+              {
+                  WindowsFeature 'ADDS'
+                  {
+                      Name   = 'AD-Domain-Services'
+                      Ensure = 'Present'
+                  }
+
+                  WindowsFeature 'RSAT'
+                  {
+                      Name   = 'RSAT-AD-PowerShell'
+                      Ensure = 'Present'
+                  }
+
+                  ADDomain '{{ domain_name }}'
+                  {
+                      DomainName                    = '{{ domain_name }}'
+                      Credential                    = $Credential
+                      SafemodeAdministratorPassword = $SafeModePassword
+                      DomainMode                    = '{{ domain_mode }}' 
+                      ForestMode                    = '{{ forest_mode }}'
+                  }
+                  
+                  LocalConfigurationManager {
+                      CertificateId = $node.Thumbprint
+                  }
+              }
+          }
+      '@
+
+      Install-Module -Name ActiveDirectoryDsc -Force
+
+      Start-Transcript -Path c:\DCInstall.log -Append
+      $config | Out-File -FilePath c:\DCInstall.ps1 -Force
+
+      $ConfigData = @{
+          AllNodes = @(
+              @{
+                  NodeName        = "localhost"
+                  CertificateFile = "c:\dc_dsccert.cer"
+                  Thumbprint      = $cert.Thumbprint
+              };
+          );
+      }
+
+      cd c:\
+      . c:\DCInstall.ps1
+      DCInstall -Credential $domainCredential -SafeModePassword $saveModePwd `
+       -ConfigurationData $ConfigData
+
+      Set-DscLocalConfigurationManager .\DCInstall
+      Start-DscConfiguration -Path c:\DCInstall -Wait -Force -Verbose -ErrorAction Stop
+
+      $status = Get-DscConfigurationStatus
+
+      if($status.Status -eq "Success"){
+          "installed" | Out-File c:\DCInstallStatus.txt -Force
+
+          Remove-Item -Recurse c:\DCInstall
+          Remove-Item "c:\dc_dsccert.cer"
+          Remove-item "c:\DCInstall.ps1"
+
+          if($status.RebootRequested){
+              Write-Information "Rebooting"
+              exit 1003
+          }
+      }else{
+          "failed" | Out-File c:\DCInstallStatus.txt -Force
+
+          Remove-Item -Recurse c:\DCInstall
+          Remove-Item "c:\dc_dsccert.cer"
+          Remove-item "c:\DCInstall.ps1"
+      }
+
+  - name: ensure-is-domain-admin
+    type: shellscript
+    filename: ensure_domain_members.ps1
+    content: |
+      #ps1
+
+      # ensure that domain admin used is also in domain admins group
+      # this can be removed for more security, however in this case
+      # the domain admin user can only logon the the domain controller.
+
+      $username = "{{ domain_admin }}"
+      $groupName = "Domain Admins"
+      $group = [ADSI]"WinNT://$env:USERDOMAIN/$groupName,group"
+
+      # Check if the user is already a member of the group
+      if (-not $group.psbase.Invoke("IsMember", ([ADSI]"WinNT://$env:USERDOMAIN/$username").path)) {
+          # Add the user to the group
+          $group.Add("WinNT://$env:USERDOMAIN/$username")
+          Write-Host "User '$username' has been added to the '$groupName' group."
+      } else {
+          Write-Host "User '$username' is already a member of the '$groupName' group."
+      }

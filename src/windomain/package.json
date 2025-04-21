@@ -1,0 +1,15 @@
+{
+  "name": "@dbosoft/windomain",
+  "private": true,
+  "scripts": {
+    "build": "build-geneset",
+    "publish": "build-geneset publish"
+  },
+  "dependencies": {
+    "templates": "workspace:*",
+    "@dbosoft/windomain-default": "workspace:*"
+  },
+  "devDependencies": {
+    "@dbosoft/build-geneset": "workspace:*"
+  }
+}
