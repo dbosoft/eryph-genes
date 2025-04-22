@@ -38,7 +38,7 @@ fodder:
   filename: azure_agent.ps1
   content: |
     #ps1
-    wget https://vstsagentpackage.azureedge.net/agent/{{ agentVersion }}/vsts-agent-win-x64-{{ agentVersion }}.zip -outfile "c:\vsts-agent.zip" 
+    wget https://download.agent.dev.azure.com/agent/{{ agentVersion }}/vsts-agent-win-x64-{{ agentVersion }}.zip -outfile "c:\vsts-agent.zip" 
     Expand-Archive -Path c:\vsts-agent.zip -DestinationPath c:\a
     rm vsts-agent.zip
     cd c:\a
