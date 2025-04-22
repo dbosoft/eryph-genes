@@ -2,6 +2,13 @@
 
 This geneset contains fodder genes to install a DevOps agent in a catlet.
 
+## ⚠ Change of CDN URL ⚠
+Microsoft is changing the download URL for the VSTS agent (see
+https://devblogs.microsoft.com/devops/cdn-domain-url-change-for-agents-in-pipelines/).
+Versions 1.1 and older of this gene will stop working in May 2025.
+
+Please update to the latest version.
+
 ## Usage
 
 To use the fodder genes of this catlet include them into your catlet like this:
