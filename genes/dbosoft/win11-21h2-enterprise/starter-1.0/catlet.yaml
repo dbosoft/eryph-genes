@@ -1,0 +1,5 @@
+ 
+parent: dbosoft/win11-21h2-enterprise/latest
+fodder:
+ - source: gene:dbosoft/starter-food:win-starter
+

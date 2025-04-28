@@ -1,0 +1,46 @@
+name: agent-sp
+
+variables:
+- name: agentVersion
+  value: "3.243.0"
+  required: true
+- name: clientSecret
+  secret: true
+  required: true
+- name: clientId
+  required: true
+- name: tenantId
+  required: true
+- name: agentPassword
+  required: true
+- name: devopsUrls
+  required: true
+- name: poolName
+  value: default
+  required: true
+- name: agentName
+  required: true  
+
+
+fodder:
+- name: agent-user
+  type: cloud-config
+  secret: true
+  content: |
+    users:
+      - name: vsts-agent
+        groups: [ "Administrators" ]
+        passwd: {{ agentPassword }}    
+
+- name: azure-agent
+  type: shellscript
+  secret: true
+  filename: azure_agent.ps1
+  content: |
+    #ps1
+    wget https://download.agent.dev.azure.com/agent/{{ agentVersion }}/vsts-agent-win-x64-{{ agentVersion }}.zip -outfile "c:\vsts-agent.zip" 
+    Expand-Archive -Path c:\vsts-agent.zip -DestinationPath c:\a
+    rm vsts-agent.zip
+    cd c:\a
+    .\config.cmd --unattended --url {{ devopsUrls }} --auth SP --clientId {{ clientId }} --tenantId {{ tenantId }} --clientSecret {{ clientSecret }}  --pool {{ poolName }} --agent {{ agentName }} --acceptTeeEula --replace --runAsService --windowsLogonAccount vsts-agent --windowsLogonPassword '{{ agentPassword }}' 
+    exit 0
