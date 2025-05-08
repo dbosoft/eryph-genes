@@ -19,12 +19,12 @@ fodder:
 - name: admin-linux
   type: cloud-config
   secret: true
-  content: |
+  content:
     users:
-    - name: {{ username }}
-      plain_text_passwd: {{ password }}
-      group: admin
+    - name: '{{ username }}'
+      plain_text_passwd: '{{ password }}'
+      groups: adm
       lock_passwd: {{ lockPassword }}
       sudo: 'ALL=(ALL) NOPASSWD: ALL'
       ssh_authorized_keys:
-      - {{ sshPublicKey }}
+      - '{{ sshPublicKey }}'
