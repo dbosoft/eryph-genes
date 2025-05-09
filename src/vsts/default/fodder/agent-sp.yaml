@@ -48,8 +48,8 @@ fodder:
 
     $version = '{{ agentVersion }}'
     if ($version -eq 'latest') {
-        $releaseInfo = Invoke-RestMethod https://api.github.com/repos/Microsoft/azure-pipelines-agent/releases/latest -UseBasicParsing
-        $version = $releaseInfo.tag_name -replace '^v', ''
+      $releaseInfo = Invoke-RestMethod https://api.github.com/repos/Microsoft/azure-pipelines-agent/releases/latest -UseBasicParsing
+      $version = $releaseInfo.tag_name -replace '^v', ''
     }
 
     Invoke-WebRequest -Uri "https://download.agent.dev.azure.com/agent/$version/vsts-agent-win-x64-$version.zip" -OutFile C:\vsts-agent.zip -UseBasicParsing
@@ -59,5 +59,5 @@ fodder:
     Set-Location C:\a
     .\config.cmd --unattended --url '{{ devopsUrls }}' --auth SP --clientId '{{ clientId }}' --tenantId '{{ tenantId }}' --clientSecret '{{ clientSecret }}'  --pool '{{ poolName }}' --agent '{{ agentName }}' --acceptTeeEula --replace --runAsService --windowsLogonAccount vsts-agent --windowsLogonPassword '{{ agentPassword }}'
     if ($LASTEXITCODE -ne 0) {
-        throw "config.cmd failed with exit code $LASTEXITCODE"
+      throw "config.cmd failed with exit code $LASTEXITCODE"
     }
