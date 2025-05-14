@@ -61,6 +61,6 @@ fodder:
 
     Set-Content -Path 'C:\ProgramData\ssh\sshd_config' -Value $sshdConfig
     
-    if (sshd.Status -eq Running) {
+    if ($sshd.Status -eq Running) {
       Restart-Service sshd
     }
