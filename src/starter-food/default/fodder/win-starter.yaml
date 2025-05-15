@@ -37,7 +37,7 @@ fodder:
       exit 0
     }
     
-    $cap | Add-WindowsCapability -Online
+    $null = $cap | Add-WindowsCapability -Online
     
     # make sure the sshd service is exists.
     if (!(Get-Service sshd -ErrorAction SilentlyContinue)) {
@@ -57,4 +57,6 @@ fodder:
       New-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -DisplayName 'OpenSSH Server (sshd)' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22
     } else {
       Write-Output "Firewall rule 'OpenSSH-Server-In-TCP' has been created and exists."
+      # Enable for all network profiles. Windows Server 2025 only allows private networks by default.
+      Set-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -Profile 'Any'
     }
