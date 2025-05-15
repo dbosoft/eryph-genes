@@ -1,0 +1,46 @@
+name: linux-install
+
+variables:
+  - name: pwshVersion
+    value: latest
+    required: true
+  - name: enableSsh
+    type: boolean
+    value: false
+    required: true
+
+fodder:
+- name: install-pwsh
+  type: shellscript
+  content: |
+    #!/usr/bin/env python3
+    import json
+    import os
+    import re
+    import subprocess
+    import urllib.request
+
+    version = '{{ pwshVersion }}'
+    if version == 'latest':
+      with urllib.request.urlopen('https://api.github.com/repos/PowerShell/PowerShell/releases/latest') as response:
+        data = response.read().decode('utf-8')
+        json_data = json.loads(data)
+        version = re.sub('^v', '', json_data['tag_name'])
+
+    urllib.request.urlretrieve(f"https://github.com/PowerShell/PowerShell/releases/download/v{version}/PowerShell_{version}-1.deb_amd64.deb", '/powershell.deb')
+    result = subprocess.run(['dpkg', '-i', '/powershell.deb'])
+    if result.returncode != 0:
+      raise Exception(f"dpkg failed with exit code {result.returncode}")
+
+    os.remove('/powershell.deb')
+
+    with open('/etc/ssh/sshd_config.d/99-powershell.conf', 'w') as f:
+      f.write('Subsystem powershell /usr/bin/pwsh -sshs')
+
+    enable_ssh = '{{ enableSsh }}'
+    if enable_ssh != 'true':
+      quit()
+
+    result = subprocess.run(['systemctl', 'restart', 'ssh.service'])
+    if result.returncode != 0:
+      raise Exception(f"sshd restart failed with exit code {result.returncode}")
