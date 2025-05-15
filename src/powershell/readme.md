@@ -31,7 +31,7 @@ The Windows and the Linux gene support the same variables. The following variabl
 - **enableSsh**  
   default value: false
 
-  When enabled, PowerShell will be registered as SSH submodule. This allows to use SSH when connecting to the catlet with `Enter-PSSession`.
+  When enabled, PowerShell will be registered as SSH submodule. This allows to use SSH when connecting to the catlet with `Enter-PSSession`. The SSH server must already be installed and enabled. Our starter catlets have SSH enabled by default.
 
 ---
 
