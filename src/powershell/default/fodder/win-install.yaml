@@ -51,7 +51,7 @@ fodder:
 
     $sshdConfig = Get-Content -Raw -Path 'C:\ProgramData\ssh\sshd_config'
     
-    # Due to bug in OpenSSH, all Subsystem entries must be placed next to each other
+    # Due to a bug in OpenSSH, all Subsystem entries must be placed next to each other
     $i = $sshdConfig.IndexOf('Subsystem')
     if ($i -ge 0) {
       $sshdConfig = $sshdConfig.Substring(0, $i) + "Subsystem`tpowershell`tC:/progra~1/powershell/7/pwsh.exe -sshs -NoLogo`n" + $sshdConfig.Substring($i, $sshdConfig.Length - $i)
