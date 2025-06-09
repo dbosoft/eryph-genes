@@ -1,0 +1,15 @@
+{
+  "name": "@dbosoft/powershell",
+  "private": true,
+  "scripts": {
+    "build": "build-geneset",
+    "publish": "build-geneset publish"
+  },
+  "dependencies": {
+    "templates": "workspace:*",
+    "@dbosoft/powershell-default": "workspace:*"
+  },
+  "devDependencies": {
+    "@dbosoft/build-geneset": "workspace:*"
+  }
+}
