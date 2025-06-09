@@ -2,7 +2,7 @@ name: agent-sp
 
 variables:
 - name: agentVersion
-  value: "3.243.0"
+  value: "latest"
   required: true
 - name: clientSecret
   secret: true
@@ -37,10 +37,29 @@ fodder:
   secret: true
   filename: azure_agent.ps1
   content: |
-    #ps1
-    wget https://download.agent.dev.azure.com/agent/{{ agentVersion }}/vsts-agent-win-x64-{{ agentVersion }}.zip -outfile "c:\vsts-agent.zip" 
-    Expand-Archive -Path c:\vsts-agent.zip -DestinationPath c:\a
-    rm vsts-agent.zip
-    cd c:\a
-    .\config.cmd --unattended --url {{ devopsUrls }} --auth SP --clientId {{ clientId }} --tenantId {{ tenantId }} --clientSecret {{ clientSecret }}  --pool {{ poolName }} --agent {{ agentName }} --acceptTeeEula --replace --runAsService --windowsLogonAccount vsts-agent --windowsLogonPassword '{{ agentPassword }}' 
-    exit 0
+    #ps1_sysnative
+    $ErrorActionPreference = 'Stop'
+    Set-StrictMode -Version 3.0
+    # Expand-Archive is a script module and will take its preferences from the global scope.
+    # See https://github.com/PowerShell/Microsoft.PowerShell.Archive/issues/77#issuecomment-601947496
+    $global:ProgressPreference = 'SilentlyContinue'
+
+    if ([System.Net.ServicePointManager]::SecurityProtocol -ne 0) {
+      [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+    }
+
+    $version = '{{ agentVersion }}'
+    if ($version -eq 'latest') {
+      $releaseInfo = Invoke-RestMethod https://api.github.com/repos/Microsoft/azure-pipelines-agent/releases/latest -UseBasicParsing
+      $version = $releaseInfo.tag_name -replace '^v', ''
+    }
+
+    Invoke-WebRequest -Uri "https://download.agent.dev.azure.com/agent/$version/vsts-agent-win-x64-$version.zip" -OutFile C:\vsts-agent.zip -UseBasicParsing
+
+    Expand-Archive -Path C:\vsts-agent.zip -DestinationPath C:\a
+    Remove-Item -Path C:\vsts-agent.zip
+    Set-Location C:\a
+    .\config.cmd --unattended --url '{{ devopsUrls }}' --auth SP --clientId '{{ clientId }}' --tenantId '{{ tenantId }}' --clientSecret '{{ clientSecret }}'  --pool '{{ poolName }}' --agent '{{ agentName }}' --acceptTeeEula --replace --runAsService --windowsLogonAccount vsts-agent --windowsLogonPassword '{{ agentPassword }}'
+    if ($LASTEXITCODE -ne 0) {
+      throw "config.cmd failed with exit code $LASTEXITCODE"
+    }
