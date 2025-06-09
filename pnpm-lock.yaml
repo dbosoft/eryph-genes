@@ -65,6 +65,25 @@ importers:
         specifier: workspace:*
         version: link:../../packages/build-geneset
 
+  src/powershell:
+    dependencies:
+      '@dbosoft/powershell-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/powershell/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/starter-food:
     dependencies:
       '@dbosoft/starter-food-default':
@@ -297,34 +316,6 @@ importers:
         version: link:../../packages/build-geneset
 
   src/windsc/default:
-    devDependencies:
-      '@dbosoft/build-geneset':
-        specifier: workspace:*
-        version: link:../../../packages/build-geneset
-
-  src/winlab:
-    dependencies:
-      '@dbosoft/winlab-2022-core-dc1':
-        specifier: workspace:*
-        version: link:2022-core-dc1
-      '@dbosoft/winlab-2022-manage':
-        specifier: workspace:*
-        version: link:2022-manage
-      templates:
-        specifier: workspace:*
-        version: link:../../packages/templates
-    devDependencies:
-      '@dbosoft/build-geneset':
-        specifier: workspace:*
-        version: link:../../packages/build-geneset
-
-  src/winlab/2022-core-dc1:
-    devDependencies:
-      '@dbosoft/build-geneset':
-        specifier: workspace:*
-        version: link:../../../packages/build-geneset
-
-  src/winlab/2022-manage:
     devDependencies:
       '@dbosoft/build-geneset':
         specifier: workspace:*
