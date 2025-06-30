@@ -1,0 +1,59 @@
+name: linux-install
+
+variables:
+  - name: downloadUrl
+    required: true
+  - name: sshPublicKey
+    required: true
+
+fodder:
+- name: install-packages
+  type: cloud-config
+  content:
+    packages:
+    - dotnet-runtime-8.0
+    - unzip
+
+- name: write-ssh-key
+  type: cloud-config
+  content:
+    write_files:
+      - path: /opt/etc/eryph/guest-services/egs.pub
+        content: '{{ sshPublicKey }}'
+
+- name: install-egs
+  type: shellscript
+  content: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    wget -O egs-linux.zip '{{ downloadUrl }}'
+
+    mkdir -p /opt/eryph/guest-services
+    unzip egs-linux.zip -d /opt/eryph/guest-services
+    rm egs-linux.zip
+    chmod +x /opt/eryph/guest-services/egs
+
+- name: add-systemd-unit
+  type: cloud-config
+  content:
+    write_files:
+      - path: /etc/systemd/system/eryph-guest-services.service
+        content: |
+          [Unit]
+          Description=eryph guest services
+
+          [Service]
+          Type=notify
+          ExecStart=/opt/eryph/guest-services/egs
+
+          [Install]
+          WantedBy=multi-user.target
+
+- name: enable-systemd-unit
+  type: shellscript
+  content: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    systemctl daemon-reload
+    systemctl enable eryph-guest-services.service
+    systemctl start eryph-guest-services.service

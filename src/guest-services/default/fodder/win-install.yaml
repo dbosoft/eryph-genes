@@ -1,0 +1,45 @@
+name: win-install
+
+variables:
+  - name: downloadUrl
+    required: true
+  - name: sshPublicKey
+    required: true
+
+fodder:
+- name: write-ssh-key
+  type: cloud-config
+  content:
+    write_files:
+      - path: C:\ProgramData\eryph\guest-services\egs.pub
+        content: '{{ sshPublicKey }}'
+
+- name: install-egs
+  type: shellscript
+  fileName: Install-Egs.ps1
+  content: |
+    #ps1_sysnative
+    $ErrorActionPreference = 'Stop'
+    Set-StrictMode -Version 3.0
+    $ProgressPreference = 'SilentlyContinue'
+
+    if ([System.Net.ServicePointManager]::SecurityProtocol -ne 0) {
+      [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+    }
+
+    # Invoke-WebRequest -Uri "https://aka.ms/dotnet/8.0/dotnet-runtime-win-x64.exe" -OutFile C:\dotnet-runtime-win-x64.exe -UseBasicParsing
+    # $process = Start-Process -FilePath 'C:\dotnet-runtime-win-x64.exe' -ArgumentList "/install /quiet /norestart" -Wait -PassThru
+
+    # Remove-Item -Path C:\dotnet-runtime.msi
+
+    # if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) {
+    #   throw "dotnet-runtime-win-x64.exe failed with exit code $($process.ExitCode)"
+    # }
+
+    Invoke-WebRequest -Uri "{{ downloadUrl }}" -OutFile C:\egs-windows.zip -UseBasicParsing
+
+    Expand-Archive -Path C:\egs-windows.zip -DestinationPath "C:\Program Files\eryph\guest-services"
+    Remove-Item -Path C:\egs-windows.zip
+
+    sc.exe create eryph-guest-services binpath="C:\Program Files\eryph\guest-services\egs.exe"
+    sc.exe start eryph-guest-services
