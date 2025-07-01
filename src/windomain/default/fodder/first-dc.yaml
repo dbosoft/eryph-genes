@@ -6,9 +6,6 @@ variables:
     required: true
   - name: domain_admin
     required: true
-  - name: domain_admin_password
-    secret: true
-    required: true
   - name: safe_mode_password
     secret: true
     required: true
@@ -47,7 +44,17 @@ fodder:
       }
 
       $Username = '{{ domain_admin }}'
-      $Password = '{{ domain_admin_password }}'
+      $adminAccount = Get-LocalUser $Username
+
+      if(-not $adminAccount){
+        throw "Admin account $username not found."
+      }
+
+      # the password is not used for first node, instead
+      # domain admin has to match a existing local user
+      Add-Type -AssemblyName System.Web
+      $Password = [System.Web.Security.Membership]::GeneratePassword(30,4)
+
       $securePassword = ConvertTo-SecureString -AsPlainText $Password -Force 
       $domainCredential = New-Object System.Management.Automation.PSCredential ($username, $securePassword)
 
