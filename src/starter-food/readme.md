@@ -48,9 +48,9 @@ fodder:
  - source: gene:dbosoft/starter-food:win-starter
    variables:
      - name: AdminUsername
-       value: "\{{ Username }}"
+       value: '\{{ Username }}'
      - name: AdminPassword
-       value: "\{{ Password }}"
+       value: '\{{ Password }}'
 
 ```
 
