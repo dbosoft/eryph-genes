@@ -14,13 +14,6 @@ fodder:
     - dotnet-runtime-8.0
     - unzip
 
-- name: write-ssh-key
-  type: cloud-config
-  content:
-    write_files:
-      - path: /opt/etc/eryph/guest-services/egs.pub
-        content: '{{ sshPublicKey }}'
-
 - name: install-egs
   type: shellscript
   content: |
@@ -33,7 +26,7 @@ fodder:
     rm egs-linux.zip
     chmod +x /opt/eryph/guest-services/egs
 
-- name: add-systemd-unit
+- name: write-files
   type: cloud-config
   content:
     write_files:
@@ -48,6 +41,8 @@ fodder:
 
           [Install]
           WantedBy=multi-user.target
+      - path: /etc/opt/eryph/guest-services/egs.pub
+        content: '{{ sshPublicKey }}'
 
 - name: enable-systemd-unit
   type: shellscript
