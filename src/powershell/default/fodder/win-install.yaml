@@ -35,7 +35,7 @@ fodder:
     Remove-Item -Path C:\powershell.msi
 
     if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) {
-      throw "msiexec.exe failed with exit code $LASTEXITCODE"
+      throw "msiexec.exe failed with exit code $($process.ExitCode)"
     }
 
     $enableSsh = '{{ enableSsh }}' -eq 'true'
