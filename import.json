@@ -28,6 +28,13 @@
             "dbosoft/ubuntu-24.04/latest" 
         ]
     }},    
+    {"ubuntu-25.04": {
+        "osType": "linux",
+        "pack": "dbosoft/ubuntu-25.04/{date}",        
+        "update": [ 
+            "dbosoft/ubuntu-25.04/latest" 
+        ]
+    }},    
     {"winsrv2016-standard": {
         "osType": "windows",
         "pack": "dbosoft/winsrv2016-standard/{date}",        
