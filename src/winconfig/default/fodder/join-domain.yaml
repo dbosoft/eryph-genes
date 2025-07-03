@@ -22,7 +22,7 @@ fodder:
           $currentDomain = (Get-WmiObject Win32_ComputerSystem).Domain
           $currentDomain = $currentDomain.ToLowerInvariant()
 
-          if(currentDomain -eq $newDomain){
+          if($currentDomain -eq $newDomain){
             exit 0
           }
 
