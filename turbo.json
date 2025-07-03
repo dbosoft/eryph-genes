@@ -1,17 +1,17 @@
 {
-    "$schema": "https://turbo.build/schema.json",
-    "tasks": {
-      "build": {
-        "dependsOn": ["^build"],
-        "outputs": ["dist/**", "../../genes/**"]
-      },
-      "publish": {
-        "dependsOn": ["^publish"],
-        "outputs": ["dist/**", "../../genes/**"]
-      },
-      "dev": {
-        "persistent": true,
-        "cache": false
-      }
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "../../genes/**", "!**/.packed/*"]
+    },
+    "publish": {
+      "dependsOn": ["^publish"],
+      "outputs": ["dist/**", "../../genes/**", "!**/.packed/*"]
+    },
+    "dev": {
+      "persistent": true,
+      "cache": false
     }
+  }
 }
