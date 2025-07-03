@@ -1,8 +1,10 @@
 name: linux-install
 
 variables:
-  - name: downloadUrl
+  - name: version
+    value: latest
     required: true
+  - name: downloadUrl
   - name: sshPublicKey
     required: true
 
@@ -10,15 +12,48 @@ fodder:
 - name: install-egs
   type: shellscript
   content: |
-    #!/usr/bin/env bash
-    set -euo pipefail
-    wget -O egs-linux.tar.gz '{{ downloadUrl }}'
+    #!/usr/bin/env python3
+    import json
+    import os
+    import re
+    import subprocess
+    import urllib.request
+    import tarfile
 
-    mkdir -p /opt/eryph/guest-services
-    tar -xf egs-linux.tar.gz -C /opt/eryph/guest-services
-    rm egs-linux.tar.gz
-    chmod +x /opt/eryph/guest-services/egs
+    download_url = '{{ downloadUrl }}'
+    if not download_url:
+      requested_version = '{{ version }}'
+      version = requested_version
+      with urllib.request.urlopen('https://releases.dbosoft.eu/eryph/guest-services/index.json') as response:
+        response_json = response.read().decode('utf-8')
+        product_info = json.loads(response_json)
+        if version == 'latest':
+          version = product_info.get('stableVersion')
+          if not version:
+            version = product_info['latestVersion']
 
+        if version == 'prerelease':
+          version = product_info['latestVersion']
+        
+        version_info = product_info['versions'].get(version)
+        if not version_info:
+          raise Exception(f"Version {requested_version} does not exist")
+
+        file_info = next(f for f in version_info['files'] if f['filename'].startswith('egs_') and f['os'] == 'linux' and f['arch'] == 'amd64')
+        download_url = file_info['url']
+    
+    urllib.request.urlretrieve(download_url, 'egs-linux.tar.gz')
+    
+    install_path = '/opt/eryph/guest-services'
+
+    os.makedirs(install_path, exist_ok=True)
+    with tarfile.open('egs-linux.tar.gz', 'r:gz') as tar:
+      tar.extractall(path=install_path)
+    os.remove('egs-linux.tar.gz')
+
+    # egs_service_path = os.path.join(install_path, 'egs-service')
+    # os.chmod(os.path.join(install_path, 'egs-service'), 0o755)
+    
 - name: write-files
   type: cloud-config
   content:
@@ -30,11 +65,11 @@ fodder:
 
           [Service]
           Type=notify
-          ExecStart=/opt/eryph/guest-services/egs
+          ExecStart=/opt/eryph/guest-services/egs-service
 
           [Install]
           WantedBy=multi-user.target
-      - path: /etc/opt/eryph/guest-services/egs.pub
+      - path: /etc/opt/eryph/guest-services/id_egs.pub
         content: '{{ sshPublicKey }}'
 
 - name: enable-systemd-unit

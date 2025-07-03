@@ -23,9 +23,16 @@ fodder:
 
 The Windows and the Linux gene support the same variables. The following variables can be used to configure the gene:
 
+- **version**  
+  default value: `latest`
+
+  The version of the eryph guest services which should be installed. The exact version, e.g. `0.1.0`, must
+  be provided. `latest` will install the latest released version. `prerelease` will install the latest
+  prerelease version.
+
 - **downloadUrl**
 
-  The download URL from which the eryph guest services should be downloaded.
+  When provided, the eryph guest services will be downloaded from this URL instead of looking up the version.
 
 - **sshPublicKey**
   
