@@ -7,23 +7,16 @@ variables:
     required: true
 
 fodder:
-- name: install-packages
-  type: cloud-config
-  content:
-    packages:
-    - dotnet-runtime-8.0
-    - unzip
-
 - name: install-egs
   type: shellscript
   content: |
     #!/usr/bin/env bash
     set -euo pipefail
-    wget -O egs-linux.zip '{{ downloadUrl }}'
+    wget -O egs-linux.tar.gz '{{ downloadUrl }}'
 
     mkdir -p /opt/eryph/guest-services
-    unzip egs-linux.zip -d /opt/eryph/guest-services
-    rm egs-linux.zip
+    tar -xf egs-linux.tar.gz -C /opt/eryph/guest-services
+    rm egs-linux.tar.gz
     chmod +x /opt/eryph/guest-services/egs
 
 - name: write-files
