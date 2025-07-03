@@ -4,8 +4,19 @@ This geneset contains fodder genes for common configuration tasks of a Windows c
 
 ## Usage
 
-tbd
 
+### join-domain
+
+Using the fodder join-domain you can join windows catlet to a domain.   
+The fodder will automatically reboot the catlet after joining the domain.
+
+**Variables:** 
+- domain_name:  
+  name of the domain to join
+- domain_admin:  
+  name of the domain admin user
+- domain_admin_password:  
+  password of the domain admin user
 
 
 
