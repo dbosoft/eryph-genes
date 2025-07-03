@@ -1,6 +1,7 @@
 *.part
 compressed
 .packed/
+.pack/
 .ssh/sshkey
 .ssh/sshkey.pub
 node_modules/
