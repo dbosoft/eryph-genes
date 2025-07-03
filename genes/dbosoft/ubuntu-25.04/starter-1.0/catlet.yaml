@@ -1,0 +1,5 @@
+ 
+parent: dbosoft/ubuntu-25.04/latest
+fodder:
+ - source: gene:dbosoft/starter-food:linux-starter
+

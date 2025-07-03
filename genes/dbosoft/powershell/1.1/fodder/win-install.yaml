@@ -1,0 +1,66 @@
+name: win-install
+
+variables:
+  - name: pwshVersion
+    value: latest
+    required: true
+  - name: enableSsh
+    type: boolean
+    value: false
+    required: true
+
+fodder:
+- name: install-pwsh
+  type: shellscript
+  fileName: Install-Pwsh.ps1
+  content: |
+    #ps1_sysnative
+    $ErrorActionPreference = 'Stop'
+    Set-StrictMode -Version 3.0
+    $ProgressPreference = 'SilentlyContinue'
+
+    if ([System.Net.ServicePointManager]::SecurityProtocol -ne 0) {
+      [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+    }
+
+    $version = '{{ pwshVersion }}'
+    if ($version -eq 'latest') {
+        $releaseInfo = Invoke-RestMethod https://api.github.com/repos/PowerShell/PowerShell/releases/latest -UseBasicParsing
+        $version = $releaseInfo.tag_name -replace '^v', ''
+    }
+
+    Invoke-WebRequest -Uri "https://github.com/PowerShell/PowerShell/releases/download/v$version/PowerShell-$version-win-x64.msi" -OutFile C:\powershell.msi -UseBasicParsing
+    $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList "/package C:\powershell.msi /quiet /norestart REGISTER_MANIFEST=1 ADD_PATH=1" -Wait -PassThru
+
+    Remove-Item -Path C:\powershell.msi
+
+    if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) {
+      throw "msiexec.exe failed with exit code $($process.ExitCode)"
+    }
+
+    $enableSsh = '{{ enableSsh }}' -eq 'true'
+    if (-not $enableSsh) {
+      return
+    }
+
+    $sshd = Get-Service sshd -ErrorAction SilentlyContinue
+    if (-not $sshd) {
+      Write-Output "sshd service does not exist. Is OpenSSH installed?"
+      exit -1
+    }
+
+    $sshdConfig = Get-Content -Raw -Path 'C:\ProgramData\ssh\sshd_config'
+    
+    # Due to a bug in OpenSSH, all Subsystem entries must be placed next to each other
+    $i = $sshdConfig.IndexOf('Subsystem')
+    if ($i -ge 0) {
+      $sshdConfig = $sshdConfig.Substring(0, $i) + "Subsystem`tpowershell`tC:/progra~1/powershell/7/pwsh.exe -sshs -NoLogo`n" + $sshdConfig.Substring($i, $sshdConfig.Length - $i)
+    } else {
+      $sshdConfig += "`nSubsystem`tpowershell`tC:/progra~1/powershell/7/pwsh.exe -sshs -NoLogo"
+    }
+
+    Set-Content -Path 'C:\ProgramData\ssh\sshd_config' -Value $sshdConfig
+    
+    if ($sshd.Status -eq 'Running') {
+      Restart-Service sshd
+    }
