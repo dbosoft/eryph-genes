@@ -53,7 +53,7 @@ fodder:
         throw "Version '$requestedVersion' does not exist"
       }
 
-      $fileInfo = $versionInfo.files | Where-Object filename -like 'egs_*' -and os -eq 'windows' -and arch -eq 'amd64' | Select-Object -First 1
+      $fileInfo = $versionInfo.files | Where-Object { $_.filename -like 'egs_*' -and $_.os -eq 'windows' -and $_.arch -eq 'amd64' } | Select-Object -First 1
       $downloadUrl = $fileInfo.url
     }
 
