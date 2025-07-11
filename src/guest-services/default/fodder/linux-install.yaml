@@ -65,7 +65,7 @@ fodder:
 
           [Service]
           Type=notify
-          ExecStart=/opt/eryph/guest-services/egs-service
+          ExecStart=/opt/eryph/guest-services/bin/egs-service
 
           [Install]
           WantedBy=multi-user.target

@@ -62,5 +62,5 @@ fodder:
     Expand-Archive -Path C:\egs-windows.zip -DestinationPath "C:\Program Files\eryph\guest-services"
     Remove-Item -Path C:\egs-windows.zip
 
-    sc.exe create eryph-guest-services binpath="C:\Program Files\eryph\guest-services\egs-service.exe"
+    sc.exe create eryph-guest-services binpath="C:\Program Files\eryph\guest-services\bin\egs-service.exe"
     sc.exe start eryph-guest-services
