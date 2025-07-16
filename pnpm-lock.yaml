@@ -40,6 +40,25 @@ importers:
 
   packages/templates: {}
 
+  src/guest-services:
+    dependencies:
+      '@dbosoft/guest-services-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/guest-services/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/hyperv:
     dependencies:
       '@dbosoft/hyperv-default':
