@@ -63,4 +63,5 @@ fodder:
     Remove-Item -Path C:\egs-windows.zip
 
     sc.exe create eryph-guest-services binpath="C:\Program Files\eryph\guest-services\bin\egs-service.exe"
+    sc.exe failure eryph-guest-services reset=60 actions=restart/10000
     sc.exe start eryph-guest-services

@@ -50,9 +50,6 @@ fodder:
     with tarfile.open('egs-linux.tar.gz', 'r:gz') as tar:
       tar.extractall(path=install_path)
     os.remove('egs-linux.tar.gz')
-
-    # egs_service_path = os.path.join(install_path, 'egs-service')
-    # os.chmod(os.path.join(install_path, 'egs-service'), 0o755)
     
 - name: write-files
   type: cloud-config
@@ -67,6 +64,8 @@ fodder:
           Type=notify
           ExecStart=/opt/eryph/guest-services/bin/egs-service
           Environment="HOME=/root"
+          Restart=on-failure
+          RestartSec=10
 
           [Install]
           WantedBy=multi-user.target
