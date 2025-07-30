@@ -13,7 +13,6 @@ fodder:
 
 or for Linux:
 
-
 ``` yaml
 fodder:
  - source: gene:dbosoft/guest-services:linux-install
