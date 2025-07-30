@@ -8,7 +8,7 @@ fodder:
     #ps1_sysnative
     $ErrorActionPreference = 'Stop'
 
-    if ([System.Environment]::OSVersion.Version -lt 17763) {
+    if ([System.Environment]::OSVersion.Version.Build -lt 17763) {
       Write-Output "OpenSSH Server capability only exists in Windows 1809 or newer."
       exit -1
     }
