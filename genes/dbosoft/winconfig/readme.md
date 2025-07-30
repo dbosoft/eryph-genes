@@ -19,14 +19,6 @@ The fodder will automatically reboot the catlet after joining the domain.
   password of the domain admin user
 
 
-### enable-ssh
-
-With the fodder enable-ssh, you can enable the SSH server feature in Windows.
-This gene requires Windows Server 2019 (or Windows 10 1809) or newer. The
-corresponding Windows feature does not exist in older versions of Windows.
-
-
----
 
 
 # Versioning
