@@ -1,0 +1,28 @@
+name: win-starter
+
+variables:
+  - name: AdminUsername
+    value: Admin
+    required: true
+  - name: AdminPassword
+    required: true
+    secret: true
+    value: InitialPassw0rd
+
+fodder:
+- name: admin-windows
+  type: cloud-config
+  secret: true
+  content: |
+    users:
+      - name: {{ AdminUsername }}
+        groups: [ "Administrators" ]
+        passwd: {{ AdminPassword }}
+
+- name: remote-desktop
+  type: shellscript
+  fileName: enable_rd.ps1  #this is only required due to a bug in cloudbase-init
+  content: |
+    Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\" -Name "fDenyTSConnections" -Value 0
+    Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp\" -Name "UserAuthentication" -Value 1
+    Enable-NetFirewallRule -DisplayGroup "Remote Desktop"

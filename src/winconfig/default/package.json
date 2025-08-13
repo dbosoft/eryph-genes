@@ -1,7 +1,7 @@
 {
   "name": "@dbosoft/winconfig-default",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "scripts": {
     "build": "build-geneset-tag",
     "publish": "build-geneset-tag publish"

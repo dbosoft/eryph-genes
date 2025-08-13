@@ -1,0 +1,82 @@
+name: linux-install
+
+variables:
+  - name: version
+    value: latest
+    required: true
+  - name: downloadUrl
+  - name: sshPublicKey
+    required: true
+
+fodder:
+- name: install-egs
+  type: shellscript
+  content: |
+    #!/usr/bin/env python3
+    import json
+    import os
+    import re
+    import subprocess
+    import urllib.request
+    import tarfile
+
+    download_url = '{{ downloadUrl }}'
+    if not download_url:
+      requested_version = '{{ version }}'
+      version = requested_version
+      with urllib.request.urlopen('https://releases.dbosoft.eu/eryph/guest-services/index.json') as response:
+        response_json = response.read().decode('utf-8')
+        product_info = json.loads(response_json)
+        if version == 'latest':
+          version = product_info.get('stableVersion')
+          if not version:
+            version = product_info['latestVersion']
+
+        if version == 'prerelease':
+          version = product_info['latestVersion']
+        
+        version_info = product_info['versions'].get(version)
+        if not version_info:
+          raise Exception(f"Version {requested_version} does not exist")
+
+        file_info = next(f for f in version_info['files'] if f['filename'].startswith('egs_') and f['os'] == 'linux' and f['arch'] == 'amd64')
+        download_url = file_info['url']
+    
+    urllib.request.urlretrieve(download_url, 'egs-linux.tar.gz')
+    
+    install_path = '/opt/eryph/guest-services'
+
+    os.makedirs(install_path, exist_ok=True)
+    with tarfile.open('egs-linux.tar.gz', 'r:gz') as tar:
+      tar.extractall(path=install_path)
+    os.remove('egs-linux.tar.gz')
+    
+- name: write-files
+  type: cloud-config
+  content:
+    write_files:
+      - path: /etc/systemd/system/eryph-guest-services.service
+        content: |
+          [Unit]
+          Description=eryph guest services
+
+          [Service]
+          Type=notify
+          ExecStart=/opt/eryph/guest-services/bin/egs-service
+          Environment="HOME=/root"
+          Restart=on-failure
+          RestartSec=10
+
+          [Install]
+          WantedBy=multi-user.target
+      - path: /etc/opt/eryph/guest-services/id_egs.pub
+        content: '{{ sshPublicKey }}'
+
+- name: enable-systemd-unit
+  type: shellscript
+  content: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    systemctl daemon-reload
+    systemctl enable eryph-guest-services.service
+    systemctl start eryph-guest-services.service

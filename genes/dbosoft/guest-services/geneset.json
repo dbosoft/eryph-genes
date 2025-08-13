@@ -1,0 +1,8 @@
+{
+    "geneset": "dbosoft/guest-services",
+    "public": true,
+    "short_description": "Eryph Guest Services",
+    "description": "This geneset contains fodder for installing the eryph guest services.",
+    "description_markdown": null,
+    "description_markdown_file": "readme.md"
+}
