@@ -281,155 +281,160 @@ fodder:
         value: myapp
 ```
 
-### 3. Testing Genes
+### 3. Testing Genes with Eryph Guest Services (EGS)
 
-#### Connection Helper Scripts
+#### Overview
 
-The `tests/` directory contains connection helper scripts that simplify catlet deployment and connectivity:
+Eryph Guest Services (EGS) provides credential-free, network-independent SSH access to catlets. This dramatically simplifies testing by eliminating complex credential management.
 
-- **Test-LinuxCatlet.ps1**: Deploys Linux catlets with SSH connectivity
-- **Test-WindowsCatlet.ps1**: Deploys Windows catlets with PowerShell Remoting (no credential popups!)
-
-These scripts are **connection helpers**, not automated test suites. They establish connectivity and then YOU verify the catlet manually.
-
-#### Linux Testing with Connection Helper
+#### One-Time EGS Setup
 
 ```powershell
-# Use the connection helper script for Linux catlets
+# 1. Install egs-tool (requires admin) - usually already installed
+# If not installed, get from: https://github.com/eryph-org/guest-services
+
+# 2. Get the EGS SSH public key (requires admin)
+Start-Process powershell -ArgumentList '-Command', 'egs-tool.exe get-ssh-key' -Verb RunAs -Wait
+# Copy this key - you'll use it in all test catlets
+
+# 3. Update SSH config (requires admin)
+Start-Process egs-tool.exe -ArgumentList 'update-ssh-config' -Verb RunAs -Wait
+```
+
+#### Testing with EGS
+
+#### Test Linux Catlet with EGS
+
+```powershell
+# Get EGS key (requires admin)
+$egsKey = Start-Process powershell -ArgumentList '-Command', 'egs-tool.exe get-ssh-key' -Verb RunAs -Wait -PassThru | Out-String
+
 $spec = @"
 name: test-nginx
 parent: dbosoft/ubuntu-22.04/latest
+
 fodder:
-- name: install-nginx
-  type: cloud-config
-  content: |
-    packages:
-      - nginx
+  # Add guest services for SSH access
+  - source: gene:dbosoft/guest-services/0.1:linux-install
+    variables:
+      - name: sshPublicKey
+        value: "$egsKey"
+  
+  # Your test fodder
+  - name: install-nginx
+    type: cloud-config
+    content: |
+      packages:
+        - nginx
+      runcmd:
+        - systemctl enable nginx
+        - systemctl start nginx
 "@
 
-# Deploy and get connection info
-$result = .\tests\Test-LinuxCatlet.ps1 -CatletSpec $spec
+# Deploy and start
+$spec | Out-File test.yaml
+Get-Content test.yaml -Raw | New-Catlet
+$catlet = Get-Catlet | Where-Object Name -eq "test-nginx"
+$catlet | Start-Catlet -Force
 
-# The script will:
-# 1. Generate SSH key automatically
-# 2. Deploy the catlet with SSH access
-# 3. Wait for boot and test connectivity
-# 4. Display connection info and verification steps
+# Wait for guest services to initialize (usually 30-60 seconds)
+Start-Sleep -Seconds 60
 
-# Connect manually to verify
-Import-Module .\tests\Eryph.SSH.psm1
-Invoke-SSH -Command "sudo cloud-init status" `
-    -Hostname $result.IPAddress `
-    -Username admin `
-    -KeyFilePath $result.SSHKeyPath
+# Connect via SSH using catlet ID (no credentials needed!)
+$catletId = $catlet.Id
+cmd /c ssh "$catletId.eryph.alt" -C "hostname"
 
-# Check your fodder executed
-Invoke-SSH -Command "systemctl status nginx" `
-    -Hostname $result.IPAddress `
-    -Username admin `
-    -KeyFilePath $result.SSHKeyPath
+# Verify nginx installation
+cmd /c ssh "$catletId.eryph.alt" -C "systemctl status nginx"
 
-# Check cloud-init logs for errors
-Invoke-SSH -Command "sudo grep -i error /var/log/cloud-init*.log" `
-    -Hostname $result.IPAddress `
-    -Username admin `
-    -KeyFilePath $result.SSHKeyPath
+# Check cloud-init logs
+cmd /c ssh "$catletId.eryph.alt" -C "sudo cloud-init status"
+cmd /c ssh "$catletId.eryph.alt" -C "sudo tail -50 /var/log/cloud-init-output.log"
 
-# When done, clean up manually
-Get-Catlet | Where-Object Name -eq "linux-test" | Stop-Catlet -Force
-Get-Catlet | Where-Object Name -eq "linux-test" | Remove-Catlet -Force
-Remove-Item "$($result.SSHKeyPath)*" -Force
+# Clean up
+$catlet | Stop-Catlet -Force
+$catlet | Remove-Catlet -Force
 ```
 
-#### Windows Testing with Connection Helper
+#### Test Windows Catlet with EGS
 
 ```powershell
-# Use the connection helper script for Windows catlets
+# Get EGS key (requires admin)
+$egsKey = Start-Process powershell -ArgumentList '-Command', 'egs-tool.exe get-ssh-key' -Verb RunAs -Wait -PassThru | Out-String
+
 $spec = @"
 name: test-iis
 parent: dbosoft/winsrv2022-standard/latest
+
 fodder:
-- source: gene:dbosoft/starter-food:win-starter
-- name: install-iis
-  type: powershell
-  content: |
-    Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+  # Add guest services for SSH access
+  - source: gene:dbosoft/guest-services/0.1:win-install
+    variables:
+      - name: sshPublicKey
+        value: "$egsKey"
+  
+  # Your test fodder
+  - name: install-iis
+    type: powershell
+    content: |
+      Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+      Install-WindowsFeature -Name Web-Common-Http, Web-Static-Content
 "@
 
-# Deploy and get connection info
-$result = .\tests\Test-WindowsCatlet.ps1 -CatletSpec $spec
+# Deploy and start
+$spec | Out-File test.yaml
+Get-Content test.yaml -Raw | New-Catlet
+$catlet = Get-Catlet | Where-Object Name -eq "test-iis"
+$catlet | Start-Catlet -Force
 
-# The script will:
-# 1. Set up credentials (default: admin/admin)
-# 2. Deploy with PowerShell Remoting enabled
-# 3. Wait for boot and test connectivity
-# 4. Display connection info and verification steps
+# Wait for guest services to initialize (Windows takes longer)
+Start-Sleep -Seconds 120
 
-# Connect manually to verify (no credential popup!)
-$session = New-PSSession `
-    -ComputerName $result.IPAddress `
-    -Credential $result.Credentials `
-    -UseSSL `
-    -Authentication Basic `
-    -SessionOption (New-PSSessionOption -SkipCACheck -SkipCNCheck)
+# Connect via SSH using catlet ID (connects as SYSTEM user)
+$catletId = $catlet.Id
+cmd /c ssh "$catletId.eryph.alt" -C "hostname"
+
+# Verify IIS installation
+cmd /c ssh "$catletId.eryph.alt" -C "powershell Get-WindowsFeature Web-Server"
 
 # Check cloudbase-init logs
-Invoke-Command -Session $session -ScriptBlock {
-    $logPath = "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log"
-    if (Test-Path $logPath) {
-        Get-Content $logPath -Tail 50 | Select-String -Pattern "error|failed|completed|finished"
-    }
-}
+cmd /c ssh "$catletId.eryph.alt" -C "powershell Get-Content 'C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log' -Tail 50"
 
-# Verify your fodder executed
-Invoke-Command -Session $session -ScriptBlock {
-    Get-WindowsFeature | Where-Object Name -like "Web-*" | Where-Object Installed
-}
-
-Remove-PSSession $session
-
-# When done, clean up manually
-Get-Catlet | Where-Object Name -eq "windows-test" | Stop-Catlet -Force
-Get-Catlet | Where-Object Name -eq "windows-test" | Remove-Catlet -Force
+# Clean up
+$catlet | Stop-Catlet -Force
+$catlet | Remove-Catlet -Force
 ```
 
-#### Manual Testing Without Helper Scripts
-
-If you prefer manual testing or need custom credentials:
-
 #### Test Fodder Gene Locally
+
 ```powershell
 # 1. Build the gene
 pnpm --filter ./src/my-fodder build
 # This creates genes/dbosoft/my-fodder/next/.packed/
 
-# 2. Get genepool path (requires admin on first run)
-# Check if we have stored path
-$genepoolPathFile = ".\.claude\genepool-path.txt"
-if (Test-Path $genepoolPathFile) {
-    $GenepoolPath = Get-Content $genepoolPathFile | Where-Object { $_ -notmatch '^#' -and $_ -ne '' } | Select-Object -First 1
-    Write-Host "Using stored genepool path: $GenepoolPath"
-} else {
-    Write-Host "Please run with admin privileges to get genepool path:"
-    Write-Host "  .\Resolve-GenepoolPath.ps1"
-    Write-Host "Then add the path to $genepoolPathFile"
-    # User must provide path
-    $GenepoolPath = Read-Host "Enter genepool path"
-}
+# 2. Get genepool path (requires admin)
+$GenepoolPath = .\Resolve-GenepoolPath.ps1
+Write-Host "Genepool path: $GenepoolPath"
 
-# 3. Manually copy to local genepool
+# 3. Copy to local genepool
 $source = "genes\dbosoft\my-fodder\next\.packed\*"
 $dest = "$GenepoolPath\dbosoft\my-fodder\next"
 if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
 New-Item -ItemType Directory -Path $dest -Force | Out-Null
 Copy-Item $source -Destination $dest -Recurse
 
-# 4. Deploy test catlet (this makes the gene discoverable)
-# DO NOT use Get-CatletGene - just deploy directly!
+# 4. Deploy test catlet with EGS
+# Get EGS key (requires admin)
+$egsKey = Start-Process powershell -ArgumentList '-Command', 'egs-tool.exe get-ssh-key' -Verb RunAs -Wait -PassThru | Out-String
+
 $spec = @"
 name: test-fodder
-parent: dbosoft/ubuntu-22.04/starter
+parent: dbosoft/ubuntu-22.04/latest
 fodder:
+- source: gene:dbosoft/guest-services/0.1:linux-install
+  variables:
+  - name: sshPublicKey
+    value: "$egsKey"
 - source: gene:dbosoft/my-fodder:my-setup
   variables:
   - name: app_name
@@ -438,9 +443,25 @@ fodder:
 
 $spec | Out-File test.yaml
 Get-Content test.yaml -Raw | New-Catlet
+$catlet = Get-Catlet | Where-Object Name -eq "test-fodder"
+$catlet | Start-Catlet -Force
 
-# The deployment itself discovers and registers the gene
+# Wait and test via SSH
+Start-Sleep -Seconds 60
+cmd /c ssh "$($catlet.Id).eryph.alt" -C "ls /etc/myapp/"
 ```
+
+#### Debugging with Starter Genes
+
+While EGS is the preferred method, starter genes remain useful for debugging scenarios where you need traditional credentials:
+
+```yaml
+# Use starter tag for debugging (includes admin/admin credentials)
+parent: dbosoft/ubuntu-22.04/starter    # NOT latest - use starter for debugging
+parent: dbosoft/winsrv2022-standard/starter  # Includes admin setup
+```
+
+**Important:** Always prefer `starter` tags over `latest` when you need quick debugging access without EGS.
 
 #### Run Automated Tests
 ```powershell
@@ -453,9 +474,7 @@ Get-Content test.yaml -Raw | New-Catlet
 # Keep VM after test for debugging
 .\test_packed.ps1 -Geneset "dbosoft/my-fodder/next" -OsType linux -KeepVM
 
-# Test creates a VM named "catlettest" with:
-# - Linux: SSH key injection via starter-food
-# - Windows: PowerShell remoting enabled, admin/InitialPassw0rd
+# Test creates a VM named "catlettest" with EGS for access
 ```
 
 ### 4. Versioning & Publishing
@@ -589,16 +608,16 @@ Any gene development MUST include automatic verification:
 
 ### Verification Checklist
 
-#### Linux Verification
-- [ ] SSH connection works with injected key
+#### Linux Verification via EGS
+- [ ] SSH connection works: `cmd /c ssh <catlet-id>.eryph.alt -C hostname`
 - [ ] `sudo cloud-init status` shows "done"
 - [ ] No errors in `/var/log/cloud-init-output.log`
 - [ ] Expected packages installed (`dpkg -l | grep <package>`)
 - [ ] Expected services running (`systemctl status <service>`)
 - [ ] Expected files created
 
-#### Windows Verification
-- [ ] PowerShell remoting connects successfully
+#### Windows Verification via EGS
+- [ ] SSH connection works: `cmd /c ssh <catlet-id>.eryph.alt -C hostname`
 - [ ] cloudbase-init log shows completion
 - [ ] No errors in `C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\`
 - [ ] Expected Windows features installed
@@ -625,10 +644,11 @@ Any gene development MUST include automatic verification:
 
 ### Testing Strategy
 1. **Test locally** before pushing to genepool
-2. **Use starter genes** for quick credential setup
-3. **Test both Linux and Windows** variants
-4. **Verify cloud-init/cloubase-init** execution
-5. **Check network connectivity** after deployment
+2. **Use EGS** for credential-free access
+3. **Use starter tags** (not latest) for debugging when EGS isn't available
+4. **Test both Linux and Windows** variants
+5. **Verify cloud-init/cloubase-init** execution via SSH
+6. **Check services and features** are properly installed
 
 ## Specialized Agent
 

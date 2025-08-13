@@ -43,22 +43,23 @@ Bash(command='powershell -Command "Get-Catlet"')
 4. Continue with next command...
 ```
 
-## QUICK REFERENCE: CONNECTION HELPER SCRIPTS
+## QUICK REFERENCE: ERYPH GUEST SERVICES (EGS) CONNECTION
 
-**Use the test scripts in the tests/ directory for easy connectivity:**
+**Use EGS for credential-free SSH access to ALL catlets:**
 
-**Windows VMs:**
-- Script: `tests/Test-WindowsCatlet.ps1`
-- Handles credentials automatically (no popup!)
-- Returns connection info for manual testing
+**Setup (one-time):**
+1. Get EGS key: `egs-tool.exe get-ssh-key` (requires admin)
+2. Update SSH config: `egs-tool.exe update-ssh-config` (requires admin)
+3. Use the key in all test catlets
 
-**Linux VMs:**
-- Script: `tests/Test-LinuxCatlet.ps1`
-- Generates SSH key automatically
-- Returns connection info for manual testing
+**Connection:**
+- Linux: `cmd /c ssh <catlet-id>.eryph.alt -C <command>`
+- Windows: `cmd /c ssh <catlet-id>.eryph.alt -C <command>` (connects as SYSTEM)
+- Always use `-C` flag for commands (not interactive shell)
+- **CRITICAL: Must use `cmd /c` for SSH commands!**
 
-**Connection Timeout = 3 minutes maximum!**
-If scripts can't connect in 3 minutes, something is broken. STOP!
+**Connection Timeout = 2 minutes maximum!**
+If EGS doesn't connect in 2 minutes, something is broken. STOP!
 
 ## UNDERSTANDING USER INTENT - CRITICAL!
 

@@ -118,7 +118,14 @@
       "WebFetch(domain:nextjs.org)",
       "Bash(Get-Help Test-Catlet -Detailed)",
       "Bash(turbo:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(where:*)",
+      "Bash(egs-tool.exe get-ssh-key:*)",
+      "Bash(egs-tool.exe update-ssh-config:*)",
+      "Bash(egs-tool.exe get-status:*)",
+      "Bash(\"C:\\Windows\\System32\\OpenSSH\\ssh.exe\" 72a69558-798e-4129-aaa5-51be3e3ec721.eryph.alt -C hostname)",
+      "Bash(\"C:\\Windows\\System32\\OpenSSH\\ssh.exe\" 933df39b-c388-494b-b2fb-b66f7451f2b5.eryph.alt -C hostname)",
+      "Bash(\"C:\\Windows\\System32\\OpenSSH\\ssh.exe\" 49e2c4d5-49d8-4e6e-9568-1c1d4427a7fc.eryph.alt -C hostname)"
     ],
     "deny": []
   }
