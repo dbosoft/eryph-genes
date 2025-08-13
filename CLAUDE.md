@@ -283,92 +283,119 @@ fodder:
 
 ### 3. Testing Genes
 
-#### CRITICAL: SSH Key Injection for Linux Testing
+#### Connection Helper Scripts
 
-**DO NOT use Git Bash SSH keys!** Generate dedicated test keys:
+The `tests/` directory contains connection helper scripts that simplify catlet deployment and connectivity:
+
+- **Test-LinuxCatlet.ps1**: Deploys Linux catlets with SSH connectivity
+- **Test-WindowsCatlet.ps1**: Deploys Windows catlets with PowerShell Remoting (no credential popups!)
+
+These scripts are **connection helpers**, not automated test suites. They establish connectivity and then YOU verify the catlet manually.
+
+#### Linux Testing with Connection Helper
 
 ```powershell
-# Generate NEW SSH key pair (NOT Git's keys from C:\Users\username\.ssh\id_rsa!)
-$sshPath = "$env:USERPROFILE\.ssh\eryph-test"
-if (!(Test-Path "$sshPath.pub")) {
-    ssh-keygen -t rsa -b 4096 -f $sshPath -N '""' -C "eryph-test"
-}
-$publicKey = Get-Content "$sshPath.pub" -Raw
-
-# Create test catlet with proper variable declaration
+# Use the connection helper script for Linux catlets
 $spec = @"
-name: test-vm
+name: test-nginx
 parent: dbosoft/ubuntu-22.04/latest
-
-# Declare catlet variable for SSH key
-variables:
-- name: myTestKey
-  required: true
-  secret: true
-
 fodder:
-- source: gene:dbosoft/starter-food:linux-starter
-  variables:
-  - name: sshPublicKey
-    value: "{{ myTestKey }}"  # Proper eryph variable reference
-- source: gene:myorg/custom-fodder:my-config
+- name: install-nginx
+  type: cloud-config
+  content: |
+    packages:
+      - nginx
 "@
 
-$spec | Out-File test.yaml
-Get-Content test.yaml -Raw | New-Catlet -Variables @{myTestKey=$publicKey} -SkipVariablesPrompt
+# Deploy and get connection info
+$result = .\tests\Test-LinuxCatlet.ps1 -CatletSpec $spec
 
-# Start VM and get IP
-Get-Catlet | Where-Object Name -eq "test-vm" | Start-Catlet -Force
-Start-Sleep -Seconds 30
-$ip = (Get-Catlet | Where-Object Name -eq "test-vm" | Get-CatletIp).IpAddress
+# The script will:
+# 1. Generate SSH key automatically
+# 2. Deploy the catlet with SSH access
+# 3. Wait for boot and test connectivity
+# 4. Display connection info and verification steps
 
-# Connect via SSH (no password needed!)
-ssh -i $sshPath admin@$ip
+# Connect manually to verify
+Import-Module .\tests\Eryph.SSH.psm1
+Invoke-SSH -Command "sudo cloud-init status" `
+    -Hostname $result.IPAddress `
+    -Username admin `
+    -KeyFilePath $result.SSHKeyPath
 
-# Check cloud-init logs
-sudo cloud-init status
-sudo cat /var/log/cloud-init-output.log
+# Check your fodder executed
+Invoke-SSH -Command "systemctl status nginx" `
+    -Hostname $result.IPAddress `
+    -Username admin `
+    -KeyFilePath $result.SSHKeyPath
+
+# Check cloud-init logs for errors
+Invoke-SSH -Command "sudo grep -i error /var/log/cloud-init*.log" `
+    -Hostname $result.IPAddress `
+    -Username admin `
+    -KeyFilePath $result.SSHKeyPath
+
+# When done, clean up manually
+Get-Catlet | Where-Object Name -eq "linux-test" | Stop-Catlet -Force
+Get-Catlet | Where-Object Name -eq "linux-test" | Remove-Catlet -Force
+Remove-Item "$($result.SSHKeyPath)*" -Force
 ```
 
-#### Windows Testing with PowerShell Remoting
+#### Windows Testing with Connection Helper
 
 ```powershell
-# Windows test catlet with starter-food
+# Use the connection helper script for Windows catlets
 $spec = @"
-name: test-win
+name: test-iis
 parent: dbosoft/winsrv2022-standard/latest
 fodder:
 - source: gene:dbosoft/starter-food:win-starter
-  # Creates admin user with password: InitialPassw0rd
-- source: gene:myorg/custom-fodder:my-windows-config
+- name: install-iis
+  type: powershell
+  content: |
+    Install-WindowsFeature -Name Web-Server -IncludeManagementTools
 "@
 
-$spec | Out-File test.yaml
-Get-Content test.yaml -Raw | New-Catlet
-Get-Catlet | Where-Object Name -eq "test-win" | Start-Catlet -Force
-Start-Sleep -Seconds 120  # Windows takes longer to boot
+# Deploy and get connection info
+$result = .\tests\Test-WindowsCatlet.ps1 -CatletSpec $spec
 
-# Get IP and connect via PowerShell remoting
-$ip = (Get-Catlet | Where-Object Name -eq "test-win" | Get-CatletIp).IpAddress
-$cred = New-Object PSCredential("admin", (ConvertTo-SecureString "InitialPassw0rd" -AsPlainText -Force))
+# The script will:
+# 1. Set up credentials (default: admin/admin)
+# 2. Deploy with PowerShell Remoting enabled
+# 3. Wait for boot and test connectivity
+# 4. Display connection info and verification steps
 
-$session = New-PSSession -ComputerName $ip -Credential $cred `
-    -Authentication Basic -UseSSL `
+# Connect manually to verify (no credential popup!)
+$session = New-PSSession `
+    -ComputerName $result.IPAddress `
+    -Credential $result.Credentials `
+    -UseSSL `
+    -Authentication Basic `
     -SessionOption (New-PSSessionOption -SkipCACheck -SkipCNCheck)
 
 # Check cloudbase-init logs
 Invoke-Command -Session $session -ScriptBlock {
-    Get-Content "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log" -Tail 100
+    $logPath = "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log"
+    if (Test-Path $logPath) {
+        Get-Content $logPath -Tail 50 | Select-String -Pattern "error|failed|completed|finished"
+    }
 }
 
 # Verify your fodder executed
 Invoke-Command -Session $session -ScriptBlock {
-    Get-Service | Where-Object Status -eq "Running"
-    Get-WindowsFeature | Where-Object Installed
+    Get-WindowsFeature | Where-Object Name -like "Web-*" | Where-Object Installed
 }
 
 Remove-PSSession $session
+
+# When done, clean up manually
+Get-Catlet | Where-Object Name -eq "windows-test" | Stop-Catlet -Force
+Get-Catlet | Where-Object Name -eq "windows-test" | Remove-Catlet -Force
 ```
+
+#### Manual Testing Without Helper Scripts
+
+If you prefer manual testing or need custom credentials:
 
 #### Test Fodder Gene Locally
 ```powershell

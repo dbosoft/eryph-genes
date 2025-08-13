@@ -117,7 +117,8 @@
       "WebFetch(domain:genepool-api.eryph.io)",
       "WebFetch(domain:nextjs.org)",
       "Bash(Get-Help Test-Catlet -Detailed)",
-      "Bash(turbo:*)"
+      "Bash(turbo:*)",
+      "Bash(dir:*)"
     ],
     "deny": []
   }

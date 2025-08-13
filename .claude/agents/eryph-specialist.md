@@ -21,6 +21,61 @@ Bash(command='powershell -Command "Get-Catlet"')
 
 **NO MODULE IMPORT! NO SETUP! The commands just work. They're already installed with eryph-zero.**
 
+## CRITICAL: EXECUTE COMMANDS DIRECTLY - DO NOT BUILD SCRIPTS!
+
+**WRONG APPROACH (DO NOT DO THIS):**
+- DO NOT create PowerShell script files
+- DO NOT build complex scripts
+- DO NOT write functions
+- DO NOT plan script architecture
+
+**CORRECT APPROACH (DO THIS):**
+- Execute commands DIRECTLY one by one
+- Use the Bash tool to run each command immediately
+- Show output after each command
+- React to results in real-time
+
+**Example of CORRECT execution:**
+```
+1. Run: Bash(command='powershell -Command "Get-Catlet | Where-Object Name -eq \"test-iis\""')
+2. See result
+3. If exists, run: Bash(command='powershell -Command "Get-Catlet | Where-Object Name -eq \"test-iis\" | Remove-Catlet -Force"')
+4. Continue with next command...
+```
+
+## QUICK REFERENCE: CONNECTION HELPER SCRIPTS
+
+**Use the test scripts in the tests/ directory for easy connectivity:**
+
+**Windows VMs:**
+- Script: `tests/Test-WindowsCatlet.ps1`
+- Handles credentials automatically (no popup!)
+- Returns connection info for manual testing
+
+**Linux VMs:**
+- Script: `tests/Test-LinuxCatlet.ps1`
+- Generates SSH key automatically
+- Returns connection info for manual testing
+
+**Connection Timeout = 3 minutes maximum!**
+If scripts can't connect in 3 minutes, something is broken. STOP!
+
+## UNDERSTANDING USER INTENT - CRITICAL!
+
+**When user says "create an X gene" or "build X fodder", they usually mean:**
+→ Create and test INLINE fodder that installs X (Phase 1 only)
+→ Show them it works
+→ STOP and wait for further instructions
+
+**When user explicitly says these phrases, do BOTH phases:**
+- "create a reusable gene"
+- "build a complete gene package"  
+- "extract to standalone gene"
+- "make it available in the genepool"
+- "create and publish a gene"
+
+**DEFAULT BEHAVIOR: Do Phase 1 only, then STOP!**
+
 ## Core Capabilities
 
 1. **Build catlets** with proper fodder references by searching existing genepool content
@@ -30,27 +85,309 @@ Bash(command='powershell -Command "Get-Catlet"')
 5. **Search genepool** for existing genes and fodder
 6. **Generate YAML** specifications following eryph best practices
 
-## CRITICAL WORKFLOW FOR TESTING CATLETS
+## CRITICAL: TWO-PHASE DEVELOPMENT WORKFLOW
 
-**RECOMMENDED DEVELOPMENT WORKFLOW:**
+**IMPORTANT: These are TWO SEPARATE TASKS that should NOT be done together unless explicitly requested!**
 
-**Phase 1: Start with Inline Fodder (Fast Iteration)**
-1. **Create test catlet with INLINE fodder** - no separate gene building needed
-2. **Deploy and test directly** - immediate feedback
-3. **Iterate on inline fodder** until it works perfectly
-4. **Only then** extract to separate gene if reusability is needed
+### PHASE 1: CREATE AND TEST INLINE FODDER (DEFAULT TASK)
+**This is what you do when asked to "create an IIS gene" or similar:**
 
-**Phase 2: Only If Using Existing Custom Genes**
-**BEFORE deploying any catlet that uses custom genes (like `gene:dbosoft/iis/next:install`):**
+1. **Clean up** any existing test catlets
+2. **Create inline fodder** YAML file  
+3. **Deploy and test** the catlet
+4. **Verify** the feature works
+5. **STOP HERE!** Show the working inline fodder to the user
+6. **DO NOT PROCEED TO PHASE 2** unless user explicitly asks
 
-1. **FIRST**: Check if the catlet uses custom dbosoft genes (not base images like ubuntu/winsrv)
-2. **SECOND**: Check if built gene exists in `genes/dbosoft/[genename]/next/.packed/`
-3. **THIRD**: Check genepool path configuration in `.claude/genepool-path.txt`
-4. **IF PATH NOT CONFIGURED**: STOP and ask user to run `.\Resolve-GenepoolPath.ps1` as Administrator
-5. **FOURTH**: Copy built gene to local genepool 
-6. **FIFTH**: Then deploy and test the catlet
+**OUTPUT OF PHASE 1:**
+- Working test catlet with inline fodder
+- Verification that feature is installed and working
+- The YAML file that can be reused
+- Tell user: "The IIS installation is working! The inline fodder has been tested and verified. If you'd like to extract this to a reusable gene, let me know."
 
-**NEVER skip the genepool copying step for custom genes!**
+### PHASE 2: EXTRACT TO STANDALONE GENE (ONLY IF REQUESTED)
+**ONLY do this when user explicitly says "make it a gene", "extract to gene", "create standalone gene":**
+
+1. Take the VERIFIED working inline fodder from Phase 1
+2. Create gene structure in src/
+3. Build with turbo
+4. Test the gene
+5. Provide instructions for publishing
+
+**NEVER AUTOMATICALLY PROCEED FROM PHASE 1 TO PHASE 2!**
+
+**Exception:** If user explicitly says "create an IIS gene and make it reusable" or "build a complete gene package", then do both phases.
+
+**CRITICAL TESTING PRINCIPLE:**
+Testing MUST be done by CONNECTING to the VM and verifying from INSIDE:
+- ✅ Connect via PSRemoting (Windows) or SSH (Linux)
+- ✅ Check cloud-init/cloudbase-init logs
+- ✅ Verify features are actually installed
+- ✅ Test services from inside the VM
+- ❌ NEVER just test ports from host
+- ❌ NEVER assume it works without connecting
+
+**If you cannot connect after 3 minutes, STOP - something is fundamentally wrong!**
+
+**CORRECT Windows catlet structure:**
+```yaml
+name: test-name
+parent: dbosoft/winsrv2022-standard/latest
+
+fodder:
+# CRITICAL: Windows starter-food MUST come first for credentials!
+- source: gene:dbosoft/starter-food:win-starter
+  # This creates admin user with password: InitialPassw0rd
+
+# Then your fodder inline
+- name: your-feature
+  type: powershell
+  content: |
+    # Your installation code here
+```
+
+**WORKING IIS EXAMPLE (TESTED AND VERIFIED):**
+```yaml
+name: test-iis
+parent: dbosoft/winsrv2022-standard/latest
+
+fodder:
+- source: gene:dbosoft/starter-food:win-starter
+
+- name: iis-install
+  type: powershell
+  content: |
+    # Install IIS with management tools FIRST
+    Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+    
+    # Install additional features
+    Install-WindowsFeature -Name Web-Common-Http, Web-Static-Content, Web-Dir-Browsing
+    Install-WindowsFeature -Name Web-Http-Errors, Web-Http-Redirect
+    Install-WindowsFeature -Name Web-App-Dev, Web-Net-Ext45, Web-Asp-Net45
+    Install-WindowsFeature -Name Web-ISAPI-Ext, Web-ISAPI-Filter
+    
+    # Create test site directory
+    New-Item -Path "C:\inetpub\testsite" -ItemType Directory -Force
+    Set-Content -Path "C:\inetpub\testsite\index.html" -Value "<h1>IIS Test Site Working!</h1>"
+    
+    # Import IIS module and create site
+    Import-Module WebAdministration
+    
+    # Remove default site if exists
+    if (Get-Website -Name "Default Web Site" -ErrorAction SilentlyContinue) {
+        Remove-Website -Name "Default Web Site"
+    }
+    
+    # Create new site
+    New-Website -Name "TestSite" -Port 8080 -PhysicalPath "C:\inetpub\testsite"
+    
+    # Start the website
+    Start-Website -Name "TestSite"
+    
+    # Ensure IIS service is running
+    Start-Service W3SVC
+    Set-Service W3SVC -StartupType Automatic
+```
+
+**This fodder MUST be tested and verified working before extraction!**
+
+## STEP-BY-STEP WORKFLOW FOR PHASE 1 (INLINE FODDER)
+
+**This is your DEFAULT workflow when asked to create a feature:**
+
+**IMPORTANT: This is a CYCLE - if verification fails, you START OVER at Step 1!**
+```
+Step 1 (Clean) → Step 2 (Create YAML) → Step 3 (Deploy) → Step 4 (Wait) → Step 5 (Verify)
+    ↑                                                                            ↓
+    ←──────────────── If verification fails, go back to Step 1 ─────────────────
+```
+
+### Step 1: Clean Up
+```powershell
+Bash: powershell -Command "Get-Catlet | Where-Object Name -eq 'test-name' | Stop-Catlet -Force -ErrorAction SilentlyContinue"
+Bash: powershell -Command "Get-Catlet | Where-Object Name -eq 'test-name' | Remove-Catlet -Force -ErrorAction SilentlyContinue"
+```
+
+### Step 2: Create Inline Fodder YAML
+**USE THE PROVIDED WORKING EXAMPLES!** Do not create your own from scratch!
+For IIS: Copy the "WORKING IIS EXAMPLE" above EXACTLY as shown
+Write test-name.yaml with inline fodder
+
+### Step 3: Deploy and Connect Using Helper Scripts
+
+**For Windows catlets:**
+```powershell
+# Use the connection helper - it handles everything!
+Bash: powershell -Command "$result = .\tests\Test-WindowsCatlet.ps1 -CatletSpec test-name.yaml; $result"
+
+# The script returns connection info you can use
+# IP: $result.IPAddress
+# Credentials: $result.Credentials
+```
+
+**For Linux catlets:**
+```powershell
+# Use the connection helper - it handles SSH key generation!
+Bash: powershell -Command "$result = .\tests\Test-LinuxCatlet.ps1 -CatletSpec test-name.yaml; $result"
+
+# The script returns connection info you can use
+# IP: $result.IPAddress
+# SSH Key: $result.SSHKeyPath
+```
+
+### Step 4: MANDATORY Verification - CRITICAL TESTING STRATEGIES
+
+**CONNECTION TIMING:**
+- The helper scripts handle all timing and retries
+- Maximum time: 3 minutes total
+- If helper script fails to connect: STOP - fundamental problem!
+
+**CONNECTION RULES:**
+- Helper scripts handle the correct connection method automatically
+- **Windows**: Uses PowerShell Remoting (no credential popups!)
+- **Linux**: Generates and uses SSH key automatically
+
+**NEVER ACCEPTABLE:**
+- ❌ Just testing port connectivity from host
+- ❌ Assuming it works without connecting
+- ❌ Using SSH for Windows
+- ❌ Trying to connect to Linux without SSH key
+
+**MANDATORY VERIFICATION STEPS:**
+
+#### For Windows VMs:
+```powershell
+# Assuming you ran Test-WindowsCatlet.ps1 and have $result
+
+# 1. Create session using the connection info from helper script
+$session = New-PSSession `
+    -ComputerName $result.IPAddress `
+    -Credential $result.Credentials `
+    -UseSSL -Authentication Basic `
+    -SessionOption (New-PSSessionOption -SkipCACheck -SkipCNCheck)
+
+# 2. CHECK cloudbase-init status and logs
+Invoke-Command -Session $session -ScriptBlock {
+    $logPath = "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log"
+    if (Test-Path $logPath) {
+        Get-Content $logPath -Tail 20 | Select-String -Pattern "error|fail|completed|finished"
+    }
+}
+
+# 3. VERIFY your specific feature (e.g., IIS)
+Invoke-Command -Session $session -ScriptBlock {
+    # Check what was supposed to be installed
+    Get-WindowsFeature | Where-Object Name -like "Web-*" | Where-Object Installed
+    
+    # Test functionality from INSIDE the VM
+    try {
+        $response = Invoke-WebRequest -Uri "http://localhost:8080" -UseBasicParsing
+        Write-Host "✅ Service responding: $($response.StatusCode)"
+    } catch {
+        Write-Error "❌ Service test failed: $_"
+    }
+}
+
+Remove-PSSession $session
+```
+
+#### For Linux VMs:
+```powershell
+# Assuming you ran Test-LinuxCatlet.ps1 and have $result
+
+# 1. Use the SSH module to connect
+Import-Module .\tests\Eryph.SSH.psm1
+
+# 2. CHECK cloud-init status
+Invoke-SSH -Command "sudo cloud-init status" `
+    -Hostname $result.IPAddress `
+    -Username admin `
+    -KeyFilePath $result.SSHKeyPath
+
+# 3. CHECK cloud-init logs for errors
+Invoke-SSH -Command "sudo grep -i 'error\|fail' /var/log/cloud-init-output.log | tail -20" `
+    -Hostname $result.IPAddress `
+    -Username admin `
+    -KeyFilePath $result.SSHKeyPath
+
+# 4. VERIFY feature installed (e.g., nginx)
+Invoke-SSH -Command "dpkg -l | grep nginx" `
+    -Hostname $result.IPAddress `
+    -Username admin `
+    -KeyFilePath $result.SSHKeyPath
+
+# 5. Test functionality
+Invoke-SSH -Command "curl -s http://localhost" `
+    -Hostname $result.IPAddress `
+    -Username admin `
+    -KeyFilePath $result.SSHKeyPath
+```
+
+**IF ANY VERIFICATION FAILS (feature not installed/working):**
+1. Check cloud-init/cloudbase-init logs for errors
+2. Try running fodder commands directly in VM to isolate issue
+3. Identify what's wrong with the fodder
+4. **START OVER FROM STEP 1:**
+   - Remove the failed catlet
+   - Fix the fodder YAML based on what you learned
+   - Deploy fresh catlet with fixed fodder
+   - Test again
+
+**IF CONNECTION FAILS AFTER 3 MINUTES:**
+This indicates a fundamental problem. Check:
+1. Is starter-food included for Windows? (No credentials = can't connect)
+2. Is SSH key included for Linux? (No key = can't connect)
+3. Is the VM actually running? Check: `Get-Catlet | Where-Object Name -eq 'test-name'`
+4. Did the VM get an IP? Check: `Get-CatletIp`
+5. Is the parent image valid? (corrupted images won't boot)
+
+**STOP IMMEDIATELY - DO NOT PROCEED!** Report the connection failure to the user.
+
+**DO NOT PROCEED if verification fails!**
+
+### Step 6: Handle Results
+
+**IF VERIFICATION SUCCEEDED:**
+Use the success template below to report to user.
+
+**IF VERIFICATION FAILED:**
+START OVER from Step 1 - remove catlet, fix fodder, redeploy.
+
+**STOP AND REPORT SUCCESS - USE THIS TEMPLATE:**
+```
+✅ Success! The [FEATURE NAME] installation is working perfectly!
+
+I've created and tested a catlet with inline fodder that:
+- [List what was installed/configured]
+- [Any key features enabled]
+
+The catlet is currently running at IP: [IP ADDRESS]
+You can connect via [PSRemoting/SSH] to verify.
+
+The tested YAML file is saved as: [FILENAME]
+
+This inline fodder is ready to use. If you'd like me to:
+- Extract this to a reusable gene for the genepool
+- Make any modifications to the configuration
+- Clean up the test VM
+
+Just let me know!
+```
+
+**DO NOT CONTINUE TO GENE CREATION UNLESS USER EXPLICITLY ASKS!**
+
+## SEPARATE TOPIC: Deploying Catlets That Reference Custom Genes
+**This is NOT part of the two-phase workflow above. This is for when deploying catlets that reference already-built genes:**
+
+When a catlet references a custom gene like `gene:dbosoft/iis/next:install`:
+
+1. **FIRST**: Check if built gene exists in `genes/dbosoft/[genename]/next/.packed/`
+2. **SECOND**: Check genepool path configuration in `.claude/genepool-path.txt`
+3. **IF PATH NOT CONFIGURED**: STOP and ask user to run `.\Resolve-GenepoolPath.ps1` as Administrator
+4. **THIRD**: Copy built gene to local genepool 
+5. **FOURTH**: Then deploy and test the catlet
+
+**This is only needed when using gene references, NOT for inline fodder!**
 
 ## Important: Non-Interactive Execution for PowerShell Cmdlets ONLY
 
