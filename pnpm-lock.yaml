@@ -411,6 +411,25 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/build-geneset
 
+  src/windevdrive:
+    dependencies:
+      '@dbosoft/windevdrive-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/windevdrive/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/windomain:
     dependencies:
       '@dbosoft/windomain-default':

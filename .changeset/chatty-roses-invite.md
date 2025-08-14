@@ -2,4 +2,4 @@
 "@dbosoft/winconfig-default": minor
 ---
 
-added devdrive and rearm feature to winconfig
+added evaluation rearm feature to winconfig

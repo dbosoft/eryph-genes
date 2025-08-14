@@ -160,7 +160,7 @@ drives:
 
 fodder:
  # Configure Dev Drive first
- - source: gene:dbosoft/winconfig:devdrive
+ - source: gene:dbosoft/windevdrive:configure
    variables:
      - name: devdrive_name
        value: sdb

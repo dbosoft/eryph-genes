@@ -131,7 +131,7 @@ fodder:
       - name: sshPublicKey
         value: '\{{ egskey }}'
   
-  - source: gene:dbosoft/winconfig:devdrive
+  - source: gene:dbosoft/windevdrive:configure
     variables:
       - name: devdrive_name
         value: devdrive
@@ -237,6 +237,6 @@ fsutil devdrv query E:
 
 ## Related Genes
 
-- `dbosoft/winconfig:devdrive` - Create and configure Dev Drives
+- `dbosoft/windevdrive:configure` - Create and configure Dev Drives
 - `dbosoft/guest-services:win-install` - SSH access via Eryph Guest Services
 - `dbosoft/chocolatey` - Chocolatey package manager setup

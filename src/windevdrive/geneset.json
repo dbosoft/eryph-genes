@@ -1,0 +1,7 @@
+{
+  "version": "1.1",
+  "geneset": "dbosoft/windevdrive",
+  "public": true,
+  "short_description": "Windows Dev Drive configuration for optimized development performance",
+  "description": "Windows Dev Drive configuration for optimized development performance"
+}

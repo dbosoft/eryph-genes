@@ -1,0 +1,12 @@
+{
+  "name": "@dbosoft/windevdrive-default",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "build-geneset-tag",
+    "publish": "build-geneset-tag publish"
+  },
+  "devDependencies": {
+    "@dbosoft/build-geneset": "workspace:*"
+  }
+}

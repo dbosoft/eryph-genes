@@ -1,4 +1,4 @@
-name: devdrive
+name: configure
 
 variables:
   - name: devdrive_name

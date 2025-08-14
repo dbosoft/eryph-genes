@@ -26,10 +26,10 @@ variables:
 
 fodder:
   # Package Manager
-  - source: gene:dbosoft/chocolatey/next:install
+  - source: gene:dbosoft/chocolatey:install
   
   # Dev Drive Configuration (100GB high-performance ReFS)
-  - source: gene:dbosoft/winconfig/next:devdrive
+  - source: gene:dbosoft/windevdrive:configure
     variables:
       - name: devdrive_name
         value: "sdb"
@@ -83,7 +83,7 @@ fodder:
       Write-Host "Essential developer tools installation completed"
   
   # VS Code with Dev Drive integration
-  - source: gene:dbosoft/vscode/next:win-vscode
+  - source: gene:dbosoft/vscode:win-vscode
     variables:
       - name: vscode_extensions
         value: '\{{ vscode_extensions }}'
@@ -91,7 +91,7 @@ fodder:
         value: "E"
   
   # Visual Studio 2022 with Dev Drive (includes .NET SDK)
-  - source: gene:dbosoft/msvs/next:vs2022
+  - source: gene:dbosoft/msvs:vs2022
     variables:
       - name: vs_edition
         value: '\{{ vs_edition }}'

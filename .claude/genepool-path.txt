@@ -1,3 +1,0 @@
-# Genepool Path Storage
-# This file stores the local genepool path to avoid repeatedly asking for admin rights
-d:\Hyper-V\disks\Eryph\genepool
