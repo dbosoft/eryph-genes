@@ -125,8 +125,20 @@
       "Bash(egs-tool.exe get-status:*)",
       "Bash(\"C:\\Windows\\System32\\OpenSSH\\ssh.exe\" 72a69558-798e-4129-aaa5-51be3e3ec721.eryph.alt -C hostname)",
       "Bash(\"C:\\Windows\\System32\\OpenSSH\\ssh.exe\" 933df39b-c388-494b-b2fb-b66f7451f2b5.eryph.alt -C hostname)",
-      "Bash(\"C:\\Windows\\System32\\OpenSSH\\ssh.exe\" 49e2c4d5-49d8-4e6e-9568-1c1d4427a7fc.eryph.alt -C hostname)"
+      "Bash(\"C:\\Windows\\System32\\OpenSSH\\ssh.exe\" 49e2c4d5-49d8-4e6e-9568-1c1d4427a7fc.eryph.alt -C hostname)",
+      "Bash(ssh:*)",
+      "Bash(C:WindowsSystem32OpenSSHssh.exe -v 52a98da7-2680-4b8f-9f0f-e38bee102b5c.eryph.alt hostname)",
+      "Bash(C:\\Windows\\System32\\OpenSSH\\ssh.exe 52a98da7-2680-4b8f-9f0f-e38bee102b5c.eryph.alt hostname)",
+      "Bash(\"C:/Windows/System32/OpenSSH/ssh.exe\" 52a98da7-2680-4b8f-9f0f-e38bee102b5c.eryph.alt hostname)",
+      "Bash(echo $PATH)",
+      "Bash(echo $SHELL)",
+      "WebSearch",
+      "Bash(\"C:/Windows/System32/OpenSSH/ssh.exe\" test-vscode-win10-simple.eryph.alt hostname)"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
+  },
+  "filesystem": {
+    "restrict": false
   }
 }

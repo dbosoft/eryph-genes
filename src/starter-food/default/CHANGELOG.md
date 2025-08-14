@@ -1,5 +1,11 @@
 # @dbosoft/starter-food-default
 
+## 2.0.0
+
+### Major Changes
+
+- 08b4953: Move configuration of SSH server feature in Windows to separate gene
+
 ## 1.5.0
 
 ### Minor Changes

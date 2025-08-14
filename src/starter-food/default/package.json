@@ -1,7 +1,7 @@
 {
   "name": "@dbosoft/starter-food-default",
   "private": true,
-  "version": "1.5.0",
+  "version": "2.0.0",
   "scripts": {
     "build": "build-geneset-tag",
     "publish": "build-geneset-tag publish"

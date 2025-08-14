@@ -1,0 +1,277 @@
+name: test-vscode-{{ os_variant }}
+parent: {{ parent }}
+
+variables:
+- name: egskey
+  secret: true
+
+fodder:
+  # Add guest services for SSH access
+  - source: gene:dbosoft/guest-services:win-install
+    variables:
+      - name: sshPublicKey
+        value: '{{ egskey }}'
+  
+  # Install VS Code
+  - name: install-vscode
+    type: shellscript
+    filename: install-vscode.ps1
+    content: |
+      Write-Host "Starting VS Code installation process..."
+      
+      # Check if we need to handle post-reboot scenario
+      $rebootMarker = "C:\ProgramData\vscode-install-reboot.marker"
+      if (Test-Path $rebootMarker) {
+          Write-Host "Detected post-reboot scenario, continuing VS Code installation..."
+          Remove-Item $rebootMarker -Force
+      }
+      
+      # Function to test if a command exists
+      function Test-CommandExists {
+          param($Command)
+          try {
+              if (Get-Command $Command -ErrorAction Stop) {
+                  return $true
+              }
+          } catch {
+              return $false
+          }
+          return $false
+      }
+      
+      # Function to check if OS supports winget
+      function Test-WingetSupported {
+          $os = Get-CimInstance -ClassName Win32_OperatingSystem
+          $build = [int]$os.BuildNumber
+          
+          # Windows 10 1709 (build 16299) or later, or Windows Server 2022 (build 20348) or later
+          if ($build -ge 16299) {
+              Write-Host "OS Build $build supports winget"
+              return $true
+          } else {
+              Write-Host "OS Build $build does not support winget"
+              return $false
+          }
+      }
+      
+      # Function to install winget (App Installer)
+      function Install-Winget {
+          Write-Host "Installing winget (App Installer)..."
+          
+          try {
+              # Download required dependencies
+              $tempDir = New-Item -ItemType Directory -Path "$env:TEMP\winget-install" -Force
+              
+              # Download Microsoft.UI.Xaml (dependency)
+              Write-Host "Downloading Microsoft.UI.Xaml..."
+              $xamlUrl = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx"
+              $xamlPath = "$tempDir\Microsoft.UI.Xaml.2.8.x64.appx"
+              Invoke-WebRequest -Uri $xamlUrl -OutFile $xamlPath -UseBasicParsing
+              
+              # Download VCLibs (dependency)
+              Write-Host "Downloading VCLibs..."
+              $vcLibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+              $vcLibsPath = "$tempDir\Microsoft.VCLibs.x64.14.00.Desktop.appx"
+              Invoke-WebRequest -Uri $vcLibsUrl -OutFile $vcLibsPath -UseBasicParsing
+              
+              # Install dependencies
+              Write-Host "Installing dependencies..."
+              Add-AppxPackage -Path $xamlPath -ErrorAction SilentlyContinue
+              Add-AppxPackage -Path $vcLibsPath -ErrorAction SilentlyContinue
+              
+              # Download and install winget
+              Write-Host "Downloading winget..."
+              $wingetUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+              $wingetPath = "$tempDir\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+              Invoke-WebRequest -Uri $wingetUrl -OutFile $wingetPath -UseBasicParsing
+              
+              Write-Host "Installing winget..."
+              Add-AppxPackage -Path $wingetPath -ForceApplicationShutdown
+              
+              # Clean up temp files
+              Remove-Item $tempDir -Recurse -Force
+              
+              # Refresh PATH
+              $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+              
+              # Wait a moment for winget to be available
+              Start-Sleep -Seconds 2
+              
+              if (Test-CommandExists "winget") {
+                  Write-Host "winget successfully installed"
+                  return $true
+              } else {
+                  Write-Host "winget installation completed but command not found"
+                  return $false
+              }
+          } catch {
+              Write-Host "Error installing winget: $_"
+              return $false
+          }
+      }
+      
+      # Function to install VS Code via winget
+      function Install-VSCodeWinget {
+          Write-Host "Attempting to install VS Code via winget..."
+          
+          # Check if winget is available
+          if (!(Test-CommandExists "winget")) {
+              Write-Host "winget not found, attempting to install it..."
+              if (!(Install-Winget)) {
+                  Write-Host "Failed to install winget"
+                  return $false
+              }
+          }
+          
+          Write-Host "Using winget to install VS Code..."
+          try {
+              winget install --id Microsoft.VisualStudioCode --exact --silent --accept-package-agreements --accept-source-agreements
+              if ($LASTEXITCODE -eq 0) {
+                  Write-Host "VS Code successfully installed via winget"
+                  return $true
+              } else {
+                  Write-Host "winget installation failed with exit code: $LASTEXITCODE"
+                  return $false
+              }
+          } catch {
+              Write-Host "Error during winget installation: $_"
+              return $false
+          }
+      }
+      
+      # Function to install Chocolatey
+      function Install-Chocolatey {
+          Write-Host "Installing Chocolatey package manager..."
+          
+          try {
+              Set-ExecutionPolicy Bypass -Scope Process -Force
+              [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+              
+              # Capture the installation output to check for reboot requirements
+              $chocoInstallOutput = Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')) 2>&1 | Out-String
+              
+              Write-Host $chocoInstallOutput
+              
+              # Check if .NET Framework reboot is required
+              if ($chocoInstallOutput -match "reboot is required") {
+                  Write-Host "Reboot required for .NET Framework - requesting cloudbase-init reboot..."
+                  # Create marker file to track reboot
+                  New-Item -Path "C:\ProgramData\vscode-install-reboot.marker" -ItemType File -Force | Out-Null
+                  # Exit with cloudbase-init reboot code (1003 = reboot and run again)
+                  exit 1003
+              }
+              
+              # Refresh environment variables
+              $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+              
+              if (Test-CommandExists "choco") {
+                  Write-Host "Chocolatey successfully installed"
+                  return $true
+              } else {
+                  Write-Host "Chocolatey installation completed but command not found"
+                  return $false
+              }
+          } catch {
+              Write-Host "Error installing Chocolatey: $_"
+              return $false
+          }
+      }
+      
+      # Function to install VS Code via Chocolatey
+      function Install-VSCodeChocolatey {
+          Write-Host "Attempting to install VS Code via Chocolatey..."
+          
+          # Check if Chocolatey is installed
+          if (!(Test-CommandExists "choco")) {
+              Write-Host "Chocolatey not found, installing it first..."
+              if (!(Install-Chocolatey)) {
+                  Write-Host "Failed to install Chocolatey"
+                  return $false
+              }
+          }
+          
+          # Install VS Code using Chocolatey
+          Write-Host "Installing VS Code with Chocolatey..."
+          try {
+              # Refresh PATH to ensure choco is available
+              $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+              
+              $chocoOutput = choco install vscode -y --no-progress 2>&1 | Out-String
+              Write-Host $chocoOutput
+              
+              if ($LASTEXITCODE -eq 0) {
+                  Write-Host "VS Code successfully installed via Chocolatey"
+                  return $true
+              } else {
+                  Write-Host "Chocolatey installation failed with exit code: $LASTEXITCODE"
+                  
+                  # Check if it's a reboot requirement issue
+                  if ($chocoOutput -match "reboot" -or $LASTEXITCODE -eq 3010) {
+                      Write-Host "Installation requires a reboot - requesting cloudbase-init reboot..."
+                      New-Item -Path "C:\ProgramData\vscode-install-reboot.marker" -ItemType File -Force | Out-Null
+                      exit 1003
+                  }
+                  
+                  return $false
+              }
+          } catch {
+              Write-Host "Error during Chocolatey installation: $_"
+              return $false
+          }
+      }
+      
+      # Main installation logic
+      $installed = $false
+      
+      # Check if VS Code is already installed
+      $vscodePaths = @(
+          "${env:ProgramFiles}\Microsoft VS Code\Code.exe",
+          "${env:ProgramFiles(x86)}\Microsoft VS Code\Code.exe",
+          "${env:LOCALAPPDATA}\Programs\Microsoft VS Code\Code.exe"
+      )
+      
+      foreach ($path in $vscodePaths) {
+          if (Test-Path $path) {
+              Write-Host "VS Code is already installed at: $path"
+              $installed = $true
+              break
+          }
+      }
+      
+      if (!$installed) {
+          # Check if OS supports winget
+          if (Test-WingetSupported) {
+              # Try to use winget (install it if needed)
+              if (Install-VSCodeWinget) {
+                  $installed = $true
+              }
+          } else {
+              Write-Host "OS does not support winget, skipping to Chocolatey..."
+          }
+          
+          # Fall back to Chocolatey if winget failed or not supported
+          if (!$installed) {
+              Write-Host "Using Chocolatey installation method..."
+              if (Install-VSCodeChocolatey) {
+                  $installed = $true
+              }
+          }
+      }
+      
+      # Final verification
+      if ($installed) {
+          Write-Host "VS Code installation completed successfully!"
+          
+          # Add VS Code to PATH if not already there
+          $codePath = "${env:ProgramFiles}\Microsoft VS Code\bin"
+          if (Test-Path $codePath) {
+              $currentPath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+              if ($currentPath -notlike "*$codePath*") {
+                  [System.Environment]::SetEnvironmentVariable("Path", "$currentPath;$codePath", "Machine")
+                  Write-Host "Added VS Code to system PATH"
+              }
+          }
+      } else {
+          Write-Host "ERROR: Failed to install VS Code through all available methods"
+          exit 1
+      }

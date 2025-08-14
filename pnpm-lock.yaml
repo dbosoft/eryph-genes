@@ -78,27 +78,30 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/build-geneset
 
-  src/iis:
-    dependencies:
-      '@dbosoft/iis-default':
-        specifier: workspace:*
-        version: link:default
-    devDependencies:
-      '@dbosoft/build-geneset':
-        specifier: workspace:*
-        version: link:../../packages/build-geneset
-
-  src/iis/default:
-    devDependencies:
-      '@dbosoft/build-geneset':
-        specifier: workspace:*
-        version: link:../../../packages/build-geneset
-
   src/linux-starter-catlet:
     devDependencies:
       '@dbosoft/build-geneset':
         specifier: workspace:*
         version: link:../../packages/build-geneset
+
+  src/msvs:
+    dependencies:
+      '@dbosoft/msvs-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/msvs/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
 
   src/powershell:
     dependencies:

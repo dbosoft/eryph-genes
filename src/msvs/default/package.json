@@ -1,7 +1,8 @@
 {
-  "name": "@dbosoft/winconfig-default",
+  "name": "@dbosoft/msvs-default",
+  "version": "1.0.0",
+  "description": "Microsoft Visual Studio fodder genes - default tag",
   "private": true,
-  "version": "0.3.0",
   "scripts": {
     "build": "build-geneset-tag",
     "publish": "build-geneset-tag publish"
