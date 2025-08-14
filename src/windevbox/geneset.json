@@ -1,3 +1,7 @@
 {
-  "geneset": "dbosoft/windevbox"
+  "geneset": "dbosoft/windevbox",
+  "public": true,
+  "short_description": "Windows Developer Box",
+  "description": "Pre-configured Windows development environments with common developer tools and configurations for Windows 10 and Windows 11.",
+  "description_markdown_file": "readme.md"
 }

@@ -6,6 +6,7 @@
     "publish": "build-geneset publish"
   },
   "dependencies": {
+    "templates": "workspace:*",
     "@dbosoft/windevbox-win10": "workspace:*",
     "@dbosoft/windevbox-win11": "workspace:*"
   },

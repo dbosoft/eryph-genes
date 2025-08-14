@@ -380,6 +380,9 @@ importers:
       '@dbosoft/windevbox-win11':
         specifier: workspace:*
         version: link:win11
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
     devDependencies:
       '@dbosoft/build-geneset':
         specifier: workspace:*
