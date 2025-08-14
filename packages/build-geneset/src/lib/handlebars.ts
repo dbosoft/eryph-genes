@@ -2,6 +2,7 @@ import path from "path";
 import { GenesetManifest, Tag } from "./types";
 import * as fs from 'fs';
 import Handlebars from 'handlebars';
+import { glob } from 'glob';
 
 export type TemplateVariables = {
     manifest: GenesetManifest;
@@ -35,20 +36,40 @@ export function initHandlebars(){
 }
 
 function loadPartials(){
-
-    const partialsDir = path.join('.', 'node_modules', 'templates', 'partials');
-
-    if (!fs.existsSync(partialsDir)) {
+    const nodeModulesPath = path.join('.', 'node_modules');
+    
+    if (!fs.existsSync(nodeModulesPath)) {
         return;
     }
 
-    const partialFiles = fs.readdirSync(partialsDir);
+    // Find all .md.hbs and .yaml.hbs files in any 'partials' folder within node_modules
+    const patterns = [
+        '**/partials/**/*.md.hbs',
+        '**/partials/**/*.yaml.hbs'
+    ];
+    
+    for (const pattern of patterns) {
+        const partialFiles = glob.sync(pattern, {
+            cwd: nodeModulesPath,
+            absolute: false,
+            nodir: true,
+            follow: true  // Follow symlinks
+        });
 
-    for (const partialFile of partialFiles) {
-        const partialFilePath = path.join(partialsDir, partialFile);
-        const partialName = path.basename(partialFile, '.md.hbs');
-        const partialContent = fs.readFileSync(partialFilePath, 'utf8');
-        Handlebars.registerPartial(partialName, partialContent);
+        for (const partialFile of partialFiles) {
+            const partialFilePath = path.join(nodeModulesPath, partialFile);
+            
+            // Extract filename without extension(s)
+            // e.g., "footer.md.hbs" -> "footer"
+            // e.g., "catlet.yaml.hbs" -> "catlet"
+            const basename = path.basename(partialFile);
+            const partialName = basename.replace(/\.(md|yaml)\.hbs$/, '');
+            
+            const partialContent = fs.readFileSync(partialFilePath, 'utf8');
+            
+            // Register the partial with Handlebars
+            Handlebars.registerPartial(partialName, partialContent);
+        }
     }
 }
 

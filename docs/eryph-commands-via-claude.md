@@ -43,6 +43,30 @@ Bash(command='powershell -Command "Get-Catlet"')
 
 **Solution:** ALWAYS use `-SkipVariablesPrompt` with New-Catlet/Test-Catlet when the YAML contains variables, and provide variables via `-Variables @{varname = $value}`
 
+## Handling Long-Running Operations (CRITICAL!)
+
+**Eryph is a client/server architecture. When commands timeout in the client, they CONTINUE running on the server!**
+
+**When a command times out:**
+1. The operation is STILL RUNNING on the server
+2. Gene downloads WILL CONTINUE
+3. Catlets WILL BE CREATED
+4. You MUST monitor the operation using `Get-EryphOperation`
+
+**Best Practice for Long Operations:**
+```powershell
+# Use -Verbose to capture operation ID
+$result = New-Catlet -Verbose ...
+# If timeout occurs, extract operation ID from verbose output
+# Monitor with: Get-EryphOperation -Id <operation-id>
+# Wait for Status to change from "Running" to "Completed"
+```
+
+**Common long-running operations:**
+- Downloading large genes (Windows images can be 8-10GB)
+- Creating catlets with new genes
+- First-time gene pulls from genepool
+
 ## Non-Interactive Execution for PowerShell Cmdlets
 
 **ONLY FOR POWERSHELL CMDLETS: Use the `-Force` parameter with eryph PowerShell commands that have confirmation prompts.** As an AI agent, you cannot respond to interactive PowerShell cmdlet prompts, so you must bypass them with `-Force`.
@@ -69,7 +93,7 @@ Get-Catlet | Where-Object Name -eq "vm-name" | Get-CatletIp  # NO -Force (doesn'
 Get-Content catlet.yaml -Raw | New-Catlet -Verbose
 
 # With variables for EGS:
-$egsKey = (egs-tool.exe get-ssh-key | Out-String).Replace("`r`n", " ").Trim()
+$egsKey = (egs-tool.exe get-ssh-key | Out-String) -replace "[\r\n]", ""
 Get-Content catlet.yaml -Raw | New-Catlet -Verbose -Variables @{ egskey = $egsKey } -SkipVariablesPrompt
 
 # Alternative with -InputObject (less preferred):
@@ -134,19 +158,20 @@ while ((egs-tool.exe get-status $vmId) -ne "available") {
 ```powershell
 # Step 1: Get EGS SSH key and fix line break issue
 # CRITICAL: This EXACT format is required - DO NOT modify!
-# IMPORTANT: Replace line breaks with EMPTY STRING, not space!
-$egsKey = (egs-tool.exe get-ssh-key | Out-String).Replace("`r`n", "").Trim()
+# IMPORTANT: Remove ALL line breaks (the key type already has the space)
+$egsKey = (egs-tool.exe get-ssh-key | Out-String) -replace "[\r\n]", ""
 
 # Step 2: Deploy with variables (note -SkipVariablesPrompt)
 Get-Content test-name.yaml -Raw | New-Catlet -Verbose -Variables @{ egskey = $egsKey } -SkipVariablesPrompt
 
 # IMPORTANT for Bash/Claude users:
-# When running from Bash, you MUST escape the backticks properly:
-# powershell -Command "\$egsKey = (egs-tool.exe get-ssh-key | Out-String).Replace(\"\`r\`n\", \"\").Trim(); Get-Content test.yaml -Raw | New-Catlet -Verbose -Variables @{ egskey = \$egsKey } -SkipVariablesPrompt"
+# Use this bash-safe command (no backticks needed!):
+# powershell -Command '$egsKey = (egs-tool.exe get-ssh-key | Out-String) -replace "[\r\n]", ""; Get-Content test.yaml -Raw | New-Catlet -Verbose -Variables @{ egskey = $egsKey } -SkipVariablesPrompt'
 # 
 # KEY POINTS:
-# - Use double quotes and escape $ as \$ and backticks as \`
-# - Replace line breaks with EMPTY STRING (""), not space (" ")
+# - Use single quotes for the whole command to avoid bash interpretation
+# - Use -replace "[\r\n]" instead of .Replace() to avoid backticks
+# - Remove ALL line breaks (the key type already has the needed space)
 # - The key should have only ONE space between type and data
 
 # Step 3: Start catlet

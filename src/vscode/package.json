@@ -1,0 +1,16 @@
+{
+  "name": "@dbosoft/vscode",
+  "description": "Visual Studio Code fodder genes",
+  "private": true,
+  "dependencies": {
+    "@dbosoft/vscode-default": "workspace:*",
+    "templates": "workspace:*"
+  },
+  "scripts": {
+    "build": "build-geneset",
+    "publish": "build-geneset publish"
+  },
+  "devDependencies": {
+    "@dbosoft/build-geneset": "workspace:*"
+  }
+}

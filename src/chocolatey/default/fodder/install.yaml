@@ -1,0 +1,93 @@
+name: install
+
+variables:
+  - name: rebootMarkerPath
+    value: "C:\\ProgramData\\chocolatey-install-reboot.marker"
+
+fodder:
+- name: install-chocolatey
+  type: shellscript
+  fileName: install-chocolatey.ps1
+  content: |
+    #ps1_sysnative
+    Write-Host "Starting Chocolatey installation..."
+    
+    # Check if we need to handle post-reboot scenario
+    $rebootMarker = "{{ rebootMarkerPath }}"
+    if (Test-Path $rebootMarker) {
+        Write-Host "Detected post-reboot scenario, continuing Chocolatey installation..."
+        Remove-Item $rebootMarker -Force
+    }
+    
+    # Function to test if a command exists
+    function Test-CommandExists {
+        param($Command)
+        try {
+            if (Get-Command $Command -ErrorAction Stop) {
+                return $true
+            }
+        } catch {
+            return $false
+        }
+        return $false
+    }
+    
+    # Function to install Chocolatey
+    function Install-Chocolatey {
+        Write-Host "Installing Chocolatey package manager..."
+        
+        try {
+            Set-ExecutionPolicy Bypass -Scope Process -Force
+            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+            
+            # Capture the installation output to check for reboot requirements
+            $chocoInstallOutput = Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')) 2>&1 | Out-String
+            
+            Write-Host $chocoInstallOutput
+            
+            # Check if .NET Framework reboot is required
+            if ($chocoInstallOutput -match "reboot is required") {
+                Write-Host "Reboot required for .NET Framework - requesting cloudbase-init reboot..."
+                # Create marker file to track reboot
+                New-Item -Path "{{ rebootMarkerPath }}" -ItemType File -Force | Out-Null
+                # Exit with cloudbase-init reboot code (1003 = reboot and run again)
+                exit 1003
+            }
+            
+            # Refresh environment variables
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+            
+            if (Test-CommandExists "choco") {
+                Write-Host "Chocolatey successfully installed"
+                return $true
+            } else {
+                Write-Host "Chocolatey installation completed but command not found"
+                return $false
+            }
+        } catch {
+            Write-Host "Error installing Chocolatey: $_"
+            return $false
+        }
+    }
+    
+    # Main installation logic
+    Write-Host "Checking if Chocolatey is already installed..."
+    
+    if (Test-CommandExists "choco") {
+        Write-Host "Chocolatey is already installed"
+        $chocoVersion = choco --version
+        Write-Host "Current Chocolatey version: $chocoVersion"
+    } else {
+        Write-Host "Chocolatey not found, proceeding with installation..."
+        
+        if (Install-Chocolatey) {
+            Write-Host "Chocolatey installation completed successfully"
+            $chocoVersion = choco --version
+            Write-Host "Installed Chocolatey version: $chocoVersion"
+        } else {
+            Write-Host "Failed to install Chocolatey"
+            exit 1
+        }
+    }
+    
+    Write-Host "Chocolatey installation process completed"

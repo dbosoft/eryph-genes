@@ -1,5 +1,24 @@
 # eryph-genes Repository
 
+## ⚠️ CRITICAL - ALWAYS DO THIS
+
+### EGS Key Handling - NEVER SKIP THE REPLACE
+```powershell
+# ❌ WRONG - Will break SSH authentication
+$egsKey = egs-tool.exe get-ssh-key
+
+# ✅ CORRECT - ALWAYS remove line breaks
+$egsKey = (egs-tool.exe get-ssh-key | Out-String) -replace "[\r\n]", ""
+```
+**This happens EVERY TIME if you forget! The key has line breaks that MUST be removed!**
+
+### PowerShell Command Troubleshooting
+**If eryph PowerShell commands or EGS SSH operations start failing:**
+- **IMMEDIATELY** read `docs/eryph-commands-via-claude.md` 
+- Verify you're using the EXACT command syntax documented there
+- Common failures: NullReferenceException, SSH connection errors, missing `-SkipVariablesPrompt`
+- The documentation contains proven working patterns - always refer back when errors occur
+
 ## Overview
 
 This repository manages the official eryph genes maintained by dbosoft. Genes are the evolutionary units of infrastructure in eryph - reusable templates that catlets (VMs) inherit from.
@@ -56,9 +75,13 @@ eryph-genes/
 When testing genes, always use EGS for SSH access to catlets:
 
 ### Quick EGS Setup for Testing
+
+**⚠️ CRITICAL: The EGS key MUST have line breaks removed or SSH will fail!**
+
 ```powershell
-# Get EGS SSH key
-$egsKey = (egs-tool.exe get-ssh-key | Out-String).Replace("`r`n", "").Trim()
+# ⚠️ CRITICAL: ALWAYS use this exact pattern - DO NOT skip the replace!
+$egsKey = (egs-tool.exe get-ssh-key | Out-String) -replace "[\r\n]", ""
+# ↑ THIS REPLACE IS MANDATORY - THE KEY WILL BE BROKEN WITHOUT IT!
 
 # Deploy catlet with EGS
 Get-Content test-catlet.yaml | New-Catlet -Variables @{ egskey = $egsKey } -SkipVariablesPrompt
@@ -89,10 +112,21 @@ fodder:
 
 ## Build System
 
+### ⚠️ IMPORTANT: Creating Genesets is Complex!
+**Creating a new geneset is NOT just copying files!** It requires:
+1. **Two separate npm packages**: geneset package (no version) + tag package(s) (with versions)
+2. **Proper dependency structure**: Tag packages must depend on their parent geneset
+3. **Correct package.json setup**: Different requirements for geneset vs tag packages
+4. **geneset.json metadata**: Must match package structure
+5. **Turbo build integration**: Must work with the monorepo build system
+
+**ALWAYS use the gene-maintainer agent for creating new genesets** - it has specialized knowledge of the npm/turbo build system and package relationships.
+
 ### Package Structure
 - **Geneset packages** (`src/genename/`) - Define gene family, NO version in package.json
-- **Tag packages** (`src/genename-default/`) - Define versions, HAVE version in package.json
+- **Tag packages** (`src/genename/default/`) - Define versions, HAVE version in package.json  
 - Tags are dependencies of their parent geneset
+- Each tag folder contains its own package.json and fodder/ directory
 
 ### Build Commands
 ```bash
@@ -106,8 +140,10 @@ npx changeset       # Create version changeset
 - `Resolve-GenepoolPath.ps1` - Get local genepool path (requires admin)
 - `build.ps1` - Build base catlets from hyperv-boxes
 - `test_packed.ps1` - Test packed genes
-- `push_packed.ps1` - Push to genepool
+- `push_packed.ps1` - **⚠️ DANGER: Pushes to PUBLIC GENEPOOL! NEVER use for testing!**
 - `delete_packed.ps1` - Clean up .packed folders
+
+**CRITICAL: For local testing, ALWAYS use the gene-maintainer agent to copy genes to local genepool. NEVER use push_packed.ps1 until after full testing and verification!**
 
 ## Local Testing Requirements
 

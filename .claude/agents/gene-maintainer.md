@@ -55,6 +55,180 @@ Users should NOT come to you with:
 ❌ Broken configurations
 ❌ "Can you help me make X work?"
 
+## Gene Package Structure
+
+### Required Files for Each Gene
+
+Every gene in `src/` requires this exact structure:
+
+#### Geneset Level (e.g., `src/winget/`)
+1. **geneset.json** - Gene metadata
+   ```json
+   {
+       "geneset": "dbosoft/genename",
+       "public": true,
+       "short_description": "Brief description",
+       "description": "Full description",
+       "description_markdown": null,
+       "description_markdown_file": "readme.md"
+   }
+   ```
+
+2. **package.json** - Geneset package (NO version!)
+   ```json
+   {
+     "name": "@dbosoft/genename",
+     "private": true,
+     "scripts": {
+       "build": "build-geneset",
+       "publish": "build-geneset publish"
+     },
+     "dependencies": {
+       "templates": "workspace:*",
+       "@dbosoft/genename-default": "workspace:*"
+     },
+     "devDependencies": {
+       "@dbosoft/build-geneset": "workspace:*"
+     }
+   }
+   ```
+
+3. **readme.md** - Documentation (optional but recommended)
+
+#### Tag Level (e.g., `src/winget/default/`)
+1. **geneset-tag.json** - Tag configuration
+   ```json
+   {"version":"1.0","geneset":"dbosoft/genename/{{packageVersion.majorMinor}}"}
+   ```
+
+2. **package.json** - Tag package (HAS version, NO templates dependency!)
+   ```json
+   {
+     "name": "@dbosoft/genename-default",
+     "private": true,
+     "version": "0.1.0",
+     "scripts": {
+       "build": "build-geneset-tag",
+       "publish": "build-geneset-tag publish"
+     },
+     "devDependencies": {
+       "@dbosoft/build-geneset": "workspace:*"
+     }
+   }
+   ```
+
+3. **fodder/** directory containing YAML files
+
+### Important Package.json Dependencies
+
+**Geneset package.json** (in root of gene, e.g., `src/winget/package.json`):
+- MUST include `"templates": "workspace:*"` - Required for template processing
+- MUST include `"@dbosoft/genename-default": "workspace:*"` - Reference to the tag package
+
+**Tag package.json** (in tag folder, e.g., `src/winget/default/package.json`):
+- NO templates dependency - only the geneset needs it
+- Only needs `@dbosoft/build-geneset` in devDependencies
+
+Example for a gene named "winget":
+
+Geneset (`src/winget/package.json`):
+```json
+{
+  "name": "@dbosoft/winget",
+  "private": true,
+  "scripts": {
+    "build": "build-geneset",
+    "publish": "build-geneset publish"
+  },
+  "dependencies": {
+    "templates": "workspace:*",  // <-- Required for geneset!
+    "@dbosoft/winget-default": "workspace:*"
+  },
+  "devDependencies": {
+    "@dbosoft/build-geneset": "workspace:*"
+  }
+}
+```
+
+Tag (`src/winget/default/package.json`):
+```json
+{
+  "name": "@dbosoft/winget-default",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "build-geneset-tag",
+    "publish": "build-geneset-tag publish"
+  },
+  "devDependencies": {  // <-- NO templates dependency here!
+    "@dbosoft/build-geneset": "workspace:*"
+  }
+}
+```
+
+### Fodder YAML Structure
+
+Fodder files in the `fodder/` directory should follow this pattern:
+```yaml
+name: install  # or win-install, linux-install, etc.
+
+fodder:
+- name: descriptive-name
+  type: shellscript
+  fileName: script-name.ps1  # or .sh for Linux
+  content: |
+    # Script content here
+```
+
+**Naming Conventions:**
+- For Windows-only fodder: Can use simple names like `install.yaml` (winget is already Windows-specific)
+- For multi-platform genes: Use prefixes like `win-install.yaml`, `linux-install.yaml`
+- Keep fodder names descriptive but concise
+
+### PowerShell Script Headers
+
+When extracting PowerShell scripts from inline fodder:
+- Keep the `#ps1_sysnative` header if present (ensures 64-bit execution on Windows)
+- Preserve error handling patterns like:
+  ```powershell
+  $ErrorActionPreference = 'Stop'
+  Set-StrictMode -Version 3.0
+  $ProgressPreference = 'SilentlyContinue'
+  ```
+
+### Template System for README Files
+
+The repository uses Handlebars templates for consistent README documentation:
+
+**Available template partials** (in `packages/templates/partials/`):
+- `{{> food_versioning_major_minor }}` - Standard versioning explanation for fodder genes
+- `{{> footer }}` - Includes contributing section and license
+- `{{> contributing }}` - Contributing and license information
+- Various base catlet templates for OS-specific genes
+
+**README Structure**:
+```markdown
+# Gene Name
+
+Description of what this geneset contains.
+
+## Usage
+
+Example YAML for using the gene.
+
+## Configuration
+
+Variable documentation if applicable.
+
+---
+
+{{> food_versioning_major_minor }}
+
+{{> footer }}
+```
+
+**Important**: The templates dependency in geneset package.json enables these templates to be processed during build.
+
 ## Repository Structure You Manage
 
 ```
@@ -100,6 +274,7 @@ New-Item -ItemType Directory -Path "src\$geneName" -Force
     "publish": "build-geneset publish"
   },
   "dependencies": {
+    "templates": "workspace:*",
     "@dbosoft/$geneName-default": "workspace:*"
   },
   "devDependencies": {
@@ -159,6 +334,11 @@ turbo build
 
 ### Step 4: Copy to Local Genepool
 
+**⚠️ CRITICAL WARNINGS:**
+- **NEVER use `.\push_packed.ps1` for local testing!** This pushes to the PUBLIC GENEPOOL!
+- **ALWAYS copy manually to local genepool for testing first**
+- **Only use push_packed.ps1 after full testing and approval**
+
 **CRITICAL: Check genepool path first!**
 
 ```powershell
@@ -204,14 +384,53 @@ npx changeset
 # Build for release
 pnpm publish-genesets
 
-# Push to genepool
-.\push_packed.ps1
+# Push to PUBLIC genepool (⚠️ ONLY after full testing!)
+# .\push_packed.ps1  # COMMENTED OUT FOR SAFETY
 
-# Clean up
+# Clean up local .packed folders after testing
 .\delete_packed.ps1
 ```
 
+## Build Process Details
+
+### What Happens During `turbo build`
+
+1. **Processes tag packages** (e.g., `@dbosoft/winget-default`)
+2. **Creates geneset tags** (e.g., `dbosoft/winget/next` for development)
+3. **Generates `.packed` folders** in `genes/` directory with:
+   - Compiled fodder files with SHA256 hashes
+   - geneset-tag.json metadata
+   - Ready-to-deploy gene structure
+
+### Build Output Structure
+```
+genes/
+└── dbosoft/
+    └── winget/
+        └── next/           # Development tag (or version number for releases)
+            ├── .packed/    # Ready for genepool deployment
+            └── geneset-tag.json
+```
+
+### After Building
+- Files in `.packed` folders are ready to copy to LOCAL genepool for testing
+- **For testing**: Manually copy `.packed` contents to local genepool (see Step 4)
+- **For production**: Use `.\push_packed.ps1` ONLY after full testing and verification
+- Use `.\delete_packed.ps1` to clean up `.packed` folders after testing
+
 ## Common Issues and Solutions
+
+### Issue: Templates dependency not installed
+**Symptom**: Build fails with "The partial food_versioning_major_minor could not be found"
+
+**Solution**: 
+```bash
+# The templates dependency might not be linked properly
+cd src/<genename>
+pnpm add templates@workspace:*
+# Then rebuild
+turbo build --filter="@dbosoft/<genename>*" --force
+```
 
 ### Issue: Fodder Doesn't Work After Extraction
 
@@ -244,6 +463,7 @@ npx tsc --noEmit
 - **Geneset packages**: NO version in package.json
 - **Tag packages**: MUST have version
 - Only tags get version numbers (1.0.0, 1.1.0, etc.)
+- Initial version for new genes: Start with `0.1.0` for development, `1.0.0` when ready for production
 
 ### Variable Syntax
 - ❌ `$variable` - PowerShell only, won't work in YAML files
@@ -253,16 +473,38 @@ npx tsc --noEmit
 **NEVER deliver a gene without verification:**
 1. Build with `turbo build`
 2. Copy to local genepool
-3. **Hand off to eryph-specialist for testing**
-4. Only proceed to publishing after confirmed working
+3. **Test with EGS-enabled catlet (CRITICAL STEPS):**
+   ```powershell
+   # ⚠️ CRITICAL: ALWAYS remove line breaks from EGS key!
+   $egsKey = (egs-tool.exe get-ssh-key | Out-String) -replace "[\r\n]", ""
+   
+   # Deploy with the CLEAN key
+   Get-Content test-catlet.yaml | New-Catlet -Variables @{ egskey = $egsKey } -SkipVariablesPrompt
+   
+   # Start the catlet
+   Start-Catlet -Id <catlet-id> -Force
+   
+   # Wait for cloudbase-init to complete (check service status)
+   # Update SSH config after catlet is running
+   egs-tool.exe update-ssh-config
+   
+   # Connect and verify
+   ssh <catlet-id>.eryph.alt "hostname"
+   ```
+   **NEVER pass the raw output of egs-tool.exe directly!**
+4. Check cloudbase-init logs for errors:
+   ```powershell
+   ssh <catlet-id>.eryph.alt "Get-Content 'C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log' -Tail 50"
+   ```
+5. Only proceed to publishing after confirmed working
 
 ## Repository Commands
 
 ### PowerShell Scripts
-- `.\Resolve-GenepoolPath.ps1` - Get genepool path (needs admin)
-- `.\push_packed.ps1` - Push to genepool
+- `.\Resolve-GenepoolPath.ps1` - Get LOCAL genepool path (needs admin)
+- `.\push_packed.ps1` - **⚠️ DANGER: Pushes to PUBLIC genepool! Only use after full testing!**
 - `.\delete_packed.ps1` - Clean up .packed folders
-- `.\test_packed.ps1` - Test packed genes
+- `.\test_packed.ps1` - Test packed genes locally
 
 ### NPM Commands
 - `pnpm install` - Install dependencies

@@ -1,0 +1,486 @@
+name: win-vscode
+
+variables:
+  - name: vscode_extensions
+    value: "ms-vscode.powershell,ms-python.python,ms-azuretools.vscode-docker"
+    required: false
+  - name: vscode_settings_json
+    value: |
+      {
+        "editor.fontSize": 14,
+        "editor.tabSize": 2,
+        "editor.wordWrap": "on",
+        "terminal.integrated.fontSize": 13,
+        "files.autoSave": "afterDelay",
+        "files.autoSaveDelay": 1000,
+        "editor.formatOnSave": true,
+        "editor.minimap.enabled": false
+      }
+    required: false
+  - name: vscode_keybindings_json
+    value: |
+      [
+        {
+          "key": "ctrl+shift+d",
+          "command": "editor.action.duplicateSelection"
+        },
+        {
+          "key": "ctrl+shift+l",
+          "command": "editor.action.selectHighlights"
+        }
+      ]
+    required: false
+  - name: dev_drive_letter
+    value: ""
+    required: false
+
+fodder:
+  # Install VS Code with system-wide configuration via Chocolatey
+  - name: install-vscode-systemwide
+    type: shellscript
+    filename: install-vscode-systemwide.ps1
+    content: |
+      Write-Host "Starting VS Code installation via Chocolatey..."
+      
+      # Check if we need to handle post-reboot scenario
+      $rebootMarker = "C:\ProgramData\vscode-install-reboot.marker"
+      if (Test-Path $rebootMarker) {
+          Write-Host "Detected post-reboot scenario, continuing VS Code installation..."
+          Remove-Item $rebootMarker -Force
+      }
+      
+      # Function to test if a command exists
+      function Test-CommandExists {
+          param($Command)
+          try {
+              if (Get-Command $Command -ErrorAction Stop) {
+                  return $true
+              }
+          } catch {
+              return $false
+          }
+          return $false
+      }
+      
+      # Function to install Chocolatey
+      function Install-Chocolatey {
+          Write-Host "Installing Chocolatey package manager..."
+          
+          try {
+              Set-ExecutionPolicy Bypass -Scope Process -Force
+              [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+              
+              # Capture the installation output to check for reboot requirements
+              $chocoInstallOutput = Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')) 2>&1 | Out-String
+              
+              Write-Host $chocoInstallOutput
+              
+              # Check if .NET Framework reboot is required
+              if ($chocoInstallOutput -match "reboot is required") {
+                  Write-Host "Reboot required for .NET Framework - requesting cloudbase-init reboot..."
+                  # Create marker file to track reboot
+                  New-Item -Path "C:\ProgramData\vscode-install-reboot.marker" -ItemType File -Force | Out-Null
+                  # Exit with cloudbase-init reboot code (1003 = reboot and run again)
+                  exit 1003
+              }
+              
+              # Refresh environment variables
+              $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+              
+              if (Test-CommandExists "choco") {
+                  Write-Host "Chocolatey successfully installed"
+                  return $true
+              } else {
+                  Write-Host "Chocolatey installation completed but command not found"
+                  return $false
+              }
+          } catch {
+              Write-Host "Error installing Chocolatey: $_"
+              return $false
+          }
+      }
+      
+      # Function to install VS Code via Chocolatey
+      function Install-VSCodeChocolatey {
+          Write-Host "Installing VS Code via Chocolatey..."
+          
+          # Check if Chocolatey is installed
+          if (!(Test-CommandExists "choco")) {
+              Write-Host "Chocolatey not found, installing it first..."
+              if (!(Install-Chocolatey)) {
+                  Write-Host "ERROR: Failed to install Chocolatey"
+                  return $false
+              }
+          }
+          
+          # Install VS Code using Chocolatey
+          Write-Host "Installing VS Code with Chocolatey..."
+          try {
+              # Refresh PATH to ensure choco is available
+              $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+              
+              $chocoOutput = choco install vscode -y --no-progress 2>&1 | Out-String
+              Write-Host $chocoOutput
+              
+              if ($LASTEXITCODE -eq 0) {
+                  Write-Host "VS Code successfully installed via Chocolatey"
+                  return $true
+              } else {
+                  Write-Host "Chocolatey installation failed with exit code: $LASTEXITCODE"
+                  
+                  # Check if it's a reboot requirement issue
+                  if ($chocoOutput -match "reboot" -or $LASTEXITCODE -eq 3010) {
+                      Write-Host "Installation requires a reboot - requesting cloudbase-init reboot..."
+                      New-Item -Path "C:\ProgramData\vscode-install-reboot.marker" -ItemType File -Force | Out-Null
+                      exit 1003
+                  }
+                  
+                  return $false
+              }
+          } catch {
+              Write-Host "Error during Chocolatey installation: $_"
+              return $false
+          }
+      }
+      
+      # Main installation logic
+      $installed = $false
+      
+      # Check if VS Code is already installed
+      $vscodePaths = @(
+          "${env:ProgramFiles}\Microsoft VS Code\Code.exe",
+          "${env:ProgramFiles(x86)}\Microsoft VS Code\Code.exe",
+          "${env:LOCALAPPDATA}\Programs\Microsoft VS Code\Code.exe"
+      )
+      
+      foreach ($path in $vscodePaths) {
+          if (Test-Path $path) {
+              Write-Host "VS Code is already installed at: $path"
+              $installed = $true
+              break
+          }
+      }
+      
+      if (!$installed) {
+          # Install via Chocolatey
+          Write-Host "Installing VS Code..."
+          if (Install-VSCodeChocolatey) {
+              $installed = $true
+          }
+      }
+      
+      # Final verification
+      if ($installed) {
+          Write-Host "VS Code installation completed successfully!"
+          
+          # Add VS Code to PATH if not already there
+          $codePath = "${env:ProgramFiles}\Microsoft VS Code\bin"
+          if (Test-Path $codePath) {
+              $currentPath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+              if ($currentPath -notlike "*$codePath*") {
+                  [System.Environment]::SetEnvironmentVariable("Path", "$currentPath;$codePath", "Machine")
+                  Write-Host "Added VS Code to system PATH"
+              }
+          }
+      } else {
+          Write-Host "ERROR: Failed to install VS Code"
+          exit 1
+      }
+
+  # Configure VS Code with dev drive integration
+  - name: configure-vscode-devdrive
+    type: shellscript
+    filename: configure-vscode-devdrive.ps1
+    content: |
+      Write-Host "=== Configuring VS Code with Dev Drive Integration ==="
+      
+      # Extensions list from variable
+      $extensionsList = "{{ vscode_extensions }}"
+      $settingsJson = @'
+      {{ vscode_settings_json }}
+      '@
+      $keybindingsJson = @'
+      {{ vscode_keybindings_json }}
+      '@
+      
+      # Dev Drive configuration
+      $providedDevDrive = "{{ dev_drive_letter }}"
+      $devDriveLetter = $null
+      
+      # VSCode installation path
+      $vscodePath = "${env:ProgramFiles}\Microsoft VS Code"
+      $bootstrapPath = "$vscodePath\bootstrap\extensions"
+      
+      if (-not (Test-Path $vscodePath)) {
+          Write-Host "ERROR: VSCode not installed at $vscodePath"
+          exit 1
+      }
+      
+      # Detect Dev Drive for VS Code configuration
+      Write-Host "=== Dev Drive Detection for VS Code ==="
+      
+      # Check if dev_drive_letter was explicitly provided
+      if (![string]::IsNullOrWhiteSpace($providedDevDrive)) {
+          Write-Host "Using explicitly provided Dev Drive letter: ${providedDevDrive}:"
+          
+          # Verify the drive exists and is suitable
+          $volume = Get-Volume -DriveLetter $providedDevDrive -ErrorAction SilentlyContinue
+          if ($volume) {
+              if ($volume.DriveType -eq 'Fixed') {
+                  $devDriveLetter = $providedDevDrive
+                  Write-Host "  File System: $($volume.FileSystem)"
+                  Write-Host "  Label: $($volume.FileSystemLabel)"
+                  Write-Host "  Size: $([Math]::Round($volume.Size / 1GB, 2)) GB"
+              } else {
+                  Write-Host "WARNING: Drive ${providedDevDrive}: is not a fixed drive. Skipping Dev Drive configuration."
+              }
+          } else {
+              Write-Host "WARNING: Drive ${providedDevDrive}: does not exist. Skipping Dev Drive configuration."
+          }
+      } else {
+          # Auto-detect Dev Drive
+          Write-Host "Auto-detecting Dev Drive..."
+          
+          $volumes = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter }
+          
+          foreach ($volume in $volumes) {
+              $driveLetter = $volume.DriveLetter
+              
+              # Skip system drives
+              if ($driveLetter -eq 'C' -or $driveLetter -eq 'D') {
+                  continue
+              }
+              
+              # Check if it's a Dev Drive (Windows 11)
+              $devDrvResult = cmd /c "fsutil devdrv query ${driveLetter}:" 2>&1
+              if ($devDrvResult -like "*trusted developer volume*") {
+                  Write-Host "Found Dev Drive at ${driveLetter}:"
+                  $devDriveLetter = $driveLetter
+                  break
+              }
+              # Check for ReFS drives labeled as DevDrive
+              elseif ($volume.FileSystem -eq 'ReFS' -and $volume.FileSystemLabel -like '*Dev*') {
+                  Write-Host "Found ReFS development drive at ${driveLetter}:"
+                  $devDriveLetter = $driveLetter
+                  break
+              }
+          }
+      }
+      
+      # Configure VS Code directories based on dev drive availability
+      if ($devDriveLetter) {
+          Write-Host "Configuring VS Code for Dev Drive at ${devDriveLetter}:"
+          
+          # Create VS Code project directories
+          $vscodePaths = @(
+              "${devDriveLetter}:\vscode",
+              "${devDriveLetter}:\vscode\extensions",
+              "${devDriveLetter}:\vscode\user-data",
+              "${devDriveLetter}:\vscode\workspace-storage",
+              "${devDriveLetter}:\source\repos"
+          )
+          
+          foreach ($path in $vscodePaths) {
+              if (-not (Test-Path $path)) {
+                  New-Item -ItemType Directory -Path $path -Force | Out-Null
+                  Write-Host "Created: $path"
+              }
+          }
+          
+          # Parse and update settings to include dev drive paths
+          try {
+              $settings = $settingsJson | ConvertFrom-Json
+              
+              # Add dev drive specific settings
+              $settings | Add-Member -Type NoteProperty -Name "extensions.autoCheckUpdates" -Value $false -Force
+              $settings | Add-Member -Type NoteProperty -Name "extensions.autoUpdate" -Value $false -Force
+              $settings | Add-Member -Type NoteProperty -Name "git.defaultCloneDirectory" -Value "${devDriveLetter}:\source\repos" -Force
+              $settings | Add-Member -Type NoteProperty -Name "terminal.integrated.cwd" -Value "${devDriveLetter}:\source" -Force
+              
+              # Convert back to JSON
+              $settingsJson = $settings | ConvertTo-Json -Depth 10
+              
+              Write-Host "Updated settings for Dev Drive configuration"
+          } catch {
+              Write-Host "Warning: Could not update settings JSON: $_"
+          }
+      } else {
+          Write-Host "No Dev Drive detected. Using default VS Code configuration."
+      }
+      
+      Write-Host ""
+      Write-Host "=== Setting up VS Code Extensions (Bootstrap Method) ==="
+      
+      Write-Host "Creating bootstrap extensions folder..."
+      if (-not (Test-Path $bootstrapPath)) {
+          New-Item -ItemType Directory -Path $bootstrapPath -Force | Out-Null
+          Write-Host "Created: $bootstrapPath"
+      } else {
+          Write-Host "Bootstrap folder already exists"
+      }
+      
+      # Parse extensions list
+      $extensions = $extensionsList -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
+      
+      Write-Host ""
+      Write-Host "Downloading VSIX files for extensions:"
+      $extensions | ForEach-Object { Write-Host "  - $_" }
+      
+      # Download each extension VSIX
+      foreach ($extension in $extensions) {
+          Write-Host ""
+          Write-Host "Processing: $extension"
+          
+          # Split publisher and name
+          $parts = $extension -split '\.'
+          if ($parts.Count -ne 2) {
+              Write-Host "  WARNING: Invalid extension format. Expected 'publisher.name'"
+              continue
+          }
+          
+          $publisher = $parts[0]
+          $name = $parts[1]
+          
+          # Construct marketplace URL
+          $marketplaceUrl = "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/$publisher/vsextensions/$name/latest/vspackage"
+          
+          $vsixPath = "$bootstrapPath\$extension.vsix"
+          
+          try {
+              Write-Host "  Downloading from marketplace..."
+              Invoke-WebRequest -Uri $marketplaceUrl -OutFile $vsixPath -UseBasicParsing
+              
+              if (Test-Path $vsixPath) {
+                  $size = (Get-Item $vsixPath).Length / 1MB
+                  Write-Host "  [OK] Downloaded: $([Math]::Round($size, 2)) MB"
+              } else {
+                  Write-Host "  [FAIL] Download failed"
+              }
+          } catch {
+              Write-Host "  [ERROR] Failed to download: $_"
+          }
+      }
+      
+      Write-Host ""
+      Write-Host "=== Configuring VS Code Settings (System-Wide) ==="
+      
+      # Configure Default User Profile (for all new users)
+      Write-Host "Configuring Default User Profile..."
+      $defaultUserPath = "C:\Users\Default\AppData\Roaming\Code\User"
+      
+      if (-not (Test-Path $defaultUserPath)) {
+          New-Item -ItemType Directory -Path $defaultUserPath -Force | Out-Null
+          Write-Host "Created Default user VSCode directory"
+      }
+      
+      # Write default settings
+      $settingsJson | Out-File -FilePath "$defaultUserPath\settings.json" -Encoding UTF8 -Force
+      Write-Host "[OK] Default settings.json created"
+      
+      # Write default keybindings
+      $keybindingsJson | Out-File -FilePath "$defaultUserPath\keybindings.json" -Encoding UTF8 -Force
+      Write-Host "[OK] Default keybindings.json created"
+      
+      # Create a user configuration script
+      Write-Host ""
+      Write-Host "Creating user configuration script..."
+      
+      if ($devDriveLetter) {
+          $configScript = @"
+      Write-Host 'Configuring VS Code for Dev Drive...'
+      
+      `$vscodeUserDir = "`$env:APPDATA\Code\User"
+      `$devDrive = "${devDriveLetter}:"
+      
+      # Ensure directory exists
+      if (-not (Test-Path `$vscodeUserDir)) {
+          New-Item -ItemType Directory -Path `$vscodeUserDir -Force | Out-Null
+      }
+      
+      # Check if settings already exist
+      if (-not (Test-Path "`$vscodeUserDir\settings.json")) {
+          # Copy from Default profile if available
+          `$defaultSettings = "C:\Users\Default\AppData\Roaming\Code\User\settings.json"
+          if (Test-Path `$defaultSettings) {
+              Copy-Item `$defaultSettings -Destination "`$vscodeUserDir\settings.json"
+              Write-Host "VSCode settings configured from defaults"
+          }
+      }
+      
+      # Check if keybindings already exist
+      if (-not (Test-Path "`$vscodeUserDir\keybindings.json")) {
+          # Copy from Default profile if available
+          `$defaultKeybindings = "C:\Users\Default\AppData\Roaming\Code\User\keybindings.json"
+          if (Test-Path `$defaultKeybindings) {
+              Copy-Item `$defaultKeybindings -Destination "`$vscodeUserDir\keybindings.json"
+              Write-Host "VSCode keybindings configured from defaults"
+          }
+      }
+      
+      Write-Host ''
+      Write-Host 'VS Code is configured for Dev Drive at ${devDriveLetter}:'
+      Write-Host '- Extensions will use ${devDriveLetter}:\vscode\extensions'
+      Write-Host '- User data stored on ${devDriveLetter}:\vscode\user-data'  
+      Write-Host '- Git repositories default to ${devDriveLetter}:\source\repos'
+      Write-Host '- Enhanced performance for file operations and builds'
+      Write-Host ''
+      Write-Host 'To use dev drive locations in VS Code:'
+      Write-Host '1. Open Terminal in VS Code (Ctrl+``) - starts in ${devDriveLetter}:\source'
+      Write-Host '2. Use File -> Clone Repository to clone to ${devDriveLetter}:\source\repos'
+      Write-Host '3. Open folders from ${devDriveLetter}: for best performance'
+      Write-Host ''
+      Write-Host "VSCode configuration complete for user: `$env:USERNAME"
+      "@
+      } else {
+          $configScript = @"
+      Write-Host 'Configuring VS Code...'
+      
+      `$vscodeUserDir = "`$env:APPDATA\Code\User"
+      
+      # Ensure directory exists
+      if (-not (Test-Path `$vscodeUserDir)) {
+          New-Item -ItemType Directory -Path `$vscodeUserDir -Force | Out-Null
+      }
+      
+      # Check if settings already exist
+      if (-not (Test-Path "`$vscodeUserDir\settings.json")) {
+          # Copy from Default profile if available
+          `$defaultSettings = "C:\Users\Default\AppData\Roaming\Code\User\settings.json"
+          if (Test-Path `$defaultSettings) {
+              Copy-Item `$defaultSettings -Destination "`$vscodeUserDir\settings.json"
+              Write-Host "VSCode settings configured from defaults"
+          }
+      }
+      
+      # Check if keybindings already exist
+      if (-not (Test-Path "`$vscodeUserDir\keybindings.json")) {
+          # Copy from Default profile if available
+          `$defaultKeybindings = "C:\Users\Default\AppData\Roaming\Code\User\keybindings.json"
+          if (Test-Path `$defaultKeybindings) {
+              Copy-Item `$defaultKeybindings -Destination "`$vscodeUserDir\keybindings.json"
+              Write-Host "VSCode keybindings configured from defaults"
+          }
+      }
+      
+      Write-Host "VSCode configuration complete for user: `$env:USERNAME"
+      "@
+      }
+      
+      $configScript | Out-File -FilePath "C:\ProgramData\configure-vscode-user.ps1" -Encoding UTF8 -Force
+      Write-Host "[OK] User configuration script created at C:\ProgramData\configure-vscode-user.ps1"
+      
+      Write-Host ""
+      if ($devDriveLetter) {
+          Write-Host "=== VS Code with Dev Drive Configuration Complete ==="
+          Write-Host "VS Code is ready with Dev Drive optimization at ${devDriveLetter}:"
+          Write-Host "- Extensions will be installed to ${devDriveLetter}:\vscode\extensions on first launch"
+          Write-Host "- User data and workspace storage on dev drive for better performance"
+          Write-Host "- Git operations default to ${devDriveLetter}:\source\repos"
+          Write-Host "- Bootstrap extensions ready - install on first VS Code launch"
+      } else {
+          Write-Host "=== VS Code Configuration Complete ==="
+          Write-Host "VS Code is ready with standard configuration:"
+          Write-Host "- Default User Profile configured - new users get settings automatically"
+          Write-Host "- Bootstrap extensions ready - install on first VS Code launch"
+      }
+      Write-Host "- User configuration script available at C:\ProgramData\configure-vscode-user.ps1"

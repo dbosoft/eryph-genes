@@ -126,20 +126,51 @@ foreach ($test in $testMatrix) {
 
 ## Common Testing Pitfalls
 
-### 1. Package Manager Availability
+### 1. EGS SSH Key Line Breaks (MOST COMMON ERROR!)
+
+**This happens EVERY TIME if forgotten!**
+
+**❌ WRONG - Will break SSH authentication:**
+```powershell
+$egsKey = egs-tool.exe get-ssh-key
+# Output has line breaks that break SSH!
+```
+
+**✅ CORRECT - ALWAYS remove line breaks:**
+```powershell
+$egsKey = (egs-tool.exe get-ssh-key | Out-String) -replace "[\r\n]", ""
+```
+
+**Error symptom:** `Permission denied (none,password,publickey,keyboard-interactive)`
+
+### 2. Package Manager Availability
 
 **Windows Server 2019 (build 17763):**
 - ❌ Winget NOT supported
 - ✅ Use Chocolatey as fallback
+
+**Windows Server 2022+ (build 20348+):**
+- ✅ Winget can be installed (but needs dependencies)
+- ⚠️ VCLibs version conflicts common - may need ForceUpdateFromAnyVersion
 
 **Windows 10 1709+ (build 16299+):**
 - ✅ Winget can be installed
 - ✅ Chocolatey as backup option
 
 **Windows 11:**
-- ✅ Winget pre-installed
+- ✅ Winget often pre-installed (but not always!)
 
-### 2. Error Message Reliability
+### 3. Winget Installation Dependencies
+
+Common error: `Deployment failed with HRESULT: 0x80073D19`
+
+**Issue:** VCLibs version mismatch
+**Solution:** Use `-DependencyPath` and `-ForceUpdateFromAnyVersion` flags:
+```powershell
+Add-AppxPackage -Path $wingetPath -DependencyPath $xamlPath,$vcLibsPath -ForceApplicationShutdown
+```
+
+### 4. Error Message Reliability
 
 **Don't trust success messages blindly:**
 ```powershell
@@ -150,7 +181,7 @@ foreach ($test in $testMatrix) {
 
 Always verify the actual state after installation.
 
-### 3. Path Environment Variables
+### 5. Path Environment Variables
 
 After installing tools, refresh PATH:
 ```powershell
@@ -163,7 +194,11 @@ $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";"
 ### Pre-Deployment
 - [ ] Check eryph-zero service is running: `Get-Service eryph-zero`
 - [ ] Verify parent genes are available in genepool
-- [ ] Ensure EGS key is configured: `egs-tool.exe get-ssh-key`
+- [ ] **⚠️ CRITICAL:** Get EGS key with line breaks removed:
+  ```powershell
+  # NEVER use raw output - ALWAYS remove line breaks!
+  $egsKey = (egs-tool.exe get-ssh-key | Out-String) -replace "[\r\n]", ""
+  ```
 
 ### Deployment
 - [ ] Deploy catlet with proper variables and `-Verbose` flag
@@ -183,6 +218,66 @@ $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";"
 - [ ] Clean up test catlets if needed
 - [ ] Document compatibility matrix
 - [ ] Note any OS-specific workarounds required
+
+## Critical Errors and Solutions
+
+### NullReferenceException in PowerShell Commands
+
+**Error:** `Der Objektverweis wurde nicht auf eine Objektinstanz festgelegt`
+
+**Common causes and solutions:**
+
+1. **Missing `-SkipVariablesPrompt` when YAML has variables:**
+   ```powershell
+   # WRONG
+   Get-Content catlet.yaml | New-Catlet -Variables @{ key = "value" }
+   
+   # CORRECT
+   Get-Content catlet.yaml | New-Catlet -Variables @{ key = "value" } -SkipVariablesPrompt
+   ```
+
+2. **Missing `-Force` flag on Start-Catlet:**
+   ```powershell
+   # May fail with NullReferenceException
+   Start-Catlet -Id <id>
+   
+   # More reliable
+   Start-Catlet -Id <id> -Force
+   ```
+
+### Gene Not Found Errors
+
+**Error:** `Could not resolve the gene set tag 'dbosoft/genename/latest'`
+
+**Solutions:**
+
+1. **For local testing, use 'next' tag instead of 'latest':**
+   ```yaml
+   # Testing locally
+   - source: gene:dbosoft/winget/next:install
+   
+   # After publishing
+   - source: gene:dbosoft/winget/latest:install
+   ```
+
+2. **Ensure gene is copied to local genepool:**
+   ```powershell
+   # NEVER use push_packed.ps1 for local testing!
+   # Use gene-maintainer agent or manual copy
+   ```
+
+### Download Timeouts
+
+**Error:** `The operation has timed out` during large downloads
+
+**Solutions:**
+
+1. **Increase timeout in Invoke-WebRequest:**
+   ```powershell
+   Invoke-WebRequest -Uri $url -OutFile $path -UseBasicParsing -TimeoutSec 300
+   ```
+
+2. **Consider retry logic for unreliable downloads**
 
 ## Debugging Commands
 
@@ -224,13 +319,16 @@ $Error[0].Exception.Message
 
 ## Best Practices Summary
 
-1. **Trust but Verify** - Always verify actual installation state
-2. **Use Correct Paths** - Know where logs and configs are located
-3. **Handle Reboots** - Use cloudbase-init exit codes properly
-4. **Test Across OS Versions** - Different Windows versions have different capabilities
-5. **Document Everything** - Record what worked and what didn't
-6. **Check Dependencies** - Ensure prerequisites (.NET, VC++ redistributables) are met
-7. **Use Template Approach** - Maintain consistency across test scenarios
+1. **ALWAYS Remove Line Breaks from EGS Keys** - This is the #1 cause of SSH failures
+2. **Trust but Verify** - Always verify actual installation state
+3. **Use Correct Paths** - Know where logs and configs are located  
+4. **Handle Reboots** - Use cloudbase-init exit codes properly
+5. **Test Across OS Versions** - Different Windows versions have different capabilities
+6. **Document Everything** - Record what worked and what didn't
+7. **Check Dependencies** - Ensure prerequisites (.NET, VC++ redistributables) are met
+8. **Use Template Approach** - Maintain consistency across test scenarios
+9. **Never use push_packed.ps1 for local testing** - It pushes to PUBLIC genepool!
+10. **Always use -SkipVariablesPrompt with variables** - Prevents NullReferenceException
 
 ## Related Documentation
 

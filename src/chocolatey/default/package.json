@@ -1,8 +1,7 @@
 {
-  "name": "@dbosoft/msvs-default",
-  "version": "1.0.0",
-  "description": "Microsoft Visual Studio fodder genes",
+  "name": "@dbosoft/chocolatey-default",
   "private": true,
+  "version": "1.0.0",
   "scripts": {
     "build": "build-geneset-tag",
     "publish": "build-geneset-tag publish"

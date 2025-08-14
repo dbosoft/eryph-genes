@@ -2,29 +2,32 @@ name: vs2022
 
 variables:
   - name: vs_edition
-    required: false
     value: "Community"
+    required: false
   - name: vs_iso_path
-    required: false
     value: ""
+    required: false
   - name: vs_workloads
-    required: false
     value: "Microsoft.VisualStudio.Workload.ManagedDesktop;Microsoft.VisualStudio.Workload.NetWeb"
+    required: false
   - name: vs_components
-    required: false
     value: ""
+    required: false
   - name: vs_languages
-    required: false
     value: "en-US"
-  - name: vs_install_path
     required: false
+  - name: vs_install_path
     value: "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community"
+    required: false
   - name: include_recommended
-    type: boolean
-    value: true
+    value: "true"
+    required: false
   - name: include_optional
-    type: boolean
-    value: false
+    value: "false"
+    required: false
+  - name: dev_drive_letter
+    value: ""
+    required: false
 
 fodder:
   - name: install-vs-2022
@@ -355,6 +358,98 @@ fodder:
               $workloads -split ';' | ForEach-Object { Write-Host "  - $_" }
           } else {
               Write-Host "  - Default workloads"
+          }
+          
+          # Detect and configure Dev Drive for Visual Studio
+          Write-Host "`n=== Configuring Dev Drive for Visual Studio ==="
+          
+          $providedDevDrive = "{{ dev_drive_letter }}"
+          $devDriveLetter = $null
+          
+          # Check if dev_drive_letter was explicitly provided
+          if (![string]::IsNullOrWhiteSpace($providedDevDrive)) {
+              Write-Host "Using explicitly provided Dev Drive letter: ${providedDevDrive}:"
+              
+              # Verify the drive exists and is suitable
+              $volume = Get-Volume -DriveLetter $providedDevDrive -ErrorAction SilentlyContinue
+              if ($volume) {
+                  if ($volume.DriveType -eq 'Fixed') {
+                      $devDriveLetter = $providedDevDrive
+                      Write-Host "  File System: $($volume.FileSystem)"
+                      Write-Host "  Label: $($volume.FileSystemLabel)"
+                      Write-Host "  Size: $([Math]::Round($volume.Size / 1GB, 2)) GB"
+                  } else {
+                      Write-Host "WARNING: Drive ${providedDevDrive}: is not a fixed drive. Skipping Dev Drive configuration."
+                  }
+              } else {
+                  Write-Host "WARNING: Drive ${providedDevDrive}: does not exist. Skipping Dev Drive configuration."
+              }
+          } else {
+              # Auto-detect Dev Drive
+              Write-Host "Auto-detecting Dev Drive..."
+              
+              $volumes = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter }
+              
+              foreach ($volume in $volumes) {
+                  $driveLetter = $volume.DriveLetter
+                  
+                  # Check if it's a Dev Drive (Windows 11)
+                  $devDrvResult = cmd /c "fsutil devdrv query ${driveLetter}:" 2>&1
+                  if ($devDrvResult -like "*trusted developer volume*") {
+                      Write-Host "Found Dev Drive at ${driveLetter}:"
+                      $devDriveLetter = $driveLetter
+                      break
+                  }
+                  # Check for ReFS drives labeled as DevDrive
+                  elseif ($volume.FileSystem -eq 'ReFS' -and $volume.FileSystemLabel -like '*Dev*') {
+                      Write-Host "Found ReFS development drive at ${driveLetter}:"
+                      $devDriveLetter = $driveLetter
+                      break
+                  }
+              }
+          }
+          
+          if ($devDriveLetter) {
+              Write-Host "Configuring Visual Studio for Dev Drive at ${devDriveLetter}:"
+              
+              # Create VS project directories
+              $vsPaths = @(
+                  "${devDriveLetter}:\source\repos",
+                  "${devDriveLetter}:\source\projects",
+                  "${devDriveLetter}:\source\templates\ProjectTemplates",
+                  "${devDriveLetter}:\source\templates\ItemTemplates",
+                  "${devDriveLetter}:\SymbolCache"
+              )
+              
+              foreach ($path in $vsPaths) {
+                  if (-not (Test-Path $path)) {
+                      New-Item -ItemType Directory -Path $path -Force | Out-Null
+                      Write-Host "Created: $path"
+                  }
+              }
+              
+              # Create user configuration script
+              $configScript = @"
+      Write-Host 'Configuring Visual Studio 2022 for Dev Drive...'
+      Write-Host ''
+      Write-Host 'Please configure the following in Visual Studio:'
+      Write-Host '1. Go to Tools -> Options -> Projects and Solutions -> Locations'
+      Write-Host '   - Projects location: ${devDriveLetter}:\source\repos'
+      Write-Host '   - User project templates: ${devDriveLetter}:\source\templates\ProjectTemplates'
+      Write-Host '   - User item templates: ${devDriveLetter}:\source\templates\ItemTemplates'
+      Write-Host ''
+      Write-Host '2. Go to Tools -> Options -> Debugging -> Symbols'
+      Write-Host '   - Symbol cache directory: ${devDriveLetter}:\SymbolCache'
+      Write-Host ''
+      Write-Host 'Dev Drive provides ~25% better performance for builds and file operations.'
+      "@
+              
+              $configScript | Out-File -FilePath "C:\ProgramData\configure-vs-devdrive.ps1" -Encoding UTF8 -Force
+              Write-Host "Configuration script saved to: C:\ProgramData\configure-vs-devdrive.ps1"
+              Write-Host "Run this script for each user to configure their VS settings."
+          } else {
+              Write-Host "No Dev Drive detected. Visual Studio will use default locations."
+              Write-Host "Consider creating a Dev Drive for better performance."
           }
       } else {
           Write-Host "ERROR: Failed to install Visual Studio $edition 2022"
