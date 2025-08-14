@@ -41,7 +41,7 @@ The Windows and the Linux gene support the same variables. The following variabl
 
   This variable is optional but you have to either specify an SSH public key here or invoke `egs-tool add-ssh-config`
   after the catlet has been created. Otherwise, no public key is available for authentication and the connection
-  to the catlet wail fail.
+  to the catlet will fail.
 
 
 ---
