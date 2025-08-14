@@ -1,0 +1,15 @@
+{
+  "name": "@dbosoft/windevbox",
+  "private": true,
+  "scripts": {
+    "build": "build-geneset",
+    "publish": "build-geneset publish"
+  },
+  "dependencies": {
+    "@dbosoft/windevbox-win10": "workspace:*",
+    "@dbosoft/windevbox-win11": "workspace:*"
+  },
+  "devDependencies": {
+    "@dbosoft/build-geneset": "workspace:*"
+  }
+}

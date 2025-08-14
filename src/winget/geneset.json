@@ -1,0 +1,8 @@
+{
+    "geneset": "dbosoft/winget",
+    "public": true,
+    "short_description": "Windows Package Manager",
+    "description": "This geneset contains fodder for installing winget (Windows Package Manager) on Windows systems.",
+    "description_markdown": null,
+    "description_markdown_file": "readme.md"
+}

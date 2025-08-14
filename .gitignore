@@ -14,3 +14,6 @@ dist
 # special folder to store the next version of a geneset
 /genes/*/*/next
 /genes/*/*/*-next
+
+# Claude settings
+.claude/settings.local.json

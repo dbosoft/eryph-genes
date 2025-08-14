@@ -1,0 +1,236 @@
+name: configure
+
+variables:
+  - name: devdrive_name
+    required: true
+  - name: devdrive_letter
+    value: "E"
+    required: false
+  - name: devdrive_label
+    value: "DevDrive"
+    required: false
+
+fodder:
+- name: configure-devdrive
+  type: shellscript
+  fileName: configure-devdrive.ps1
+  content: |
+    Write-Host "=== Configuring Dev Drive ==="
+    
+    # Parameters from variables
+    $eryphDriveName = "{{ devdrive_name }}"
+    $driveLetter = "{{ devdrive_letter }}"
+    $driveLabel = "{{ devdrive_label }}"
+    
+    Write-Host "Looking for disk corresponding to Eryph drive: $eryphDriveName"
+    
+    # Map Eryph drive name to Windows disk number
+    # sda = Disk 0, sdb = Disk 1, sdc = Disk 2, etc.
+    $diskNumber = switch ($eryphDriveName.ToLower()) {
+        'sda' { 0 }
+        'sdb' { 1 }
+        'sdc' { 2 }
+        'sdd' { 3 }
+        'sde' { 4 }
+        'sdf' { 5 }
+        'sdg' { 6 }
+        'sdh' { 7 }
+        default { 
+            Write-Host "ERROR: Unsupported Eryph drive name: $eryphDriveName"
+            exit 1
+        }
+    }
+    
+    Write-Host "Eryph drive '$eryphDriveName' maps to Windows Disk $diskNumber"
+    
+    # Verify the disk exists and is uninitialized
+    try {
+        $disk = Get-Disk -Number $diskNumber -ErrorAction Stop
+        
+        Write-Host "Found Disk ${diskNumber}:"
+        Write-Host "  Size: $([Math]::Round($disk.Size / 1GB, 2)) GB"
+        Write-Host "  Partition Style: $($disk.PartitionStyle)"
+        Write-Host "  Bus Type: $($disk.BusType)"
+        
+        if ($disk.PartitionStyle -ne 'RAW') {
+            Write-Host "ERROR: Disk $diskNumber is already initialized (PartitionStyle: $($disk.PartitionStyle))"
+            Write-Host "Dev Drive requires an uninitialized disk"
+            exit 1
+        }
+        
+        if ($disk.Size -lt 50GB) {
+            Write-Host "WARNING: Disk is smaller than 50GB (minimum recommended for Dev Drive)"
+        }
+        
+    } catch {
+        Write-Host "ERROR: Disk $diskNumber not found or not accessible"
+        Write-Host "Error details: $_"
+        exit 1
+    }
+    
+    Write-Host ""
+    Write-Host "Initializing Disk $diskNumber as GPT..."
+    
+    try {
+        # Initialize the disk as GPT
+        Initialize-Disk -Number $diskNumber -PartitionStyle GPT -ErrorAction Stop
+        Write-Host "Disk initialized successfully"
+        
+        # Create a partition using all available space
+        Write-Host "Creating partition..."
+        $partition = New-Partition -DiskNumber $diskNumber -UseMaximumSize -DriveLetter $driveLetter
+        Write-Host "Partition created with letter $driveLetter"
+        
+        # Check Windows version to determine if Dev Drive is supported
+        $osVersion = [System.Environment]::OSVersion.Version
+        $osBuild = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").CurrentBuildNumber
+        Write-Host "Windows Build: $osBuild"
+        
+        # Dev Drive requires Windows 11 Build 22621.2338 or later
+        $devDriveSupported = $false
+        if ($osBuild -ge 22621) {
+            $devDriveSupported = $true
+            Write-Host "Dev Drive is supported on this Windows version"
+        } else {
+            Write-Host "Dev Drive not supported. Will create standard ReFS volume instead"
+        }
+        
+        # Format the volume
+        if ($devDriveSupported) {
+            Write-Host "Formatting as Dev Drive (ReFS with Dev Drive flag)..."
+            $formatCmd = "format ${driveLetter}: /devdrv /q /y"
+        } else {
+            Write-Host "Formatting as ReFS volume (Dev Drive optimizations not available)..."
+            $formatCmd = "format ${driveLetter}: /fs:ReFS /q /y"
+        }
+        
+        Write-Host "Running: $formatCmd"
+        $formatResult = cmd /c $formatCmd 2>&1
+        Write-Host $formatResult
+        
+        # Set the label
+        Write-Host "Setting volume label to '$driveLabel'..."
+        $labelCmd = "label ${driveLetter}: $driveLabel"
+        cmd /c $labelCmd
+        
+        # Verify the drive exists
+        Start-Sleep -Seconds 2
+        if (Test-Path "${driveLetter}:\") {
+            Write-Host "Drive created successfully at ${driveLetter}:"
+            
+            # Get volume info
+            $volume = Get-Volume -DriveLetter $driveLetter
+            Write-Host "  File System: $($volume.FileSystem)"
+            Write-Host "  Size: $([Math]::Round($volume.Size / 1GB, 2)) GB"
+            Write-Host "  Label: $($volume.FileSystemLabel)"
+        } else {
+            Write-Host "ERROR: Drive was not created properly"
+            exit 1
+        }
+        
+    } catch {
+        Write-Host "ERROR during disk initialization: $_"
+        exit 1
+    }
+    
+    Write-Host ""
+    Write-Host "=== Configuring Drive Trust and Settings ==="
+    
+    # Only configure Dev Drive trust on Windows 11 with Dev Drive support
+    if ($devDriveSupported) {
+        # Mark the Dev Drive as trusted
+        Write-Host "Marking Dev Drive as trusted..."
+        $trustCmd = "fsutil devdrv trust ${driveLetter}:"
+        Write-Host "Running: $trustCmd"
+        $trustResult = cmd /c $trustCmd 2>&1
+        Write-Host $trustResult
+        
+        # Query Dev Drive status
+        Write-Host ""
+        Write-Host "Querying Dev Drive status..."
+        $queryCmd = "fsutil devdrv query ${driveLetter}:"
+        $queryResult = cmd /c $queryCmd 2>&1
+        Write-Host $queryResult
+    } else {
+        Write-Host "Dev Drive trust configuration skipped (not supported on this Windows version)"
+        Write-Host "ReFS volume created at ${driveLetter}: will still provide improved performance for development"
+    }
+    
+    Write-Host ""
+    Write-Host "=== Setting System-Wide Environment Variables ==="
+    
+    # Create directories for package caches
+    $directories = @(
+        "${driveLetter}:\.nuget\packages",
+        "${driveLetter}:\npm-cache",
+        "${driveLetter}:\pip-cache",
+        "${driveLetter}:\maven-cache",
+        "${driveLetter}:\gradle-cache",
+        "${driveLetter}:\cargo-cache",
+        "${driveLetter}:\vcpkg-cache"
+    )
+    
+    foreach ($dir in $directories) {
+        if (-not (Test-Path $dir)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+            Write-Host "Created: $dir"
+        }
+    }
+    
+    # Set SYSTEM-WIDE environment variables
+    # These will apply to all users and services
+    
+    $envVars = @{
+        "NUGET_PACKAGES" = "${driveLetter}:\.nuget\packages"
+        "npm_config_cache" = "${driveLetter}:\npm-cache"
+        "PIP_CACHE_DIR" = "${driveLetter}:\pip-cache"
+        "MAVEN_OPTS" = "-Dmaven.repo.local=${driveLetter}:\maven-cache"
+        "GRADLE_USER_HOME" = "${driveLetter}:\gradle-cache"
+        "CARGO_HOME" = "${driveLetter}:\cargo-cache"
+        "VCPKG_DEFAULT_BINARY_CACHE" = "${driveLetter}:\vcpkg-cache"
+    }
+    
+    foreach ($key in $envVars.Keys) {
+        $value = $envVars[$key]
+        Write-Host "Setting $key = $value"
+        [System.Environment]::SetEnvironmentVariable($key, $value, [System.EnvironmentVariableTarget]::Machine)
+    }
+    
+    Write-Host ""
+    Write-Host "=== Creating Developer Workspace ==="
+    
+    # Create standard development directories
+    $workspaceDirs = @(
+        "${driveLetter}:\source",
+        "${driveLetter}:\source\repos",
+        "${driveLetter}:\source\projects",
+        "${driveLetter}:\tools",
+        "${driveLetter}:\temp"
+    )
+    
+    foreach ($dir in $workspaceDirs) {
+        if (-not (Test-Path $dir)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+            Write-Host "Created workspace: $dir"
+        }
+    }
+    
+    Write-Host ""
+    if ($devDriveSupported) {
+        Write-Host "=== Dev Drive Configuration Complete ==="
+        Write-Host "Dev Drive is ready at ${driveLetter}:"
+        Write-Host "- Trusted for development"
+        Write-Host "- Package caches configured (system-wide)"
+        Write-Host "- Developer workspace created"
+        Write-Host ""
+        Write-Host "To verify Dev Drive status, run: fsutil devdrv query ${driveLetter}:"
+    } else {
+        Write-Host "=== ReFS Development Drive Configuration Complete ==="
+        Write-Host "ReFS development drive is ready at ${driveLetter}:"
+        Write-Host "- Fast ReFS filesystem for development"
+        Write-Host "- Package caches configured (system-wide)"
+        Write-Host "- Developer workspace created"
+        Write-Host ""
+        Write-Host "Note: Full Dev Drive features require Windows 11 Build 22621+"
+    }
+    Write-Host "To see package cache paths, run: Get-ChildItem Env: | Where-Object { `$_.Name -like '*PACKAGE*' -or `$_.Name -like '*cache*' }"

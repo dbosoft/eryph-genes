@@ -40,6 +40,25 @@ importers:
 
   packages/templates: {}
 
+  src/chocolatey:
+    dependencies:
+      '@dbosoft/chocolatey-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/chocolatey/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/guest-services:
     dependencies:
       '@dbosoft/guest-services-default':
@@ -83,6 +102,25 @@ importers:
       '@dbosoft/build-geneset':
         specifier: workspace:*
         version: link:../../packages/build-geneset
+
+  src/msvs:
+    dependencies:
+      '@dbosoft/msvs-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/msvs/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
 
   src/powershell:
     dependencies:
@@ -186,6 +224,25 @@ importers:
       '@dbosoft/build-geneset':
         specifier: workspace:*
         version: link:../../packages/build-geneset
+
+  src/vscode:
+    dependencies:
+      '@dbosoft/vscode-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/vscode/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
 
   src/vsts:
     dependencies:
@@ -315,6 +372,64 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/build-geneset
 
+  src/windevbox:
+    dependencies:
+      '@dbosoft/windevbox-win10':
+        specifier: workspace:*
+        version: link:win10
+      '@dbosoft/windevbox-win11':
+        specifier: workspace:*
+        version: link:win11
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/windevbox-catlet:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/windevbox/win10:
+    dependencies:
+      '@dbosoft/windevbox-catlet':
+        specifier: workspace:*
+        version: link:../../windevbox-catlet
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
+  src/windevbox/win11:
+    dependencies:
+      '@dbosoft/windevbox-catlet':
+        specifier: workspace:*
+        version: link:../../windevbox-catlet
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
+  src/windevdrive:
+    dependencies:
+      '@dbosoft/windevdrive-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/windevdrive/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/windomain:
     dependencies:
       '@dbosoft/windomain-default':
@@ -348,6 +463,25 @@ importers:
         version: link:../../packages/build-geneset
 
   src/windsc/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
+  src/winget:
+    dependencies:
+      '@dbosoft/winget-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/winget/default:
     devDependencies:
       '@dbosoft/build-geneset':
         specifier: workspace:*
@@ -1253,6 +1387,7 @@ packages:
   source-map@0.8.0-beta.0:
     resolution: {integrity: sha512-2ymg6oRBpebeZi9UUNsgQ89bhx01TcTkmNTGnNO88imTmbSgy4nfujrgVEFKWpMTEGA11EDkTt7mqObTPdigIA==}
     engines: {node: '>= 8'}
+    deprecated: The work that was done in this beta branch won't be included in future versions
 
   spawndamnit@3.0.1:
     resolution: {integrity: sha512-MmnduQUuHCoFckZoWnXsTg7JaiLBJrKFj9UI2MbRPGaJeVpsLcVBu6P/IGZovziM/YBsellCmsprgNA+w0CzVg==}

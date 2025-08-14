@@ -1,0 +1,8 @@
+{
+  "geneset": "dbosoft/vscode",
+  "public": true,
+  "short_description": "Visual Studio Code",
+  "description": "This geneset contains fodder for installing Visual Studio Code with development extensions and dev drive support.",
+  "description_markdown": null,
+  "description_markdown_file": "readme.md"
+}

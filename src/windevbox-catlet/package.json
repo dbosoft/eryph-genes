@@ -1,0 +1,8 @@
+{
+  "name": "@dbosoft/windevbox-catlet",
+  "private": true,
+  "version": "1.0.0",
+  "devDependencies": {
+    "@dbosoft/build-geneset": "workspace:*"
+  }
+}

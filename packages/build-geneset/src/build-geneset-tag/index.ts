@@ -3,6 +3,7 @@ import * as path from 'path';
 import {glob} from 'glob';
 import { GenesetTagManifest } from '../lib/types';
 import Handlebars from 'handlebars';
+import { initHandlebars, TemplateVariables } from '../lib/handlebars';
 
 type Mode = 'build' | 'publish';
 
@@ -26,6 +27,22 @@ async function main() {
     }
 
     const destinationDir = `./dist`;
+    const customVariables = initHandlebars();
+
+    const genesetTagManifestPath = path.join('.', 'geneset-tag.json');
+    if(!fs.existsSync(genesetTagManifestPath)){
+        throw `geneset-tag.json not found at ${genesetTagManifestPath}`;
+    }
+
+    const genesetManifestContent = fs.readFileSync(genesetTagManifestPath, 'utf8');
+    const genesetManifest: GenesetTagManifest = JSON.parse(genesetManifestContent);
+    const genesetTag = genesetManifest.geneset;
+
+    let variables : TemplateVariables = { 
+        manifest: genesetManifest, 
+        vars: customVariables,
+        tags: []
+    }
 
     if (fs.existsSync(destinationDir)) {
         fs.rmSync(destinationDir, { recursive: true });
@@ -53,7 +70,9 @@ async function main() {
         {
             packageVersion: packageInfo.packageVersion,
             package: packageInfo.package,
-            geneset: "{{ geneset }}"
+            geneset: "{{ geneset }}",
+            vars: variables.vars,
+            manifest: variables.manifest
         });
     
     const genesetTagJson = JSON.parse(genesetTagContent);

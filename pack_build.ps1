@@ -64,6 +64,18 @@ $keys | ForEach-Object {
         }
         
         & eryph-packer geneset-tag add-vm $packTarget $buildGeneset  --workdir genes   | Out-Null
+        
+        # Add rearm-eval fodder for Windows VMs
+        if ($importSpec.osType -eq "windows") {
+            $catletPath = Join-Path "genes" ($packTarget.Replace('/', '\') + "\catlet.yaml")
+            
+            # Append fodder section with rearm-eval
+            $fodderContent = "`n`nfodder:`n  - source: gene:dbosoft/winconfig:rearm-eval"
+            
+            Add-Content -Path $catletPath -Value $fodderContent
+            Write-Information "Added rearm-eval fodder to Windows VM: $packTarget"
+        }
+        
         & eryph-packer geneset-tag pack $packTarget --workdir genes   | Out-Null  
         git add $geneSetPath  | Out-Null
     }
