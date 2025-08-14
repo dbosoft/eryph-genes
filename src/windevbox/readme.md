@@ -16,27 +16,23 @@ This geneset represents an edge case for catlets configured purely via configura
 
 ## Usage
 
-The base catlet can be used as parent catlet like this:
-
-```powershell
-# Windows 11 Developer Box
-New-Catlet -Parent "{{ geneset }}/win11"
-
-# Windows 10 Developer Box
-New-Catlet -Parent "{{ geneset }}/win10"
-```
-
 This catlet does not include a default user.  
 You should therefore set up your own fodder to create an initial local user or to automatically join a domain.  
 
-Alternatively, you can add the starter-food fodder gene, which creates a default admin user with an initial password of "InitialPassw0rd":
+Alternatively, you can add the starter-food fodder gene, which creates a default admin user with an initial password of "InitialPassw0rd".
+
 
 ```yaml
 name: my-devbox
-parent: \{{ geneset }}/win11
+parent: {{ geneset }}/win11
 
 fodder:
   - source: gene:dbosoft/starter-food:win-starter
+
+drives:
+ - name: sdb
+   size: 100
+   mutation: overwrite  
 ```
 
 Or using PowerShell with inline YAML:
@@ -44,7 +40,12 @@ Or using PowerShell with inline YAML:
 ```powershell
 @"
 name: my-devbox  
-parent: \{{ geneset }}/win11
+parent: {{ geneset }}/win11
+
+drives:
+ - name: sdb
+   size: 100
+   mutation: overwrite  
 
 fodder:
   - source: gene:dbosoft/starter-food:win-starter
