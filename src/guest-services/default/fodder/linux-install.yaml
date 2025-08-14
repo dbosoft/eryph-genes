@@ -6,7 +6,6 @@ variables:
     required: true
   - name: downloadUrl
   - name: sshPublicKey
-    required: true
 
 fodder:
 - name: install-egs
@@ -71,6 +70,7 @@ fodder:
           Type=notify
           ExecStart=/opt/eryph/guest-services/bin/egs-service
           Environment="HOME=/root"
+          Environment="TERM=xterm"
           Restart=on-failure
           RestartSec=10
 
