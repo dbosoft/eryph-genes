@@ -6,7 +6,6 @@ variables:
     required: true
   - name: downloadUrl
   - name: sshPublicKey
-    required: true
 
 fodder:
 - name: install-egs
