@@ -1,6 +1,6 @@
 {
   "name": "@dbosoft/msvs-default",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Microsoft Visual Studio fodder genes",
   "private": true,
   "scripts": {

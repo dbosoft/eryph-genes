@@ -1,0 +1,138 @@
+name: devbox
+parent: dbosoft/win11-24h2-enterprise/latest
+
+capabilities:
+  - nested_virtualization  # Enable for Hyper-V, WSL2, containers
+
+cpu:
+  count: 4
+
+memory:
+  startup: 16384
+  minimum: 8192
+
+drives:
+  - name: sdb
+    size: 100
+    
+
+variables:
+  - name: vs_edition
+    value: "Community"
+    required: false
+  - name: vs_workloads
+    value: "Microsoft.VisualStudio.Workload.ManagedDesktop;Microsoft.VisualStudio.Workload.NetWeb;Microsoft.VisualStudio.Workload.Azure"
+    required: false
+  - name: vscode_extensions
+    value: "ms-vscode.powershell,ms-azuretools.vscode-docker,eamodio.gitlens,ms-dotnettools.csharp,ms-vscode.azure-account"
+    required: false
+
+fodder:
+  # Package Manager
+  - source: gene:dbosoft/chocolatey:install
+  
+  # Dev Drive Configuration (100GB high-performance ReFS)
+  - source: gene:dbosoft/windevdrive:configure
+    variables:
+      - name: devdrive_name
+        value: "sdb"
+      - name: devdrive_letter
+        value: "E"
+      - name: devdrive_label
+        value: "DevDrive"
+  
+  # Hyper-V for nested virtualization (WSL2, containers, etc.)
+  - source: gene:dbosoft/hyperv:install
+  
+  # PowerShell Core
+  - source: gene:dbosoft/powershell:win-install
+  
+  # Install essential developer tools via Chocolatey
+  - name: install-dev-tools
+    type: shellscript
+    filename: install-devtools.ps1
+    content: |
+      Write-Host "Installing essential developer tools via Chocolatey..."
+      
+      # Ensure chocolatey is available
+      $maxAttempts = 10
+      $attempt = 0
+      while (!(Get-Command choco -ErrorAction SilentlyContinue) -and $attempt -lt $maxAttempts) {
+          Write-Host "Waiting for Chocolatey to be available... (attempt $($attempt+1)/$maxAttempts)"
+          Start-Sleep -Seconds 5
+          $attempt++
+      }
+      
+      if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
+          Write-Host "ERROR: Chocolatey not available after waiting"
+          exit 1
+      }
+      
+      Write-Host "Installing Windows Terminal..."
+      choco install microsoft-windows-terminal -y --no-progress
+      
+      Write-Host "Installing Git..."
+      choco install git -y --no-progress
+      
+      Write-Host "Installing Node.js (LTS)..."
+      choco install nodejs-lts -y --no-progress
+      
+      Write-Host "Installing GitHub CLI..."
+      choco install gh -y --no-progress
+      
+      # Refresh environment variables to make new tools available
+      $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+      
+      Write-Host "Essential developer tools installation completed"
+  
+  # VS Code with Dev Drive integration
+  - source: gene:dbosoft/vscode:win-vscode
+    variables:
+      - name: vscode_extensions
+        value: '{{ vscode_extensions }}'
+      - name: dev_drive_letter
+        value: "E"
+  
+  # Visual Studio 2022 with Dev Drive (includes .NET SDK)
+  - source: gene:dbosoft/msvs:vs2022
+    variables:
+      - name: vs_edition
+        value: '{{ vs_edition }}'
+      - name: vs_workloads
+        value: '{{ vs_workloads }}'
+      - name: include_recommended
+        value: "true"
+      - name: dev_drive_letter
+        value: "E"
+  
+  # Configure Git system-wide
+  - name: configure-git
+    type: shellscript
+    filename: configure-git.ps1
+    content: |
+      Write-Host "Configuring Git system-wide settings..."
+      
+      # System-wide Git configuration (applies to all users)
+      git config --system init.defaultBranch main
+      git config --system core.autocrlf true
+      git config --system credential.helper manager
+      
+      # Create source directory structure on Dev Drive
+      if (Test-Path "E:\") {
+          $directories = @(
+              "E:\source",
+              "E:\source\repos",
+              "E:\source\projects"
+          )
+          
+          foreach ($dir in $directories) {
+              if (!(Test-Path $dir)) {
+                  New-Item -ItemType Directory -Path $dir -Force | Out-Null
+                  Write-Host "Created: $dir"
+              }
+          }
+          
+          Write-Host "Default repository location: E:\source\repos"
+      }
+      
+      Write-Host "Git system-wide configuration completed"

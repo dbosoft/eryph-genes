@@ -37,7 +37,12 @@ The Windows and the Linux gene support the same variables. The following variabl
   
   The SSH public which should be used to authenticate connections to the eryph guest service. This public key
   will be injected into the catlet. The public key for the eryph guest services is configured independently
-  of the atuhorized keys for the normal SSH server.
+  of the authorized keys for the normal SSH server.
+
+  This variable is optional but you have to either specify an SSH public key here or invoke `egs-tool add-ssh-config`
+  after the catlet has been created. Otherwise, no public key is available for authentication and the connection
+  to the catlet will fail.
+
 
 ---
 

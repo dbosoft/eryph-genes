@@ -1,0 +1,149 @@
+name: rearm-eval
+
+fodder:
+- name: rearm-evaluation-license
+  type: shellscript
+  fileName: rearm-evaluation.ps1
+  content: |
+    #ps1_sysnative
+    Write-Host "=== Windows Evaluation License Rearm ==="
+    Write-Host ""
+    
+    # Function to check network connectivity
+    function Test-NetworkConnectivity {
+        try {
+            # Check connectivity to Microsoft activation servers (required for license operations)
+            # Try v2 first (current/primary), then fallback to v1
+            # Both servers are officially documented and required by Microsoft
+            $ping = Test-Connection -ComputerName "activation-v2.sls.microsoft.com" -Count 1 -Quiet -ErrorAction SilentlyContinue
+            if ($ping) { return $true }
+            
+            # Fallback to v1 server
+            $ping2 = Test-Connection -ComputerName "activation.sls.microsoft.com" -Count 1 -Quiet -ErrorAction SilentlyContinue
+            return $ping2
+        } catch {
+            return $false
+        }
+    }
+    
+    # Wait for network connectivity (may be needed for activation)
+    Write-Host "Checking network connectivity..."
+    $maxRetries = 6
+    $retryCount = 0
+    $connected = $false
+    
+    while ($retryCount -lt $maxRetries -and -not $connected) {
+        $retryCount++
+        
+        if (Test-NetworkConnectivity) {
+            $connected = $true
+            Write-Host "Network connectivity confirmed"
+        } else {
+            Write-Host "Waiting for network... (attempt $retryCount of $maxRetries)"
+            if ($retryCount -lt $maxRetries) {
+                Start-Sleep -Seconds 10
+            }
+        }
+    }
+    
+    if (-not $connected) {
+        Write-Host "WARNING: No network connectivity after $maxRetries attempts"
+        Write-Host "Proceeding anyway (rearm may still work offline)"
+    }
+    
+    Write-Host ""
+    Write-Host "Checking Windows license status..."
+    
+    try {
+        # Get current license status
+        $licenseInfo = cscript //nologo C:\Windows\System32\slmgr.vbs /dli 2>&1 | Out-String
+        
+        # Check if this is an evaluation edition
+        if ($licenseInfo -match "TIMEBASED_EVAL") {
+            Write-Host "Evaluation edition detected"
+            
+            # Check license status
+            if ($licenseInfo -match "License Status: Notification" -or 
+                $licenseInfo -match "grace time expired" -or 
+                $licenseInfo -match "Notification Reason") {
+                
+                Write-Host "License needs reactivation, attempting rearm..."
+                
+                # Attempt rearm with retry logic
+                $rearmSuccess = $false
+                $rearmAttempts = 3
+                
+                for ($attempt = 1; $attempt -le $rearmAttempts; $attempt++) {
+                    Write-Host "Rearm attempt $attempt of $rearmAttempts..."
+                    
+                    $rearmResult = cscript //nologo C:\Windows\System32\slmgr.vbs /rearm 2>&1 | Out-String
+                    
+                    if ($rearmResult -match "successfully") {
+                        $rearmSuccess = $true
+                        Write-Host "License rearm successful! System will restart to apply changes."
+                        Write-Host "New evaluation period: 90 days"
+                        break
+                    } else {
+                        Write-Host "Attempt $attempt failed"
+                        if ($attempt -lt $rearmAttempts) {
+                            Write-Host "Waiting 5 seconds before retry..."
+                            Start-Sleep -Seconds 5
+                        }
+                    }
+                }
+                
+                if ($rearmSuccess) {
+                    # Exit with code 1001 to trigger reboot
+                    exit 1001
+                } else {
+                    # Check if maximum rearms reached
+                    if ($rearmResult -match "maximum") {
+                        Write-Host "WARNING: Maximum number of rearms reached for this installation"
+                        Write-Host "The evaluation period cannot be extended further"
+                    } else {
+                        Write-Host "WARNING: Rearm failed after $rearmAttempts attempts"
+                        Write-Host "Last output: $rearmResult"
+                    }
+                    exit 1
+                }
+            } else {
+                # Check remaining time
+                if ($licenseInfo -match "(\d+) day\(s\)") {
+                    $daysRemaining = $Matches[1]
+                    Write-Host "License is valid with $daysRemaining days remaining"
+                    
+                    # Optionally rearm if less than 10 days remaining
+                    if ([int]$daysRemaining -lt 10) {
+                        Write-Host "Less than 10 days remaining, attempting preventive rearm..."
+                        
+                        # Try rearm with retries
+                        $rearmSuccess = $false
+                        for ($attempt = 1; $attempt -le 3; $attempt++) {
+                            $rearmResult = cscript //nologo C:\Windows\System32\slmgr.vbs /rearm 2>&1 | Out-String
+                            if ($rearmResult -match "successfully") {
+                                Write-Host "Preventive rearm successful!"
+                                $rearmSuccess = $true
+                                break
+                            } elseif ($attempt -lt 3) {
+                                Start-Sleep -Seconds 5
+                            }
+                        }
+                        
+                        if ($rearmSuccess) {
+                            # Exit with code 1001 to trigger eryph reboot
+                            exit 1001
+                        }
+                    }
+                } else {
+                    Write-Host "License is valid"
+                }
+                exit 0
+            }
+        } else {
+            Write-Host "Not an evaluation edition, skipping rearm"
+            exit 0
+        }
+    } catch {
+        Write-Host "ERROR checking license status: $_"
+        exit 1
+    }
