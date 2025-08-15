@@ -65,7 +65,8 @@ Use the Clean Up Pattern from `docs/eryph-commands-via-claude.md`
 - See examples in `docs/eryph-knowledge.md`
 
 ### Step 3: Deploy and Connect
-Follow the EGS deployment workflow in `docs/eryph-commands-via-claude.md`
+Follow the new EGS deployment workflow in `docs/eryph-commands-via-claude.md`
+**\u26a0\ufe0f CRITICAL: ALWAYS use `C:/Windows/System32/OpenSSH/ssh.exe` - NOT just `ssh`!**
 
 ### Step 4: Verify Execution
 Use verification commands from `docs/eryph-commands-via-claude.md`:

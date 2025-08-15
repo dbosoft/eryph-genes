@@ -473,28 +473,31 @@ npx tsc --noEmit
 **NEVER deliver a gene without verification:**
 1. Build with `turbo build`
 2. Copy to local genepool
-3. **Test with EGS-enabled catlet (CRITICAL STEPS):**
-   ```powershell
-   # ⚠️ CRITICAL: ALWAYS remove line breaks from EGS key!
-   $egsKey = (egs-tool.exe get-ssh-key | Out-String) -replace "[\r\n]", ""
+3. **Test with EGS-enabled catlet (NEW SIMPLIFIED PROCESS):**
+   ```bash
+   # Deploy catlet with EGS fodder (no variables needed!)
+   powershell -Command "Get-Content test-catlet.yaml | New-Catlet"
+   # Note the VmId from output (e.g., 2a2d0357-d565-4d86-b2c7-8c041a814362)
    
-   # Deploy with the CLEAN key
-   Get-Content test-catlet.yaml | New-Catlet -Variables @{ egskey = $egsKey } -SkipVariablesPrompt
+   # Register VM with EGS (use VmId from above)
+   egs-tool add-ssh-config 2a2d0357-d565-4d86-b2c7-8c041a814362
+   egs-tool update-ssh-config
    
    # Start the catlet
-   Start-Catlet -Id <catlet-id> -Force
+   powershell -Command "Get-Catlet -Name 'test-name' | Start-Catlet -Force"
    
-   # Wait for cloudbase-init to complete (check service status)
-   # Update SSH config after catlet is running
-   egs-tool.exe update-ssh-config
+   # Wait for EGS availability (use VmId)
+   egs-tool get-status 2a2d0357-d565-4d86-b2c7-8c041a814362
+   # Keep checking until it returns "available"
    
-   # Connect and verify
-   ssh <catlet-id>.eryph.alt "hostname"
+   # Connect and verify (⚠️ MUST use Windows OpenSSH!)
+   # Can use catlet name or ID:
+   C:/Windows/System32/OpenSSH/ssh.exe <catlet-id>.eryph.alt -C hostname
+   C:/Windows/System32/OpenSSH/ssh.exe <VmId>.hyper-v.alt -C hostname
    ```
-   **NEVER pass the raw output of egs-tool.exe directly!**
 4. Check cloudbase-init logs for errors:
-   ```powershell
-   ssh <catlet-id>.eryph.alt "Get-Content 'C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log' -Tail 50"
+   ```bash
+   C:/Windows/System32/OpenSSH/ssh.exe <catlet-id>.eryph.alt -C "Get-Content 'C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log' -Tail 50"
    ```
 5. Only proceed to publishing after confirmed working
 

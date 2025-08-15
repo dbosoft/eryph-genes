@@ -37,17 +37,7 @@ Cloudbase-init logs are located at:
 
 ### 3. SSH Connection Methods
 
-Use the correct SSH connection format:
-```powershell
-# Using Windows OpenSSH directly (most reliable)
-"C:/Windows/System32/OpenSSH/ssh.exe" <catlet-id>.eryph.alt <command>
-
-# Using catlet name
-"C:/Windows/System32/OpenSSH/ssh.exe" <catlet-name>.eryph.alt <command>
-
-# Always update SSH config after catlet creation
-egs-tool.exe update-ssh-config
-```
+**⚠️ CRITICAL: ALWAYS use `C:/Windows/System32/OpenSSH/ssh.exe` - NOT just `ssh`!**
 
 ## Handling Reboot Requirements
 
@@ -96,11 +86,9 @@ if ($output -match "reboot is required" -or $LASTEXITCODE -eq 3010) {
 name: test-app-{{ os_variant }}
 parent: {{ parent }}
 
-variables:
-- name: egskey
-  secret: true
-
 fodder:
+  # Add guest services (no variables needed!)
+  - source: gene:dbosoft/guest-services:latest:win-install
   - name: install-app
     type: shellscript
     content: |
@@ -126,22 +114,20 @@ foreach ($test in $testMatrix) {
 
 ## Common Testing Pitfalls
 
-### 1. EGS SSH Key Line Breaks (MOST COMMON ERROR!)
+### 1. Using Wrong SSH Client (MOST COMMON ERROR!)
 
-**This happens EVERY TIME if forgotten!**
-
-**❌ WRONG - Will break SSH authentication:**
-```powershell
-$egsKey = egs-tool.exe get-ssh-key
-# Output has line breaks that break SSH!
+**❌ WRONG - Will fail to resolve .eryph.alt domains:**
+```bash
+ssh test-name.eryph.alt  # Git SSH or WSL SSH won't work!
 ```
 
-**✅ CORRECT - ALWAYS remove line breaks:**
-```powershell
-$egsKey = (egs-tool.exe get-ssh-key | Out-String) -replace "[\r\n]", ""
+**✅ CORRECT - ALWAYS use Windows OpenSSH with full path:**
+```bash
+C:/Windows/System32/OpenSSH/ssh.exe <catlet-id>.eryph.alt -C hostname
+C:/Windows/System32/OpenSSH/ssh.exe <VmId>.hyper-v.alt -C hostname
 ```
 
-**Error symptom:** `Permission denied (none,password,publickey,keyboard-interactive)`
+**Error symptom:** `Could not resolve hostname`
 
 ### 2. Package Manager Availability
 

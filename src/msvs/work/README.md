@@ -302,7 +302,7 @@ The installation script properly handles Visual Studio's reboot requirements usi
 Get-Catlet | Where-Object Name -eq "test-vs-community" | Select-Object Name, Status, Uptime
 
 # Check cloud-init logs after reboot
-& "C:\Windows\System32\OpenSSH\ssh.exe" <catletId>.eryph.alt 'Get-Content "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log" -Tail 50'
+& "C:/Windows/System32/OpenSSH/ssh.exe" <catletId>.eryph.alt -C 'Get-Content "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log" -Tail 50'
 ```
 
 ## Performance Considerations
@@ -329,7 +329,7 @@ After installation, you'll need to:
 
 ```powershell
 # Check license status via SSH
-& "C:\Windows\System32\OpenSSH\ssh.exe" <catletId>.eryph.alt 'powershell -Command "& ''C:\Program Files\Microsoft Visual Studio\2022\<Edition>\Common7\IDE\StorePID.exe'' /Product <ProductKey>"'
+& "C:/Windows/System32/OpenSSH/ssh.exe" <catletId>.eryph.alt -C 'powershell -Command "& ''C:\Program Files\Microsoft Visual Studio\2022\<Edition>\Common7\IDE\StorePID.exe'' /Product <ProductKey>"'
 ```
 
 ## Security Notes

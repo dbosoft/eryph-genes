@@ -2,16 +2,6 @@
 
 ## ⚠️ CRITICAL - ALWAYS DO THIS
 
-### EGS Key Handling - NEVER SKIP THE REPLACE
-```powershell
-# ❌ WRONG - Will break SSH authentication
-$egsKey = egs-tool.exe get-ssh-key
-
-# ✅ CORRECT - ALWAYS remove line breaks
-$egsKey = (egs-tool.exe get-ssh-key | Out-String) -replace "[\r\n]", ""
-```
-**This happens EVERY TIME if you forget! The key has line breaks that MUST be removed!**
-
 ### PowerShell Command Troubleshooting
 **If eryph PowerShell commands or EGS SSH operations start failing:**
 - **IMMEDIATELY** read `docs/eryph-commands-via-claude.md` 
@@ -72,43 +62,54 @@ eryph-genes/
 
 ## Testing with Eryph Guest Services (EGS)
 
-When testing genes, always use EGS for SSH access to catlets:
+The new EGS version simplifies SSH access to catlets - no SSH key injection needed!
 
 ### Quick EGS Setup for Testing
 
-**⚠️ CRITICAL: The EGS key MUST have line breaks removed or SSH will fail!**
+**⚠️ CRITICAL: ALWAYS use `C:/Windows/System32/OpenSSH/ssh.exe` - NOT just `ssh`!**
 
-```powershell
-# ⚠️ CRITICAL: ALWAYS use this exact pattern - DO NOT skip the replace!
-$egsKey = (egs-tool.exe get-ssh-key | Out-String) -replace "[\r\n]", ""
-# ↑ THIS REPLACE IS MANDATORY - THE KEY WILL BE BROKEN WITHOUT IT!
+```bash
+# Step 1: Deploy catlet with EGS fodder (no variables needed!)
+powershell -Command "Get-Content test-catlet.yaml | New-Catlet"
+# Note the output - you'll need the VmId (e.g., 2a2d0357-d565-4d86-b2c7-8c041a814362)
 
-# Deploy catlet with EGS
-Get-Content test-catlet.yaml | New-Catlet -Variables @{ egskey = $egsKey } -SkipVariablesPrompt
+# Step 2: Register VM with EGS (use the VmId from step 1)
+egs-tool add-ssh-config <VmId>  # Replace <VmId> with actual ID from step 1
 
-# Wait for catlet to start, then update SSH config
-egs-tool.exe update-ssh-config
+# Step 3: Generate SSH configuration for all registered VMs
+egs-tool update-ssh-config
 
-# Connect via SSH (use catlet ID)
-$catletId = (Get-Catlet | Where-Object Name -eq 'test-name').Id
-cmd /c ssh "$catletId.eryph.alt" -C "hostname"
+# Step 4: Start the catlet
+powershell -Command "Get-Catlet -Name 'test-name' | Start-Catlet -Force"
+
+# Step 5: Wait for EGS to be available (use VmId from step 1)
+egs-tool get-status <VmId>  # Keep checking until it returns "available"
+
+# Step 6: Connect via SSH (MUST use Windows OpenSSH!)
+# You can use any of these formats:
+
+C:/Windows/System32/OpenSSH/ssh.exe <catlet-id>.eryph.alt -C hostname
+C:/Windows/System32/OpenSSH/ssh.exe <VmId>.hyper-v.alt -C hostname
 ```
 
 ### Test Catlet Template with EGS
 ```yaml
-variables:
-  - name: egskey
-    secret: true
+name: test-name
+parent: dbosoft/winsrv2022-standard/starter
 
 fodder:
-  # Always include guest services for SSH access
-  - source: gene:dbosoft/guest-services:win-install  # or :linux-install for Linux
-    variables:
-      - name: sshPublicKey
-        value: '{{ egskey }}'
+  # Include guest services - no variables needed!
+  - source: gene:dbosoft/guest-services:latest:win-install  # or :linux-install for Linux
   # Your test fodder here
   - source: gene:dbosoft/your-gene:tag
 ```
+
+### Key Points
+- **No SSH key variables** - The new EGS handles authentication automatically
+- **Two-step configuration**: `add-ssh-config <VmId>` then `update-ssh-config`
+- **Use VM ID** (from catlet output) for `add-ssh-config` and `get-status`
+- **SSH hostname options**: `<catlet-id>.eryph.alt`, `<catlet-name>.eryph.alt`, or `<catlet-name>.<project>.eryph.alt`
+- **Windows SSH required**: Must use `C:/Windows/System32/OpenSSH/ssh.exe`
 
 ## Build System
 
