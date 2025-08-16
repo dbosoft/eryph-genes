@@ -1,0 +1,37 @@
+{
+  "gene": "dbosoft/winget",
+  "description": "Windows Package Manager installation and configuration",
+  "fodderFiles": ["install"],
+  "supportedOS": [
+    {
+      "parent": "dbosoft/winsrv2022-standard/starter",
+      "minBuild": 20348,
+      "enabled": true,
+      "notes": "Full support with dependencies"
+    },
+    {
+      "parent": "dbosoft/win10-20h2-enterprise/starter",
+      "minBuild": 19042,
+      "enabled": true,
+      "notes": "Requires VCLibs and XAML dependencies"
+    },
+    {
+      "parent": "dbosoft/win11-24h2-enterprise/starter",
+      "minBuild": 26100,
+      "enabled": true,
+      "notes": "May be pre-installed, will update if needed"
+    },
+    {
+      "parent": "dbosoft/winsrv2019-standard/starter",
+      "minBuild": 17763,
+      "enabled": false,
+      "skipReason": "Winget not supported on Windows Server 2019"
+    }
+  ],
+  "variables": {},
+  "timeout": 600,
+  "testPhases": {
+    "hostValidation": true,
+    "inCatletValidation": true
+  }
+}

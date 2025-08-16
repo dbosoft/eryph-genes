@@ -42,17 +42,33 @@ eryph-genes/
 
 ## Two-Phase Development Workflow
 
+### ⚠️ MANDATORY: Use Specialized Agents for Catlet/Gene Creation
+
+**NEVER attempt to create catlets or genes without using the appropriate agent!**
+- Creating catlets involves complex template processing across multiple execution contexts
+- The agents have specialized knowledge to avoid common pitfalls
+- Manual attempts WILL result in broken fodder due to execution timing issues
+
 ### Phase 1: Inline Fodder Development (eryph-specialist agent)
-- Create and test fodder directly in catlet YAML
-- Deploy and verify functionality
-- Iterate quickly without building genes
+**ALWAYS use this agent when:**
+- User asks to "create a catlet" or "generate fodder"
+- Testing any new functionality with inline YAML
+- Debugging catlet deployment issues
 - See `docs/eryph-knowledge.md` for examples
 
 ### Phase 2: Gene Extraction (gene-maintainer agent)
-- Extract working inline fodder to reusable genes
-- Build with npm/turbo system
-- Test via local genepool
-- Publish to public genepool
+**ALWAYS use this agent when:**
+- Extracting tested inline fodder to reusable genes
+- Building genes with npm/turbo system
+- Publishing to genepool
+- Managing the repository structure
+
+### Critical Fodder Creation Rules (for agent reference)
+1. **Variable substitution happens ONCE** - Eryph replaces `{{ variable }}` BEFORE cloud-init sees the file
+2. **No Jinja2 conditionals** - Cannot use `{% if %}` in fodder (only `{{ }}` substitution works)
+3. **Bash conditionals only** - All conditional logic must be in bash/PowerShell scripts
+4. **Package installation timing** - Packages installed via `packages:` may not be available immediately in `runcmd:`
+5. **Service readiness** - Never assume services are ready immediately after installation
 
 ## Knowledge Base
 

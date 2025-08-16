@@ -1,0 +1,15 @@
+name: test-linux-egs
+parent: dbosoft/ubuntu-22.04/starter
+
+# Linux test catlet with EGS (Eryph Guest Services)
+# No SSH key variables needed - EGS handles authentication automatically
+
+fodder:
+  # Include guest services for credential-free SSH access
+  - source: gene:dbosoft/guest-services:linux-install
+  
+  # Include PowerShell Core for running Pester tests
+  - source: gene:dbosoft/powershell:install
+  
+  # Optional: Include starter food for basic Linux configuration
+  - source: gene:dbosoft/starter-food:linux-starter
