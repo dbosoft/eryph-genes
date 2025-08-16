@@ -1,0 +1,618 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "Catlet",
+  "description": "A catlet is like a virtual machine, but can be breeded from a parent and feeded with config.",
+  "properties": {
+    "version": {
+      "title": "Catlet spec version",
+      "description": "If missing default version will be assumed, which is currently 1.0",      
+      "const": 1.0,
+      "type": ["number"]
+    },
+    "project": {
+      "title": "Project of catlet",
+      "description": "Name of the project to which the catlet will be assigned.\nIf omitted, the default project is used. \n\nProjects are used to isolate catlets in terms of security requirements, network access, and storage. \nCatlets between different projects cannot reach each other when overlay networks are used. Even at the storage level, catlets can only access volumes from the same project. ",
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 20
+    },
+    "name": {
+      "title": "Name of catlet",
+      "description": "The name of the catlet \nHas to be unique within a project and environment.",
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 50
+    },
+    "location": {
+      "title": "Location of catlet",
+      "description": "Catlet name on storage level.\nHas to be unique within a project and environment. \n\nSet the location if you would like to have human readable name also on file system level. Default is a time dependend generated value (aka storage identifier).",
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 20
+    },
+    "hostname": {
+      "title": "Hostname of catlet",
+      "description": "The hostname of the catlet. \nIf missing the catlet name will be used as hostname. ",
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 50
+    },
+    "environment": {
+      "title": "Environment of catlet",
+      "description": "The catlet's environment. \nIf missing the environment \"default\" will be used. \n\nEnvironments can be used to place catlets with the same specification on different networks and datastore paths.\nA typical use case is to separate production and staging environments. Catlets in different environments can reach each other on the network, but are separated by subdomains (in the case of overlay networks).",
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 50
+    },
+    "store": {
+      "title": "Datastore of catlet",
+      "description": "Catlet datastore name, as configured in the agent settings. \nIf missing the datastore \"default\" will be used. \n\nDatastores can be used to separate volumes and configurations according to your needs, for example, one storage with SSDs and another with HDDs. The datastore declared here will be used for catlet configuration files and not for disks.",
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 50
+    },
+    "parent": {
+      "title": "Parent of catlet",
+      "description": "The name of the parent catlet",
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*/[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*(/[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*)?$",
+      "minLength": 1,
+      "maxLength": 102
+    },
+    "cpu": {
+      "description": "CPU configuration",
+      "type": [
+        "number",
+        "object"
+      ],
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 240
+        },
+        {
+          "type": "object",
+          "$ref": "#/definitions/cpu"
+        }
+      ]
+    },
+    "memory": {
+      "description": "Memory configuration",
+      "type": [
+        "number",
+        "object"
+      ],
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 128,
+          "maximum": 12582912,
+          "multipleOf": 128
+        },
+        {
+          "type": "object",
+          "$ref": "#/definitions/memory"
+        }
+      ]
+    },
+    "drives": {
+      "title": "Drives",
+      "description": "The drives of the catlet.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/drive",
+        "maxItems": 64
+      }
+    },
+    "network_adapters": {
+      "title": "Network adapters",
+      "description": "The network adapters of the catlet.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/network_adapter",
+        "maxItems": 8
+      }
+    },
+    "capabilities": {
+      "title": "Capabilities",
+      "description": "The capabilities of the catlet.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/capability"
+      }
+    },
+    "networks": {
+      "title": "Networks",
+      "description": "The networks of the catlet.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/network"
+      }
+    },
+    "variables": {
+      "title": "Variables",
+      "description": "Variables of the catlet fodder configuration.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/variable"
+      }
+    },
+    "fodder": {
+      "title": "Fodder",
+      "description": "The fodder of the catlet.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/fodder"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "mutation": {
+      "title": "Type of mutation",
+      "description": "This defines how the corresponding catlet setting should mutate when the catlet is breeded from a parent.\n",
+      "enum": [
+        "merge",
+        "overwrite",
+        "remove"
+      ]
+    },
+    "cpu": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "description": "number of virtual CPUs",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 240
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "count"
+      ]
+    },
+    "memory": {
+      "type": "object",
+      "description": "The memory configuration of the catlet.\nMemory could be either be a number which is the startup memory of the catlet in MB or an object with minimum and maximum memory in dynamic memory (in MB).\nSetting of a minimum and maximum memory will enable dynamic memory capability.",
+      "properties": {
+        "startup": {
+          "description": "Default memory of the catlet in MB",
+          "type": "integer",
+          "minimum": 128,
+          "maximum": 12582912,
+          "multipleOf": 128
+        },
+        "maximum": {
+          "description": "Maximum memory of catlet used in dynamic memory (in MB).",
+          "type": "integer",
+          "minimum": 128,
+          "maximum": 12582912,
+          "multipleOf": 128
+        },
+        "minimum": {
+          "description": "Minimum memory of catlet used in dynamic memory (in MB).",
+          "type": "integer",
+          "minimum": 128,
+          "maximum": 12582912,
+          "multipleOf": 128
+        }
+      },
+      "additionalProperties": false
+    },
+    "drive": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "The name of the drive. Should be in unix style (sda, sdb, etc.), which will ensure that the drive is mounted in the correct order.",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]+(-?[a-zA-Z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "mutation": {
+          "description": "This defines how the corresponding drive setting should mutate when the catlet is breeded from a parent.\n",
+          "$ref": "#/definitions/mutation"
+        },
+        "store": {
+          "title": "Datastore of disk",
+          "description": "Disk datastore name, as configured in the agent settings. \nIf missing, the datastore \"default\" will be used. \n\nDatastores can be used to separate volumes and configurations according to your needs, for example, one storage with SSDs and another with HDDs. The datastore declared here will be used for the disk file(s).",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "location": {
+          "title": "Location of disk",
+          "description": "Has to be unique within a project and environment. \n\nSet the location if you would like to have human readable name also on file system level. Default is a time dependend generated value (aka storage identifier).",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "source": {
+          "title": "Source of drive",
+          "description": "The source of the drive. Could be empty (new empty drive), a gene reference (gene:<geneset>:<gene>) or a file path.\nIf the source is a file path, the file has to be accessable by the eryph host and not the client!",
+          "type": "string",
+          "pattern": "^(gene:[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*/[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*(/[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*)?:[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*)|((\\\\\\\\|[a-zA-Z]:\\\\)[^\\x00-\\x1f|\"<>*?]+)$"
+        },
+        "size": {
+          "title": "Size of drive",
+          "description": "The size of the drive in GiB.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "type": {
+          "title": "Type of drive",
+          "description": "The type of the drive",
+          "type": "string",
+          "enum": [
+            "VHD",
+            "SharedVHD",
+            "DVD",
+            "VHDSet"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "network_adapter": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name of network adapter",
+          "description": "The name of the network adapter.",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]+(-?[a-zA-Z0-9]+)*$",
+          "minLength": 2,
+          "maxLength": 15
+        },
+        "mutation": {
+          "description": "This defines how the corresponding network adapter setting should mutate when the catlet is breeded from a parent.\n",
+          "$ref": "#/definitions/mutation"
+        },
+        "mac_address": {
+          "description": "The MAC address of the network adapter.",
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "capability": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name of capability",
+          "description": "The name of the capability.",
+          "type": "string",
+            "pattern": "^[a-zA-Z0-9_]+(-?[a-zA-Z0-9_]+)*$",
+          "minLength": 2,
+          "maxLength": 50
+        },
+        "mutation": {
+          "$ref": "#/definitions/mutation"
+        },
+        "details": {
+          "title": "Details of capability",
+          "description": "The details of the capability. 'enabled' and 'disabled' can be used to explicitly enable or disable a capability. Additional values are possible depending on the capability.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "uniqueItems": true
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name of network",
+          "description": "The name of the network which should be used. The network must be configured in the project.",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]+(-?[a-zA-Z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "mutation": {
+          "$ref": "#/definitions/mutation"
+        },
+        "adapter_name": {
+          "title": "Name of network adapter",
+          "description": "The name of the network adapter.",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]+(-?[a-zA-Z0-9]+)*$",
+          "minLength": 2,
+          "maxLength": 15
+        },
+        "subnet_v4": {
+          "title": "IP v4 subnet",
+          "description": "The configuration for the IP v4 subnet of the network.",
+          "$ref": "#/definitions/network_subnet"
+        },
+        "subnet_v6": {
+          "title": "IP v6 subnet",
+          "description": "The configuration for the IP v6 subnet of the network.",
+          "$ref": "#/definitions/network_subnet"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "network_subnet": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name of subnet",
+          "description": "The name of the subnet which should be used. The subnet must be configured in the project.",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]+(-?[a-zA-Z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "ip_pool": {
+          "title": "Name of IP pool",
+          "description": "The name of the IP pool which should be used. The IP pool must be configured in the project.",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]+(-?[a-zA-Z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 50
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "fodder": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/fodder_reference"
+        },
+        {
+          "$ref": "#/definitions/fodder_cloudinit"
+        },
+        {
+          "$ref": "#/definitions/fodder_other"
+        },
+        {
+          "$ref": "#/definitions/fodder_remove"
+        }
+      ]
+    },
+    "fodder_reference": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name of fodder",
+          "description": "The name of the fodder.",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]+(-?[a-zA-Z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "source": {
+          "title": "Source of fodder",
+          "description": "The source of the fodder when the fodder should be fetched from the gene pool.",
+          "type": "string",
+          "pattern": "^(gene:[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*/[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*(/[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*)?:[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*)$"
+        },
+        "variables": {
+          "title": "Variables",
+          "description": "The variables of the fodder.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/variable"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source"
+      ]
+    },
+    "fodder_cloudinit": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name of fodder",
+          "description": "The name of the fodder.",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]+(-?[a-zA-Z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "secret": {
+          "title": "Secret",
+          "description": "Indicates that the content of the fodder should be kept secret.",
+          "type": "boolean"
+        },
+        "type": {
+          "title": "Type of fodder",
+          "description": "The type of the fodder.",
+          "type": "string",
+          "enum": [
+            "cloud-config"
+          ]
+        },
+        "content": {
+          "title": "Content of fodder",
+          "description": "The content of the fodder. ",
+          "type": "object",
+          "$ref": "https://raw.githubusercontent.com/canonical/cloud-init/refs/heads/main/cloudinit/config/schemas/versions.schema.cloud-config.json"
+        },
+        "variables": {
+          "title": "Variables",
+          "description": "The variables of the fodder.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/variable"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "content"
+      ]
+    },
+    "fodder_other": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name of fodder",
+          "description": "The name of the fodder.",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]+(-?[a-zA-Z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "secret": {
+          "title": "Secret",
+          "description": "Indicates that the content of the fodder should be kept secret.",
+          "type": "boolean"
+        },
+        "type": {
+          "title": "Type of fodder",
+          "description": "The type of the fodder.",
+          "type": "string",
+          "enum": [
+            "cloud-boothook",
+            "cloud-config-archive",
+            "include-once-url",
+            "include-url",
+            "part-handler",
+            "shellscript",
+            "upstart-job"
+          ]
+        },
+        "content": {
+          "title": "Content of fodder",
+          "description": "The content of the fodder. ",
+          "type": "string"
+        },
+        "filename": {
+          "title": "Filename of fodder",
+          "description": "The filename which should be used when writing the content to a file inside the catlet.",
+          "type": "string",
+          "pattern": "^[^\\x00-\\1f\"<>|:*?\\\\/]+$",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "variables": {
+          "title": "Variables",
+          "description": "The variables of the fodder.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/variable"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "content"
+      ]
+    },
+    "fodder_remove": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name of fodder",
+          "description": "The name of the fodder.",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]+(-?[a-zA-Z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "source": {
+          "title": "Source of fodder",
+          "description": "The source of the fodder when the fodder should be fetched from the gene pool.",
+          "type": "string",
+          "pattern": "^(gene:[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*/[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*(/[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*)?:[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*)$"
+        },
+        "remove": {
+          "title": "Remove",
+          "description": "Indicates that the food should be removed during breeding.",
+          "type": "boolean",
+          "enum": [true]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "remove"
+      ]
+    },
+    "variable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name of variable",
+          "description": "The name of the variable.",
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "type": {
+          "title": "Type of variable",
+          "description": "The type of the variable.",
+          "type": "string",
+          "enum": [
+            "string",
+            "boolean",
+            "number"
+          ]
+        },
+        "value": {
+          "title": "Value of variable",
+          "description": "The value of the variable.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "secret": {
+          "title": "Secret",
+          "description": "Indicates that the variable should be kept secret. The variable will not be shown in the UI.",
+          "type": "boolean"
+        },
+        "required": {
+          "title": "Required",
+          "description": "Indicates that a value for the variable is required.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    }
+  }
+}

@@ -1,4 +1,4 @@
-# eryph Knowledge Base
+# Eryph Core Concepts
 
 ## System Architecture
 
@@ -203,7 +203,7 @@ variables:
   required: true
 - name: enable_ssl
   type: boolean
-  default: false
+  value: false
 
 # Use variables in fodder
 fodder:
@@ -223,13 +223,29 @@ fodder:
 
 ### Referencing External Fodder
 
+**CRITICAL: Gene Source Reference Format**
+
+```yaml
+# CORRECT formats:
+# Implicit tag (uses 'latest'):
+- source: gene:dbosoft/guest-services:win-install     # gene:<geneset>:<fodder-name>
+
+# Explicit tag:
+- source: gene:dbosoft/guest-services/v1.0:win-install # gene:<geneset>/<tag>:<fodder-name>
+
+# WRONG formats (DO NOT USE):
+- source: gene:dbosoft/guest-services:latest:win-install  # WRONG: tag in wrong position
+- source: dbosoft/guest-services                          # WRONG: missing gene: prefix (only for parent!)
+```
+
+Example usage:
 ```yaml
 name: web-server
 parent: dbosoft/ubuntu-22.04/starter
 
 # Reference fodder from genepool
 fodder:
-- source: gene:myorg/web-fodder:nginx-config
+- source: gene:myorg/web-fodder:nginx-config  # implicit 'latest' tag
   variables:
   - name: domain
     value: example.com
@@ -486,45 +502,17 @@ fodder:
     - systemctl enable fail2ban
 ```
 
-## PowerShell Command Reference
+## PowerShell Cmdlets Overview
 
-**These are ACTUAL PowerShell cmdlets installed on Windows by eryph-zero:**
+**Eryph-zero installs PowerShell cmdlets for VM management:**
 
-```powershell
-# Catlet Management - ACTUAL cmdlets that exist on the system
-New-Catlet -InputObject $spec              # Creates VM via eryph-zero service
-Get-Catlet                                  # Lists VMs from eryph-zero service
-Get-Catlet | Where-Object Name -eq "vm-name" | Start-Catlet    # Starts VM
-Get-Catlet | Where-Object Name -eq "vm-name" | Stop-Catlet -Force   # Stops VM
-Get-Catlet | Where-Object Name -eq "vm-name" | Remove-Catlet -Force # Deletes VM
-Get-Catlet | Where-Object Name -eq "vm-name" | Get-CatletIp    # Gets VM IP
+- **Catlet Management:** New-Catlet, Get-Catlet, Start-Catlet, Stop-Catlet, Remove-Catlet
+- **Testing:** Test-Catlet (validates YAML without creating VM)
+- **Gene Management:** Get-CatletGene, Remove-CatletGene
+- **Project Management:** New-EryphProject, Get-EryphProject, Remove-EryphProject
+- **Additional Tools:** eryph-packer for gene creation and publishing
 
-# Or with ID if known
-Start-Catlet -Id "catlet-id"
-Stop-Catlet -Id "catlet-id" -Force
-Remove-Catlet -Id "catlet-id" -Force
-
-# Testing Configuration - REAL cmdlet
-Test-Catlet -InputObject $spec             # Tests catlet syntax and gene resolution WITHOUT creating VM
-Get-Content catlet.yaml | Test-Catlet      # Test from file
-Test-Catlet -Config "catlet.yaml"          # Test from file path
-
-# Gene Management - REAL cmdlets  
-Get-CatletGene                             # Lists downloaded gene templates (AFTER deployment only)
-Remove-CatletGene -Unused -Force           # Cleans up unused genes
-
-# Project Management - REAL cmdlets
-New-EryphProject "project-name"            # Creates project in eryph-zero
-Get-EryphProject                           # Lists projects
-Remove-EryphProject "project-name" -Force  # Deletes project
-
-# These are COMMAND-LINE TOOLS (not PowerShell cmdlets):
-eryph-zero genepool login                  # CLI tool for genepool auth
-eryph-packer geneset init org/geneset --public      # CLI tool for creating genes
-eryph-packer geneset-tag init org/geneset/tag
-eryph-packer geneset-tag pack org/geneset/tag
-eryph-packer geneset push org/geneset/tag
-```
+**Note:** For exact command syntax, the eryph-executor agent handles all execution.
 
 ## Genepool API Reference
 
@@ -532,27 +520,13 @@ eryph-packer geneset push org/geneset/tag
 
 The genepool REST API is available at `https://genepool.eryph.io/v1/` (or `https://genepool-api.eryph.io/v1/`).
 
-**Key Endpoints for Scanning dbosoft Organization:**
-
-```bash
-# List all genesets for organization dbosoft
-curl "https://genepool-api.eryph.io/v1/orgs/dbosoft/genesets"
-
-# Get specific geneset info
-curl "https://genepool-api.eryph.io/v1/genesets/dbosoft/ubuntu-22.04"
-
-# List all tags for a geneset
-curl "https://genepool-api.eryph.io/v1/genesets/dbosoft/ubuntu-22.04/tags"
-
-# Get specific tag info
-curl "https://genepool-api.eryph.io/v1/genesets/dbosoft/ubuntu-22.04/tag/latest"
-
-# Get geneset stats
-curl "https://genepool-api.eryph.io/v1/genesets/dbosoft/ubuntu-22.04/stats"
-
-# Get geneset description (markdown)
-curl "https://genepool-api.eryph.io/v1/genesets/dbosoft/ubuntu-22.04/description"
-```
+**Key Endpoints:**
+- `/orgs/{org}/genesets` - List organization's genesets
+- `/genesets/{org}/{geneset}` - Get geneset info
+- `/genesets/{org}/{geneset}/tags` - List available tags
+- `/genesets/{org}/{geneset}/tag/{tag}` - Get specific tag
+- `/genesets/{org}/{geneset}/stats` - Get statistics
+- `/genesets/{org}/{geneset}/description` - Get description
 
 ### Query Parameters
 
@@ -561,82 +535,21 @@ curl "https://genepool-api.eryph.io/v1/genesets/dbosoft/ubuntu-22.04/description
 - `expand=tags,metadata,description` - Expand nested data
 - `no_cache=true` - Bypass cache for fresh data
 
-### Example: Scan All dbosoft Genesets with PowerShell
 
-```powershell
-# Get all dbosoft genesets
-$response = Invoke-RestMethod -Uri "https://genepool-api.eryph.io/v1/orgs/dbosoft/genesets?page_size=50"
+### Common dbosoft Genesets
 
-# Display geneset names
-$response.values | ForEach-Object {
-    Write-Host "Geneset: $($_.name)"
-}
+**OS Base Images:**
+- ubuntu-20.04, ubuntu-22.04, ubuntu-24.04
+- winsrv2019-standard, winsrv2022-standard, winsrv2025-standard
+- win10-20h2-enterprise, win11-24h2-enterprise
 
-# Get specific geneset info
-$ubuntu = Invoke-RestMethod -Uri "https://genepool-api.eryph.io/v1/genesets/dbosoft/ubuntu-22.04"
+**Fodder Collections:**
+- starter-food - Basic user setup fodder
+- hyperv - Hyper-V installation
+- windomain - Windows domain setup
+- winconfig - Windows configuration
+- guest-services - Guest integration services
 
-# Get tags for a geneset
-$tags = Invoke-RestMethod -Uri "https://genepool-api.eryph.io/v1/genesets/dbosoft/ubuntu-22.04/tags"
-$tags.values | ForEach-Object {
-    Write-Host "Tag: $($_.tag) - Size: $($_.size_bytes / 1MB) MB"
-}
-```
-
-### Common dbosoft Genesets to Query
-
-```powershell
-# OS Base Images
-"dbosoft/ubuntu-20.04"
-"dbosoft/ubuntu-22.04"
-"dbosoft/ubuntu-24.04"
-"dbosoft/winsrv2019-standard"
-"dbosoft/winsrv2022-standard"
-"dbosoft/winsrv2025-standard"
-"dbosoft/win10-20h2-enterprise"
-"dbosoft/win11-24h2-enterprise"
-
-# Fodder Collections
-"dbosoft/starter-food"      # Basic user setup fodder
-"dbosoft/hyperv"            # Hyper-V installation
-"dbosoft/windomain"         # Windows domain setup
-"dbosoft/winconfig"         # Windows configuration
-"dbosoft/guest-services"    # Guest integration services
-```
-
-### Full Organization Scan
-
-```powershell
-# Scan all genesets for an organization with pagination
-$Org = "dbosoft"
-$baseUrl = "https://genepool-api.eryph.io/v1"
-$allGenesets = @()
-$continuationToken = $null
-
-do {
-    $uri = "$baseUrl/orgs/$Org/genesets?page_size=50"
-    if ($continuationToken) {
-        $uri += "&continuation_token=$continuationToken"
-    }
-    
-    $response = Invoke-RestMethod -Uri $uri
-    $allGenesets += $response.values
-    $continuationToken = $response.continuation_token
-    
-} while ($continuationToken)
-
-# Display results
-$allGenesets | ForEach-Object {
-    Write-Host "Geneset: $($_.name)" -ForegroundColor Cyan
-    Write-Host "  Public: $($_.is_public)"
-    Write-Host "  Description: $($_.short_description)"
-}
-
-Write-Host "`nTotal genesets found: $($allGenesets.Count)" -ForegroundColor Green
-
-# Filter for fodder genes
-$fodderGenes = $allGenesets | Where-Object { $_.name -match "food|fodder|config" }
-Write-Host "`nFodder genes: $($fodderGenes.Count)"
-```
 
 ## Best Practices
 
@@ -673,15 +586,7 @@ Write-Host "`nFodder genes: $($fodderGenes.Count)"
 
 ### Check for Credentials
 
-```powershell
-# Check if using starter gene (has default creds)
-$catletSpec = Get-Content catlet.yaml | ConvertFrom-Yaml
-if ($catletSpec.parent -match "starter") {
-    Write-Host "Using starter gene - default credentials available (admin/admin)"
-} else {
-    Write-Host "No default credentials - you should add user setup fodder"
-}
-```
+Starter genes (those with 'starter' in the name) typically include default credentials (admin/admin). Non-starter genes require you to add user setup fodder.
 
 ### Add SSH Key Authentication
 
@@ -723,4 +628,111 @@ fodder:
     set_administrator_password: {{ admin_password }}
     local_admins:
     - Administrator
+```
+
+## CRITICAL: Cloudbase-init Limitations on Windows
+
+### ⚠️ WARNING: Limited cloud-config Support
+
+**Cloudbase-init is NOT cloud-init!** It's a Windows port with VERY LIMITED cloud-config support.
+
+### Supported cloud-config Directives (ONLY THESE WORK!)
+
+```yaml
+# ONLY these cloud-config directives work on Windows:
+write_files:        # Create files with content
+set_timezone:       # Change system timezone  
+set_hostname:       # Override hostname (requires reboot)
+groups:            # Create local groups
+users:             # Create/configure local users
+ntp:               # Configure NTP servers
+runcmd:            # Execute commands in order
+```
+
+### What DOES NOT WORK on Windows
+
+```yaml
+# These cloud-init features DO NOT WORK with cloudbase-init:
+packages:          # ❌ NO package installation support
+package_update:    # ❌ NO Windows Update control
+package_upgrade:   # ❌ NO Windows Update control  
+apt:               # ❌ Linux-specific, won't work
+yum:               # ❌ Linux-specific, won't work
+snap:              # ❌ Linux-specific, won't work
+ssh_authorized_keys: # ❌ Use shellscript to configure SSH
+bootcmd:           # ❌ Not supported
+mounts:            # ❌ Not supported
+disk_setup:        # ❌ Not supported
+```
+
+### ALWAYS Use shellscript for Windows Configuration
+
+For ANY Windows configuration beyond the 7 supported directives, use `type: shellscript`:
+
+```yaml
+# CORRECT - Use shellscript for Windows package installation
+fodder:
+- name: install-packages
+  type: shellscript
+  filename: install.ps1
+  content: |
+    # Install Chocolatey
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+    
+    # Install packages via Chocolatey
+    choco install -y git nodejs python3
+    
+    # Install Windows Features
+    Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+
+# WRONG - This will FAIL on Windows!
+fodder:
+- name: install-packages
+  type: cloud-config
+  content: |
+    packages:  # ❌ This does NOT work on Windows!
+      - git
+      - nodejs
+```
+
+### Key Differences from Linux cloud-init
+
+1. **No package management** - Use Chocolatey, winget, or PowerShell instead
+2. **Limited directive support** - Only 7 directives work
+3. **PowerShell focus** - Most configuration done via PowerShell scripts
+4. **Different execution model** - Runs with Sysprep, then regular execution
+5. **Plaintext passwords** - User passwords are not hashed on Windows
+
+### Best Practice for Windows Fodder
+
+```yaml
+# Use cloud-config ONLY for supported directives
+fodder:
+- name: basic-setup
+  type: cloud-config
+  content: |
+    # These work on Windows
+    write_files:
+    - path: C:\config\app.json
+      content: |
+        {"setting": "value"}
+    
+    set_hostname: webserver01
+    
+    users:
+    - name: admin
+      groups: Administrators
+      passwd: SecurePass123!  # Plain text on Windows
+    
+    runcmd:
+    - powershell -Command "Write-Host 'Setup complete'"
+
+# Use shellscript for EVERYTHING ELSE
+- name: real-configuration
+  type: shellscript
+  filename: configure.ps1
+  content: |
+    # All actual Windows configuration here
+    # Package installation, feature setup, etc.
 ```
