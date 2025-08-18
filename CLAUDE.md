@@ -99,7 +99,10 @@ PowerShell Executor (for catlet ops) OR EGS Executor (for SSH/EGS ops)
     ↓
 Returns: output/error
     ↓
-If error → Back to Creation Agent for interpretation
+Main Claude: Categorize error type
+    ↓
+If CONTENT error → Back to Creation Agent for interpretation
+If STATE error → Handle directly (see Error Handling below)
 ```
 
 ### Critical Rules
@@ -107,25 +110,61 @@ If error → Back to Creation Agent for interpretation
 2. **Creation Agents:** Create artifacts and suggest operation types
 3. **PowerShell Executor:** Handles all eryph PowerShell commands with polling
 4. **EGS Executor:** Handles SSH and EGS tool operations
-5. **Errors:** Always return to creation agent for interpretation
+5. **Errors:** Categorize first, then route appropriately (see Error Handling)
 
 ### OVERRIDE DIRECTIVE: Orchestration Above Efficiency
 - **EVEN IF** you see the obvious fix → still use eryph-specialist
 - **EVEN IF** it seems inefficient → the pattern IS the test
-- **WHEN** executor returns error → your ONLY action: return to creation agent
+- **WHEN** executor returns CONTENT error → your ONLY action: return to creation agent
 - **Breaking this pattern means the test FAILS** (we're testing agents, not just deploying)
+
+### Error Handling - Main Claude Decision Tree
+
+**CONTENT ERRORS (Return to Creation Agent):**
+- Validation failures (missing fields, wrong schema, invalid YAML)
+- Syntax errors in YAML or fodder
+- Invalid gene references or missing genes
+- Variable format issues (e.g., key-value vs array-of-objects)
+- Incorrect cloudbase-init/cloud-init directives
+- Missing required parameters in commands
+
+**STATE ERRORS (Handle Directly):**
+- **Resource already exists** → Get existing resource ID, decide to use/remove/rename
+- **Resource not found** → Check if deleted, verify name/ID
+- **Catlet already running/stopped** → Adjust operation accordingly
+- **Operation in progress** → Poll for completion
+- **Permission denied** → Request admin rights or different credentials
+- **Network/connectivity issues** → Retry or check connectivity
+- **Prerequisites missing** → Install/configure prerequisites
+
+**Decision Logic:**
+1. If error is about YAML/fodder/gene CONTENT → Return to creation agent
+2. If error is about system STATE/resources → Handle directly with appropriate operation
+3. If unsure → Check error message for keywords:
+   - "validation", "schema", "syntax", "invalid" → CONTENT
+   - "exists", "not found", "already", "conflict", "permission" → STATE
 
 ### Common Operation Types
 **PowerShell Executor:**
-- `deploy-catlet` → Deploy YAML with -Verbose and -SkipVariablesPrompt
+- `deploy-catlet` → Deploy YAML with -Verbose and -SkipVariablesPrompt (returns catlet ID and VmId)
 - `test-catlet` → Test configuration resolution
-- `start-catlet`, `stop-catlet`, `remove-catlet` → Catlet lifecycle
+- `start-catlet`, `stop-catlet`, `remove-catlet` → Catlet lifecycle (ALWAYS use -Id parameter with catlet ID)
 - `poll-operation` → Check long-running operation status
 
+**⚠️ CRITICAL: Catlet IDs vs VmIds for Automation**
+- **New-Catlet returns a catlet object with both ID and VmId** - ALWAYS capture BOTH
+- **PowerShell operations use Catlet ID** (-Id parameter with catlet ID)
+- **EGS operations MUST use VmId** (NOT catlet ID!)
+- **Names are NOT unique** - multiple catlets can have same name
+- **IDs are GUIDs and guaranteed unique** - required for reliable automation
+- Example: `Start-Catlet -Id $catletId -Force` (uses catlet ID)
+- Example: `egs-tool add-ssh-config $vmId` (uses VmId, NOT catlet ID!)
+
 **EGS Executor:**
-- `run-ssh` → Run ANY command in VM (you compose the command)
-- `setup-egs` → Configure SSH access
-- `upload-file`, `download-file` → File transfer
+- `run-ssh` → Run ANY command in VM (you compose the command) - REQUIRES VmId
+- `setup-egs` → Configure SSH access - REQUIRES VmId
+- `test-egs` → Check EGS status with `egs-tool get-status {vmid}` - REQUIRES VmId
+- `upload-file`, `download-file` → File transfer - REQUIRES VmId
 
 **Build Executor:**
 - `build-gene` → Build with turbo
@@ -136,7 +175,8 @@ If error → Back to Creation Agent for interpretation
 ### Phase Transitions
 - **Inline working?** → Suggest gene-maintainer for extraction
 - **Gene built?** → Use eryph-powershell-executor for deployment test
-- **Need VM access?** → Use egs-executor for SSH operations
+- **Catlet deployed and started?** → Use egs-executor `setup-egs` FIRST
+- **EGS configured?** → Now use egs-executor for `run-ssh` operations
 - **Error occurred?** → Return to appropriate creation agent
 
 ## Knowledge Base
@@ -146,6 +186,7 @@ If error → Back to Creation Agent for interpretation
 - `command-reference.md` - All eryph commands in one place
 - `error-patterns.md` - Error interpretation for agents
 - `eryph-knowledge.md` - Core eryph concepts only
+- `debug_catlet_deployment.md` - Systematic error detection in deployed catlets
 
 ## Testing with Eryph Guest Services (EGS)
 
@@ -153,9 +194,12 @@ If error → Back to Creation Agent for interpretation
 
 ### Testing Process
 1. **Create test catlet** → Use eryph-specialist agent
-2. **Deploy and configure** → Request eryph-powershell-executor operation `deploy-catlet`
-3. **Access VM** → Request egs-executor operation `run-ssh`
-4. **Debug issues** → Return errors to specialist for interpretation
+2. **Deploy and configure** → Request eryph-powershell-executor operation `deploy-catlet` (captures both catlet ID and VmId)
+3. **Start catlet** → Request eryph-powershell-executor operation `start-catlet` with catlet ID
+4. **Setup EGS access** → Request egs-executor operation `setup-egs` with VmId (NOT catlet ID!) (REQUIRED before SSH!)
+5. **Check EGS status** → Request egs-executor operation `test-egs` with VmId to verify connectivity
+6. **Access VM** → Request egs-executor operation `run-ssh` with VmId
+7. **Debug issues** → Return errors to specialist for interpretation
 
 ### Test Catlet Template Structure
 ```yaml
@@ -217,10 +261,8 @@ fodder:
 ## Local Testing Requirements
 
 ### Genepool Path Configuration
-Before testing genes locally, the genepool path must be configured:
-1. **Resolve path** → gene-maintainer suggests operation → build-executor runs as Administrator
-2. **Store path** → Save output to `.\.claude\genepool-path.txt`
-3. **Usage** → gene-maintainer uses this path in copy commands
+Before testing genes locally, the genepool path must be detected: 
+Script .\Resolve-GenepoolPath.ps1
 
 ### Testing Workflow
 1. **Build gene** → gene-maintainer provides build commands → executor runs them
@@ -233,7 +275,6 @@ Before testing genes locally, the genepool path must be configured:
 ### PowerShell NullReferenceException
 "Der Objektverweis wurde nicht auf eine Objektinstanz festgelegt"
 - Missing `-SkipVariablesPrompt` when YAML has variables
-- Missing `-Force` flag where required
 - See `docs/error-patterns.md` for all error patterns
 
 ### Gene Not Found

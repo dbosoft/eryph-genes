@@ -24,20 +24,20 @@ powershell -Command "Get-Content catlet.yaml | New-Catlet -Verbose"
 # List all catlets
 powershell -Command "Get-Catlet"
 
-# Get specific catlet
-powershell -Command "Get-Catlet | Where-Object Name -eq 'test-name'"
+# Get specific catlet by ID (use ID from New-Catlet output)
+powershell -Command "Get-Catlet -Id '<catlet-id>'"
 
-# Start catlet (ALWAYS use -Force)
-powershell -Command "Get-Catlet -Name 'test-name' | Start-Catlet -Force"
+# Start catlet (ALWAYS use -Force and -Id)
+powershell -Command "Start-Catlet -Id '<catlet-id>' -Force"
 
-# Stop catlet (ALWAYS use -Force)
-powershell -Command "Get-Catlet -Name 'test-name' | Stop-Catlet -Force"
+# Stop catlet (ALWAYS use -Force and -Id)
+powershell -Command "Stop-Catlet -Id '<catlet-id>' -Force"
 
-# Remove catlet (ALWAYS use -Force)
-powershell -Command "Get-Catlet -Name 'test-name' | Remove-Catlet -Force"
+# Remove catlet (ALWAYS use -Force and -Id)
+powershell -Command "Remove-Catlet -Id '<catlet-id>' -Force"
 
-# Get catlet IP
-powershell -Command "Get-Catlet -Name 'test-name' | Get-CatletIp"
+# Get catlet IP by ID
+powershell -Command "Get-CatletIp -Id '<catlet-id>'"
 ```
 
 ### Operations Management

@@ -183,7 +183,7 @@ capabilities:
 fodder:
 - name: base-setup
   type: cloud-config
-  content: |
+  content:
     packages:
     - nginx
     - git
@@ -209,7 +209,7 @@ variables:
 fodder:
 - name: web-config
   type: cloud-config
-  content: |
+  content:
     write_files:
     - path: /etc/nginx/sites-available/default
       content: |
@@ -387,7 +387,7 @@ fodder:
 # Install and configure packages
 - name: package-setup
   type: cloud-config
-  content: |
+  content:
     packages:
       - nginx
       - nodejs
@@ -419,7 +419,7 @@ memory: 2048
 fodder:
 - name: web-setup
   type: cloud-config
-  content: |
+  content:
     packages: [nginx, nodejs]
     
 ---
@@ -437,7 +437,7 @@ drives:
 fodder:
 - name: db-setup
   type: cloud-config
-  content: |
+  content:
     packages: [postgresql]
 ```
 
@@ -479,7 +479,7 @@ parent: dbosoft/ubuntu-22.04/latest
 fodder:
 - name: company-standards
   type: cloud-config
-  content: |
+  content:
     # Company security policies
     package_update: true
     package_upgrade: true
@@ -602,7 +602,7 @@ variables:
 fodder:
 - name: ssh-setup
   type: cloud-config
-  content: |
+  content:
     users:
     - name: admin
       ssh_authorized_keys:
@@ -624,7 +624,7 @@ variables:
 fodder:
 - name: admin-setup
   type: cloud-config
-  content: |
+  content:
     set_administrator_password: {{ admin_password }}
     local_admins:
     - Administrator
@@ -690,7 +690,7 @@ fodder:
 fodder:
 - name: install-packages
   type: cloud-config
-  content: |
+  content:
     packages:  # ❌ This does NOT work on Windows!
       - git
       - nodejs
@@ -711,7 +711,7 @@ fodder:
 fodder:
 - name: basic-setup
   type: cloud-config
-  content: |
+  content:
     # These work on Windows
     write_files:
     - path: C:\config\app.json

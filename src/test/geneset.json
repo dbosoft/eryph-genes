@@ -1,0 +1,8 @@
+{
+    "geneset": "dbosoft/test",
+    "public": false,
+    "short_description": "Test Orchestration Fodder",
+    "description": "This geneset contains fodder for testing the multi-agent orchestration system. It creates test files to verify successful deployment and variable substitution.",
+    "description_markdown": null,
+    "description_markdown_file": null
+}

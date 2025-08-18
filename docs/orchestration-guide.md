@@ -53,10 +53,14 @@ When YAML contains variables, you can:
 3. The eryph-powershell-executor will build proper PowerShell hashtable syntax
 
 ### Handling Long-Running Operations
+
+**⚠️ POLLING IS ONLY FOR TIMEOUTS - DO NOT POLL OTHERWISE! ⚠️**
+
 1. All catlet operations run with `-Verbose`
-2. If timeout occurs, extract OperationId from output
-3. Use `poll-operation` with eryph-powershell-executor
+2. **IF AND ONLY IF timeout occurs**, extract OperationId from output
+3. Use `poll-operation` with eryph-powershell-executor (uses `Get-EryphOperation`)
 4. Continue polling until complete
+5. **If no timeout → NO POLLING NEEDED!**
 
 ## Standard Orchestration Flow
 
@@ -94,7 +98,7 @@ When YAML contains variables, you can:
 - `remove-catlet` - Delete catlet
 - `list-catlets` - Show all catlets
 - `get-catlet-ip` - Get IP address
-- `poll-operation` - Check long-running operation
+- `poll-operation` - Check long-running operation (ONLY if timeout occurred!)
 - `check-service` - Check eryph-zero service
 - `resolve-genepool-path` - Get genepool path
 
@@ -120,12 +124,15 @@ When YAML contains variables, you can:
 3. **DO** return exact error to specialist
 4. **DO** use specialist's suggested operations
 
-### When Command Times Out
+### When Command Times Out (ONLY THEN USE POLLING)
+
+**⚠️ This section ONLY applies if a timeout occurs! ⚠️**
 
 1. Extract OperationId from verbose output
-2. Use `poll-operation` with eryph-powershell-executor
+2. Use `poll-operation` with eryph-powershell-executor (runs `Get-EryphOperation`)
 3. Continue polling until Status: Completed or Failed
 4. Report final status to user
+5. **DO NOT poll if command completes normally without timeout!**
 
 ### Common Errors → Response
 

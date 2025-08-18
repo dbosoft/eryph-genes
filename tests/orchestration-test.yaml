@@ -1,0 +1,65 @@
+name: orchestration-test
+parent: dbosoft/winsrv2022-standard/starter
+
+variables:
+  - name: environment
+    value: testing
+    type: string
+  - name: test_message
+    value: "Orchestration pattern test successful"
+    type: string
+
+fodder:
+  - source: gene:dbosoft/guest-services:win-install
+  - name: test-validation
+    type: shellscript
+    content: |
+      #ps1_sysnative
+      # Orchestration Test Script
+      # This script demonstrates variable substitution and file creation
+      
+      Write-Host "Starting orchestration test for environment: {{ environment }}"
+      
+      # Create test directory
+      $testDir = "C:\OrchestrationTest"
+      if (-not (Test-Path $testDir)) {
+          New-Item -Path $testDir -ItemType Directory -Force
+          Write-Host "Created test directory: $testDir"
+      }
+      
+      # Create test file with variable content
+      $testContent = @"
+      Orchestration Test Results
+      ==========================
+      
+      Environment: {{ environment }}
+      Test Message: {{ test_message }}
+      Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+      Hostname: $env:COMPUTERNAME
+      
+      This file was created by inline fodder to demonstrate:
+      1. Variable substitution using {{ variable }} syntax
+      2. PowerShell script execution via cloud-init
+      3. Successful catlet deployment and configuration
+      4. Multi-agent orchestration pattern testing
+      
+      Status: SUCCESS
+      "@
+      
+      $testFile = Join-Path $testDir "test-results.txt"
+      $testContent | Out-File -FilePath $testFile -Encoding UTF8
+      Write-Host "Test file created: $testFile"
+      
+      # Verify file creation
+      if (Test-Path $testFile) {
+          Write-Host "✓ Test file verification successful"
+          Write-Host "Content preview:"
+          Get-Content $testFile | Select-Object -First 10
+      } else {
+          Write-Error "✗ Test file creation failed"
+      }
+      
+      # Create completion marker
+      $markerFile = Join-Path $testDir "orchestration-complete.marker"
+      "Orchestration test completed successfully at $(Get-Date)" | Out-File -FilePath $markerFile -Encoding UTF8
+      Write-Host "✓ Orchestration test completed successfully"

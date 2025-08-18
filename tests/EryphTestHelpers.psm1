@@ -815,6 +815,324 @@ exit `$result.FailedCount
     }
 }
 
+function Deploy-TestCatlet {
+    <#
+    .SYNOPSIS
+    Deploys a test catlet from a specification with placeholder substitutions
+    
+    .PARAMETER CatletSpec
+    The catlet YAML specification with optional placeholders
+    
+    .PARAMETER Substitutions
+    Hashtable of placeholder replacements (e.g., @{GENE_TAG='dbosoft/winget/v1.0'})
+    
+    .PARAMETER AutoName
+    If true, generates a unique name if not specified in spec
+    
+    .OUTPUTS
+    Returns hashtable with Catlet, VmId, and Id
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$CatletSpec,
+        
+        [hashtable]$Substitutions = @{},
+        
+        [switch]$AutoName
+    )
+    
+    # Apply substitutions
+    $yaml = $CatletSpec
+    foreach ($key in $Substitutions.Keys) {
+        $yaml = $yaml -replace "{{$key}}", $Substitutions[$key]
+    }
+    
+    # Generate unique name if needed and not present
+    if ($AutoName -and $yaml -notmatch "^name:") {
+        $yaml = "name: test-$(Get-Random -Maximum 999999)`n$yaml"
+    }
+    
+    Write-Information "Deploying test catlet..." -InformationAction Continue
+    
+    # Deploy catlet
+    $catlet = $yaml | New-Catlet -SkipVariablesPrompt -Verbose
+    
+    if (-not $catlet) {
+        throw "Failed to deploy catlet"
+    }
+    
+    Write-Information "Catlet deployed: $($catlet.Name) (ID: $($catlet.Id), VmId: $($catlet.VmId))" -InformationAction Continue
+    
+    # Start catlet
+    Write-Information "Starting catlet..." -InformationAction Continue
+    Start-Catlet -Id $catlet.Id -Force
+    
+    # Setup EGS
+    Write-Information "Setting up EGS connection..." -InformationAction Continue
+    $egsReady = Wait-EGSReady -VmId $catlet.VmId -TimeoutMinutes 5
+    
+    if ($egsReady) {
+        Initialize-EGSConnection -VmId $catlet.VmId
+    } else {
+        Write-Warning "EGS not ready after timeout, continuing anyway"
+    }
+    
+    # Return catlet info
+    return @{
+        Catlet = $catlet
+        VmId = $catlet.VmId
+        Id = $catlet.Id
+        Name = $catlet.Name
+    }
+}
+
+function Cleanup-TestCatlet {
+    <#
+    .SYNOPSIS
+    Cleans up a test catlet unless KeepVM is specified
+    
+    .PARAMETER CatletInfo
+    The catlet info hashtable from Deploy-TestCatlet
+    
+    .PARAMETER KeepVM
+    If specified, catlet is not removed
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [hashtable]$CatletInfo,
+        
+        [switch]$KeepVM
+    )
+    
+    if ($KeepVM) {
+        Write-Information "Keeping test catlet: $($CatletInfo.Name) (ID: $($CatletInfo.Id))" -InformationAction Continue
+    } else {
+        Write-Information "Removing test catlet: $($CatletInfo.Name)" -InformationAction Continue
+        try {
+            Remove-Catlet -Id $CatletInfo.Id -Force -ErrorAction SilentlyContinue
+        } catch {
+            Write-Warning "Failed to remove catlet: $_"
+        }
+    }
+}
+
+function Test-VMCommand {
+    <#
+    .SYNOPSIS
+    Runs a single command in VM and optionally validates output
+    
+    .PARAMETER VmId
+    The VM ID to run command in
+    
+    .PARAMETER Command
+    The command to execute
+    
+    .PARAMETER ExpectedPattern
+    Optional regex pattern to validate output
+    
+    .OUTPUTS
+    Returns command output, throws if pattern doesn't match
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$VmId,
+        
+        [Parameter(Mandatory=$true)]
+        [string]$Command,
+        
+        [string]$ExpectedPattern = $null
+    )
+    
+    $output = Invoke-EGSCommand -VmId $VmId -Command $Command
+    
+    if ($ExpectedPattern) {
+        $outputString = $output -join "`n"
+        if ($outputString -notmatch $ExpectedPattern) {
+            throw "Command output did not match expected pattern. Output: $outputString"
+        }
+    }
+    
+    return $output
+}
+
+function Invoke-TestSuite {
+    <#
+    .SYNOPSIS
+    Runs a complete test suite including deployment, testing, and cleanup
+    
+    .PARAMETER SuiteName
+    Name of the test suite
+    
+    .PARAMETER CatletSpec
+    The catlet YAML specification
+    
+    .PARAMETER OSVersion
+    OS version to substitute in spec
+    
+    .PARAMETER GeneTag
+    Gene tag to substitute in spec
+    
+    .PARAMETER InVMTests
+    Array of test file paths to run inside VM
+    
+    .PARAMETER HostTests
+    Hashtable of commands to run from host with expected patterns
+    
+    .PARAMETER KeepVM
+    If specified, VM is not removed after testing
+    
+    .PARAMETER ThrowOnFailure
+    If specified, throws an exception with details when tests fail
+    
+    .OUTPUTS
+    Returns test results with passed/failed counts
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SuiteName,
+        
+        [Parameter(Mandatory=$true)]
+        [string]$CatletSpec,
+        
+        [Parameter(Mandatory=$true)]
+        [string]$OSVersion,
+        
+        [Parameter(Mandatory=$true)]
+        [string]$GeneTag,
+        
+        [string[]]$InVMTests = @(),
+        
+        [hashtable]$HostTests = @{},
+        
+        [switch]$KeepVM,
+        
+        [switch]$ThrowOnFailure
+    )
+    
+    $results = @{
+        Suite = $SuiteName
+        OS = $OSVersion
+        Passed = 0
+        Failed = 0
+        Errors = @()
+    }
+    
+    $deployment = $null
+    
+    try {
+        # Deploy catlet with substitutions
+        Write-Information "Deploying catlet for suite: $SuiteName on $OSVersion" -InformationAction Continue
+        $deployment = Deploy-TestCatlet `
+            -CatletSpec $CatletSpec `
+            -Substitutions @{
+                SUITE = $SuiteName
+                OS = $OSVersion -replace '[^a-zA-Z0-9]', ''
+                OS_VERSION = $OSVersion
+                GENE_TAG = $GeneTag
+                RANDOM = Get-Random -Maximum 999999
+            } `
+            -AutoName
+        
+        # Run host-based tests if specified
+        if ($HostTests.Count -gt 0) {
+            Write-Information "Running $($HostTests.Count) host-based tests..." -InformationAction Continue
+            foreach ($cmd in $HostTests.Keys) {
+                try {
+                    Test-VMCommand -VmId $deployment.VmId -Command $cmd -ExpectedPattern $HostTests[$cmd]
+                    $results.Passed++
+                    Write-Verbose "✓ Host test passed: $cmd"
+                } catch {
+                    $results.Failed++
+                    $results.Errors += "Host test failed: $cmd - $_"
+                    Write-Warning "✗ Host test failed: $cmd"
+                }
+            }
+        }
+        
+        # Run in-VM tests if specified
+        if ($InVMTests.Count -gt 0) {
+            Write-Information "Running $($InVMTests.Count) in-VM test files..." -InformationAction Continue
+            
+            # Copy Pester to VM
+            Copy-PesterToVM -VmId $deployment.VmId -OsType "windows"
+            
+            # Copy test files to VM
+            foreach ($testFile in $InVMTests) {
+                $source = if ([System.IO.Path]::IsPathRooted($testFile)) { 
+                    $testFile 
+                } else { 
+                    Join-Path $PSScriptRoot $testFile 
+                }
+                
+                if (Test-Path $source) {
+                    $destPath = "C:\Tests\$(Split-Path $testFile -Leaf)"
+                    Copy-FileToVM -VmId $deployment.VmId -SourcePath $source -TargetPath $destPath
+                } else {
+                    Write-Warning "Test file not found: $source"
+                }
+            }
+            
+            # Run Pester in VM
+            $pesterResult = Invoke-PesterInVM -VmId $deployment.VmId -TestPath "C:\Tests" -OsType "windows"
+            $results.Passed += $pesterResult.PassedCount
+            $results.Failed += $pesterResult.FailedCount
+            
+            if ($pesterResult.FailedCount -gt 0) {
+                $results.Errors += "In-VM tests failed: $($pesterResult.FailedCount) failures"
+            }
+        }
+        
+    } catch {
+        $results.Failed++
+        $results.Errors += "Suite execution error: $_"
+        Write-Error "Failed to execute test suite: $_"
+    } finally {
+        if ($deployment) {
+            Cleanup-TestCatlet -CatletInfo $deployment -KeepVM:$KeepVM
+        }
+    }
+    
+    # Validate and throw if requested
+    if ($ThrowOnFailure) {
+        Assert-TestSuiteResults -Results $results
+    }
+    
+    return $results
+}
+
+function Assert-TestSuiteResults {
+    <#
+    .SYNOPSIS
+    Validates test suite results and throws detailed error if tests failed
+    
+    .PARAMETER Results
+    The results hashtable from Invoke-TestSuite
+    
+    .PARAMETER RequireTests
+    If true, requires at least one test to have run
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [hashtable]$Results,
+        
+        [switch]$RequireTests
+    )
+    
+    # Check if any tests failed
+    if ($Results.Failed -gt 0) {
+        $errorMessage = "Test suite '$($Results.Suite)' on $($Results.OS) failed with $($Results.Failed) failures"
+        if ($Results.Errors.Count -gt 0) {
+            $errorMessage += "`nErrors:`n" + ($Results.Errors | ForEach-Object { "  - $_" } | Out-String)
+        }
+        throw $errorMessage
+    }
+    
+    # Verify tests actually ran if required
+    if ($RequireTests -and $Results.Passed -eq 0) {
+        throw "No tests were executed for suite '$($Results.Suite)' on $($Results.OS)"
+    }
+}
+
 # Export functions
 Export-ModuleMember -Function @(
     'Wait-EGSReady',
@@ -831,5 +1149,10 @@ Export-ModuleMember -Function @(
     'Copy-DirectoryToVM',
     'Copy-MultipleFilesToVM',
     'Invoke-PesterInVM',
-    'Copy-TestSuiteToVM'
+    'Copy-TestSuiteToVM',
+    'Deploy-TestCatlet',
+    'Cleanup-TestCatlet',
+    'Test-VMCommand',
+    'Invoke-TestSuite',
+    'Assert-TestSuiteResults'
 )

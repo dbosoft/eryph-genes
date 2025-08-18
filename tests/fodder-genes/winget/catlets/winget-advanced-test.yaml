@@ -1,0 +1,18 @@
+name: winget-advanced-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+fodder:
+  # Guest services gene enables SSH access
+  - source: gene:dbosoft/guest-services:win-install
+  
+  # Install winget using the gene being tested
+  - source: gene:{{GENE_TAG}}
+  
+  # Create temp directory for export/import testing
+  - name: prepare-test-environment
+    type: shellscript
+    fileName: prepare-advanced-test.ps1
+    content: |
+      #ps1_sysnative
+      New-Item -ItemType Directory -Path "C:\temp" -Force
+      Write-Host "Test environment prepared for advanced winget testing"

@@ -27,10 +27,12 @@ artifacts:
   - src/genename/geneset.json
   - src/genename/default/package.json
   - src/genename/default/fodder/install.yaml
+  - tests/fodder-genes/genename/Validate-GeneName.Tests.ps1
 operations_needed:
-  - build-gene      # Main Claude will request executor
+  - build-gene
   - copy-to-genepool
-test_hint: "Create test catlet using the built gene"
+  - test-fodder-gene
+test_command: ".\Test-FodderGene.ps1 -Gene 'dbosoft/genename' -BaseOS @('dbosoft/winsrv2022-standard')"
 ```
 
 ## Gene Structure Rules
@@ -67,6 +69,12 @@ test_hint: "Create test catlet using the built gene"
 **Command:** `.\\Resolve-GenepoolPath.ps1`
 **Suggest when:** Path unknown before copy
 
+### test-fodder-gene
+**Purpose:** Test fodder gene across multiple base OS versions
+**Command:** `.\\Test-FodderGene.ps1 -Gene "dbosoft/{genename}" -BaseOS @("dbosoft/winsrv2022-standard")`
+**Suggest when:** After gene is built and copied to genepool
+**Note:** Requires Pester test file in tests/fodder-genes/{genename}/
+
 **Note:** I suggest these operations. Main Claude chooses executor to run them.
 
 ## Error Interpretation
@@ -75,7 +83,38 @@ Build errors usually mean:
 - Incorrect geneset.json structure
 - Tag not listed as dependency
 
-## Phase Completion
-"Gene successfully extracted! Use operation `build-gene` to build, then `copy-to-genepool` for local testing."
+## Gene Testing Requirements
 
-## You extract and structure. Main Claude identifies operations. Executor builds.
+### Critical: Create ONE Test File
+For every fodder gene, create exactly ONE Pester test file:
+
+```
+tests/fodder-genes/{genename}/Validate-{GeneName}.Tests.ps1
+```
+
+### Test File Requirements
+- **Format:** Pester 5.x test format
+- **Purpose:** Validate gene effects inside deployed VM
+- **Reference:** See `docs/gene-testing.md` for examples and patterns
+
+### What to Test
+Test the EFFECTS of your gene:
+- Files/directories created
+- Services configured
+- Variables substituted correctly
+- Tools functioning
+
+### DO NOT Create
+- ❌ Test catlet YAMLs
+- ❌ test.config.json 
+- ❌ Other test scripts
+- ❌ validation/ subdirectory
+
+**Only create the single Pester test file. Nothing else.**
+
+For complete examples and patterns, refer to: `docs/gene-testing.md`
+
+## Phase Completion
+"Gene successfully extracted with tests! Use operation `build-gene` to build, then `copy-to-genepool` for local testing, then `test-fodder-gene` to validate."
+
+## You extract and structure. Main Claude identifies operations. Executor builds and tests.
