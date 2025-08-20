@@ -11,5 +11,3 @@ fodder:
   # Include PowerShell Core for running Pester tests
   - source: gene:dbosoft/powershell:install
   
-  # Optional: Include starter food for basic Linux configuration
-  - source: gene:dbosoft/starter-food:linux-starter

@@ -8,5 +8,3 @@ fodder:
   # Include guest services for credential-free SSH access
   - source: gene:dbosoft/guest-services:latest:win-install
   
-  # Optional: Include starter food for basic Windows configuration
-  - source: gene:dbosoft/starter-food:win-starter
