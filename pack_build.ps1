@@ -116,8 +116,8 @@ $keys | ForEach-Object {
             $catletPath = Join-Path "genes" ($packTarget.Replace('/', '\') + "\catlet.yaml")
             
             # Append fodder section with rearm-eval
-            $fodderContent = "`r`rfodder:`r`r  - source: gene:dbosoft/winconfig:rearm-eval"
-            Add-Content -Path $catletPath -Value $fodderContent
+            #$fodderContent = "`r`rfodder:`r`r  - source: gene:dbosoft/winconfig:rearm-eval"
+            #Add-Content -Path $catletPath -Value $fodderContent
             Write-Host "  ✓ Added rearm-eval fodder for Windows evaluation period" -ForegroundColor Green
         }
         

@@ -140,6 +140,137 @@ When YAML contains variables, you can:
 - `SSH failed` → specialist suggests `setup-egs`
 - `Gene not found` → maintainer suggests `build-gene`
 
+## Incremental Fodder Development Pattern
+
+### Critical Rule: Always Start Minimal
+
+When user requests complex functionality, **NEVER** create elaborate fodder on first attempt. Use incremental development to prevent cascade failures.
+
+### The Three-Phase Approach
+
+#### Phase 1: Connectivity Baseline (MANDATORY)
+**Every complex fodder task MUST start here:**
+
+1. **Create minimal test catlet** with ONLY:
+   ```yaml
+   name: connectivity-test
+   parent: appropriate/base/image
+   
+   fodder:
+     - source: gene:dbosoft/guest-services:linux-install  # or win-install
+   ```
+
+2. **Deploy and verify SSH access works:**
+   - Request `deploy-catlet` → eryph-powershell-executor
+   - Request `setup-egs` → egs-executor  
+   - Request `run-ssh` with simple command → egs-executor
+   - **MUST succeed before proceeding**
+
+#### Phase 2: Incremental Addition
+**Add functionality ONE fodder item at a time:**
+
+1. **Request updated configuration** from eryph-specialist:
+   - "Add ONLY the package installation fodder to our working baseline"
+   - Specialist returns updated YAML with baseline + ONE new item
+
+2. **Test after EACH addition:**
+   - Deploy fresh catlet (always use new deployment)
+   - Verify SSH still works
+   - Test the new functionality
+   - **If it fails, stop and isolate the problem**
+
+3. **Continue incrementally:**
+   - Add next fodder item
+   - Test again
+   - Repeat until complete
+
+#### Phase 3: Integration and Final Testing
+**Only after all pieces work individually:**
+
+1. **Create final integrated configuration**
+2. **Test complete functionality**  
+3. **Document working configuration**
+4. **Extract to gene if requested**
+
+### Recognition Patterns for Incremental Development
+
+Apply this pattern when user requests include:
+
+| Request Type | Requires Incremental | Why |
+|--------------|---------------------|-----|
+| "Install X and configure Y" | YES | Multiple system modifications |
+| "Set up [complex service]" | YES | Likely requires packages + config + services |
+| "Create [application] server" | YES | Multiple dependencies and configurations |
+| "Install from external repo" | YES | Repository additions are high-risk |
+| Simple gene reference only | NO | Proven configurations can be deployed directly |
+
+### Handling SSH Connection Failures
+
+When SSH fails during development:
+
+#### Step 1: Recognize Error Type
+- **"Connection timeout"** → Cloud-init failure, not network issue
+- **"Permission denied"** → EGS misconfigured  
+- **"Connection refused"** → VM boot failure
+
+#### Step 2: Return to Baseline
+- **DO NOT** debug network connectivity
+- **DO NOT** attempt IP-based SSH
+- **DO** create new minimal catlet (base + EGS only)
+- **DO** verify baseline works before adding complexity
+
+#### Step 3: Isolate the Problem  
+- Ask eryph-specialist: "SSH is failing, please simplify the fodder and remove the most complex parts"
+- Test simplified version
+- Add complexity back incrementally
+
+### Operation Sequence for Incremental Development
+
+```
+1. User: "Create complex application server"
+   ↓
+2. You: First, let me establish SSH connectivity baseline
+   ↓  
+3. You → eryph-specialist: "Create minimal catlet with just EGS"
+   ↓
+4. Test connectivity (deploy → setup-egs → run-ssh)
+   ↓
+5. If fails: Debug baseline, don't proceed
+   ↓
+6. You → eryph-specialist: "Add ONLY package installation to baseline"
+   ↓
+7. Test again (fresh deployment)
+   ↓
+8. If fails: Isolate package installation issue
+   ↓
+9. Continue adding one piece at a time...
+   ↓
+10. Final integration and testing
+```
+
+### Error Prevention Rules
+
+#### For Main Claude
+- **Enforce baseline testing** before complex configurations
+- **Recognize SSH timeout** as content error, not network error
+- **Return to eryph-specialist** for simplification when connectivity fails
+- **Never skip incremental testing** for complex requests
+
+#### For Agent Interaction
+- **eryph-specialist should warn** when creating high-risk fodder patterns
+- **Request incremental approach** when specialist suggests complex configurations
+- **Break complex requests** into phases rather than single artifacts
+
+### When to Skip Incremental Development
+
+Only skip this pattern for:
+- **Simple gene references** to proven configurations
+- **Single package installations** with no additional configuration
+- **Basic system settings** (hostname, users, etc.)
+- **Reproducing proven working configurations**
+
+For everything else, incremental development prevents the cascade failure pattern that breaks essential services like EGS.
+
 ## Phase Transitions
 
 ### Phase 1 → Phase 2

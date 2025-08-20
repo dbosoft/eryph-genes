@@ -48,9 +48,11 @@ Use special exit codes to handle reboots gracefully:
 | Exit Code | Behavior |
 |-----------|----------|
 | **0** | Success, continue normally |
-| **1001** | Reboot and DON'T run the script again |
-| **1003** | Reboot and RUN the script again |
+| **1001** | ⚠️ **DANGEROUS**: Reboot and STOP ALL cloudbase-init processing |
+| **1003** | ✅ **SAFE**: Reboot and continue cloud-init (retry this script) |
 | **1002** | Don't reboot, but run script again next boot |
+
+**⚠️ CRITICAL WARNING**: Never use exit code 1001 in cloud-init scripts! It terminates ALL remaining cloudbase-init processing, including EGS setup and other critical configuration. Always use 1003 for reboot-and-continue scenarios.
 
 ### Example: Handling .NET Framework Installation
 

@@ -58,8 +58,89 @@ If you:
 - **SCHEMA (READ FIRST!)**: `docs/catlet-schema-v1.0.json`
 - Examples: `docs/eryph-knowledge.md` → 'Common Inline Fodder Examples'
 - Error fixes: `docs/error-patterns.md`
+- **Fodder debugging**: `docs/fodder-debugging.md`
 - Inline fodder: `name:` + `content:` (NO `source: inline`!)
 - External: `gene:<geneset>:<fodder>` or `gene:<geneset>/<tag>:<fodder>`
+
+## ⚠️ COMPLEX FODDER WARNING SYSTEM
+
+### MANDATORY: Warn About High-Risk Patterns
+
+When creating fodder with these patterns, **YOU MUST WARN** about cascade failure risk:
+
+#### High-Risk Patterns (WARN THE USER!):
+- **Complex shell scripts (>50 lines)** → "Complex scripts risk cloud-init failure"
+- **Multiple package repository additions** → "Multiple repos increase failure probability"  
+- **systemctl daemon-reload or service modifications** → "Service modifications can break system state"
+- **External downloads/scripts** → "Network dependencies add failure points"
+- **Kernel module modifications** → "Kernel changes can hang the system"
+- **Multiple runcmd sections** → "Each command can fail independently"
+
+#### Required Warning Template:
+```yaml
+# When creating high-risk fodder, include this warning:
+warning: "This configuration includes high-risk patterns that may cause cloud-init cascade failures, breaking EGS access. Consider incremental testing approach."
+suggested_approach: "Start with minimal catlet (base + EGS only), then add functionality incrementally"
+```
+
+### MANDATORY: Suggest Incremental Development
+
+For ANY complex request (multiple system modifications), you MUST:
+
+1. **First response**: Create minimal catlet with ONLY base + EGS
+2. **Warn**: "Let's test connectivity first before adding complexity"  
+3. **Suggest**: "Once SSH works, I'll add your requirements incrementally"
+4. **Include**: Reference to `docs/fodder-debugging.md` for methodology
+
+#### Recognition Triggers for Incremental Approach:
+- "Install X and configure Y" → Suggest incremental
+- "Set up [complex service]" → Suggest incremental  
+- "Create [application] server" → Suggest incremental
+- Any combination of packages + configuration + services → Suggest incremental
+
+#### Safe Patterns (No Warning Needed):
+- Single package installations with minimal config
+- Simple gene references to proven configurations
+- Basic system settings (hostname, users, files)
+- Reproducing known working patterns
+
+### Error Feedback Integration
+
+When Main Claude reports SSH connection failures:
+1. **Interpret as cloud-init failure** (not network)
+2. **Suggest fodder simplification** by removing most complex elements
+3. **Recommend baseline test** (base + EGS only)
+4. **Reference debugging guide** for systematic approach
+
+**Remember**: Your job is to prevent the cascade failure pattern by warning early and suggesting safer approaches.
+
+## Guest Services (EGS) - CRITICAL INSTRUCTIONS!
+**⚠️ FOR SSH ACCESS - USE AUTOMATIC KEY MODE (DEFAULT):**
+```yaml
+# CORRECT - Automatic EGS mode (works for both Linux and Windows)
+fodder:
+  - source: gene:dbosoft/guest-services:linux-install  # or :win-install
+  # That's it - no variables needed!
+```
+
+**❌ DO NOT ADD sshPublicKey unless user explicitly requests manual key injection:**
+```yaml
+# WRONG - Don't do this unless specifically requested
+variables:
+  - name: egskey
+    secret: true
+fodder:
+  - source: gene:dbosoft/guest-services:linux-install
+    variables:
+      - name: sshPublicKey
+        value: '{{ egskey }}'
+```
+
+**Key Points:**
+- Both Linux and Windows use automatic key mode by default
+- NO egskey variable needed for standard EGS usage  
+- NO sshPublicKey variable needed for standard EGS usage
+- EGS handles authentication automatically when no key is provided
 
 ## Output Format (ONLY after validation!)
 ```yaml

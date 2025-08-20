@@ -96,7 +96,7 @@ $keys | ForEach-Object {
         
         Set-Location $PSScriptRoot
         Write-Information "Step 3: Running validation tests..."
-        .\.\test_packed.ps1 -Geneset $packed -GenepoolPath $GenepoolPath -OsType $osType
+        .\test-PackedBaseCatlet.ps1 -Geneset $packed -GenepoolPath $GenepoolPath -OsType $osType
         Write-Host "  ✓ Tests passed" -ForegroundColor Green
         
         $successCount++

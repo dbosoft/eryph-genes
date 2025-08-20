@@ -113,6 +113,76 @@ runcmd:
 
 **Fix:** Check if parent gene exists in genepool, verify spelling
 
+## SSH Connection Failures
+
+### Critical Understanding: Authentication vs. Network Issues
+
+**Key Concept:** SSH connection failures are almost NEVER network issues in eryph. They indicate authentication problems or cloud-init failures.
+
+### Error Pattern Analysis
+
+| Error Message | Real Meaning | Root Cause | Correct Response |
+|---------------|-------------|-------------|------------------|
+| "Connection timeout" | No authentication mechanism exists | EGS not configured due to cloud-init failure | Check if earlier fodder failed, blocking EGS |
+| "Permission denied" | Authentication exists but wrong credentials | EGS misconfigured or manual keys wrong | Verify EGS setup process |  
+| "Connection refused" | SSH service not running | VM boot failure or SSH disabled | Check VM status, not network |
+| "No route to host" | Network connectivity issue | Actual network problem (rare) | Check VM network config |
+
+### SSH Connection Debugging Flow
+
+1. **"Connection timeout" (Most Common)**
+   - **DO NOT** attempt IP-based SSH - there's no authentication configured
+   - **DO NOT** debug network connectivity first
+   - **DO** check if cloud-init failed and prevented EGS configuration
+   - **DO** test with minimal catlet (base + EGS only) to isolate the issue
+
+2. **"Permission denied"**
+   - EGS was configured but something is wrong with credentials
+   - Check EGS setup process was successful
+   - Verify no manual SSH configuration conflicts
+
+3. **Connection Works but No Command Output**
+   - SSH connection established but commands don't execute properly
+   - May indicate partial cloud-init failure or system instability
+   - Test with simple commands first (echo, pwd)
+
+### Common Mistakes to Avoid
+
+#### Mistake: Assuming Network Issues
+**Wrong approach:** "Let me try SSH via IP address"
+**Correct understanding:** Catlets have NO SSH access by default - EGS provides the ONLY automatic authentication
+
+#### Mistake: Debugging Symptoms Not Causes
+**Wrong approach:** "Why won't SSH connect?"
+**Correct understanding:** SSH isn't broken - cloud-init probably failed, preventing EGS from being configured
+
+#### Mistake: Complex Network Debugging
+**Wrong approach:** Testing firewalls, routes, port connectivity
+**Correct understanding:** If EGS setup-egs succeeded, network is fine - problem is authentication
+
+### Integration with Multi-Agent System
+
+#### For eryph-specialist Agent
+When receiving SSH connection failures as error feedback:
+- **Interpret as cloud-init/fodder problem**, not network issue
+- **Suggest simpler fodder configuration** to isolate the failing component
+- **Recommend incremental testing** starting with base + EGS only
+
+#### For Main Claude
+When SSH timeouts occur:
+- **Return to creation agent** for fodder simplification
+- **DO NOT** attempt manual SSH debugging via IP
+- **DO NOT** suggest network configuration changes
+- **DO** recognize this as a CONTENT error requiring creation agent input
+
+### Error Prevention
+
+To prevent SSH connection failures:
+1. **Test with minimal configuration first** (base + EGS only)
+2. **Add fodder incrementally** and test each addition
+3. **Avoid high-risk patterns** in cloud-init (complex scripts, multiple repos)
+4. **Follow proven fodder patterns** from working examples
+
 ## Error Response Template
 
 When main Claude reports a YAML/fodder error:

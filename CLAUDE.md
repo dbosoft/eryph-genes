@@ -11,6 +11,47 @@
 
 **See `docs/orchestration-guide.md` for detailed flow**
 
+## ⚠️ CRITICAL: Fodder Development Pattern
+
+### ALWAYS Follow This Pattern for New Fodder
+
+When creating complex fodder configurations, **NEVER** create elaborate configurations on first attempt. Cloud-init failures cascade and break subsequent fodder (including EGS), making catlets inaccessible for debugging.
+
+#### Mandatory Development Pattern:
+1. **Create test catlet with ONLY base + EGS**
+2. **Verify SSH connectivity works**  
+3. **Add your new fodder incrementally**
+4. **Test after EACH addition**
+
+#### Why This Matters:
+- **Cloud-init failures cascade** and break subsequent fodder (including EGS)
+- **Complex shellscripts in cloud-init are HIGH RISK**
+- **Without EGS, there's NO SSH access** to debug
+- **"Connection timeout" = cloud-init failure**, not network issue
+
+#### Red Flags in Fodder (High Failure Risk):
+- Multiple package repository additions
+- systemctl daemon-reload or service modifications  
+- Complex shell scripts (>50 lines)
+- Downloading and executing external scripts
+- Kernel module modifications
+- Multiple system modifications in single fodder item
+
+#### Critical SSH Error Recognition:
+- **"Connection timeout"** → Earlier fodder failed, blocking EGS configuration
+- **NOT a network issue** → Authentication mechanism (EGS) never got configured
+- **DO NOT attempt IP-based SSH** → No authentication exists without EGS
+- **DO return to eryph-specialist** for fodder simplification
+
+### Error Prevention Rules for Main Claude:
+1. **Enforce incremental testing** for any complex fodder request
+2. **Recognize SSH timeout as content error** requiring creation agent
+3. **Never debug network connectivity** for SSH failures
+4. **Always start with minimal configuration** (base + EGS only)
+5. **Break complex requests into phases** rather than single artifacts
+
+**See `docs/fodder-debugging.md` for complete methodology**
+
 ## Overview
 
 This repository manages the official eryph genes maintained by dbosoft. Genes are the evolutionary units of infrastructure in eryph - reusable templates that catlets (VMs) inherit from.

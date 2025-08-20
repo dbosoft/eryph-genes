@@ -340,16 +340,9 @@ Get-Content test.yaml | New-Catlet -Variables @{sshkey = "ssh-rsa..."} -SkipVari
 name: test-windows-feature
 parent: dbosoft/winsrv2022-standard/starter
 
-variables:
-- name: egskey
-  secret: true
-
 fodder:
-# Add EGS for SSH access
+# Add EGS for SSH access (automatic key mode - no variables needed)
 - source: gene:dbosoft/guest-services:win-install
-  variables:
-  - name: sshPublicKey
-    value: '{{ egskey }}'
 
 # Install Windows feature (example: IIS)
 - name: feature-install
@@ -373,16 +366,9 @@ fodder:
 name: test-linux-package
 parent: dbosoft/ubuntu-22.04/starter
 
-variables:
-- name: egskey
-  secret: true
-
 fodder:
-# Add EGS for SSH access
+# Add EGS for SSH access (automatic key mode - no variables needed)
 - source: gene:dbosoft/guest-services:linux-install
-  variables:
-  - name: sshPublicKey
-    value: '{{ egskey }}'
 
 # Install and configure packages
 - name: package-setup

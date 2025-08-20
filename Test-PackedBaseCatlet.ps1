@@ -80,7 +80,12 @@ Write-Information "Geneset target: $gensetTargetPath" -InformationAction Continu
 
 # Remove previous test catlet if exists
 Write-Information "Cleaning up any previous test catlets..." -InformationAction Continue
-Get-Catlet | Where-Object Name -eq catlettest | Remove-Catlet -Force -ErrorAction SilentlyContinue
+$oldCatlets = Get-Catlet | Where-Object Name -eq catlettest
+if ($oldCatlets) {
+    Write-Information "Found $($oldCatlets.Count) existing test catlet(s), removing..." -InformationAction Continue
+    $oldCatlets | Remove-Catlet -Force -ErrorAction SilentlyContinue
+    Write-Information "Test catlets removed" -InformationAction Continue
+}
 
 # Check if geneset exists in genepool and handle accordingly
 $genesetExistedBefore = $false
@@ -181,10 +186,32 @@ catch {
 # Setup EGS
 Write-Information "Setting up EGS connection..." -InformationAction Continue
 if (-not (Initialize-EGSConnection -VmId $vmId)) {
-    Write-Error "Failed to setup EGS connection"
-    if (-not $KeepVM) {
-        Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
+    Write-Error "Failed to setup EGS connection - extracting diagnostics..."
+    
+    # Extract diagnostics when EGS setup fails
+    $diagnosticsPath = Join-Path $PSScriptRoot "diagnostics\$(Get-Date -Format 'yyyyMMdd_HHmmss')_$($Geneset.Replace('/','-'))_egs-setup-failed"
+    Write-Information "Extracting diagnostics to: $diagnosticsPath" -InformationAction Continue
+    
+    try {
+        # Use our diagnostic extraction script
+        $extractScript = Join-Path $PSScriptRoot "Extract-CatletDiagnostics.ps1"
+        if (Test-Path $extractScript) {
+            & $extractScript -CatletId $catlet.Id -OutputPath $diagnosticsPath -KeepCatlet:$KeepVM
+            Write-Information "Diagnostics extracted successfully" -InformationAction Continue
+        } else {
+            Write-Warning "Diagnostic extraction script not found at: $extractScript"
+            if (-not $KeepVM) {
+                Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
+    catch {
+        Write-Warning "Failed to extract diagnostics: $_"
+        if (-not $KeepVM) {
+            Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+    
     exit 1
 }
 
@@ -201,20 +228,44 @@ try {
     Write-Information "Catlet started successfully" -InformationAction Continue
 }
 catch {
-    Write-Error "Failed to start catlet: $_"
-    if (-not $KeepVM) {
-        Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
+    Write-Error "Failed to start catlet: $_ - extracting diagnostics..."
+    
+    # Extract diagnostics when catlet fails to start
+    $diagnosticsPath = Join-Path $PSScriptRoot "diagnostics\$(Get-Date -Format 'yyyyMMdd_HHmmss')_$($Geneset.Replace('/','-'))_startup-failed"
+    Write-Information "Extracting diagnostics to: $diagnosticsPath" -InformationAction Continue
+    
+    try {
+        # Use our diagnostic extraction script
+        $extractScript = Join-Path $PSScriptRoot "Extract-CatletDiagnostics.ps1"
+        if (Test-Path $extractScript) {
+            & $extractScript -CatletId $catlet.Id -OutputPath $diagnosticsPath -KeepCatlet:$KeepVM
+            Write-Information "Diagnostics extracted successfully" -InformationAction Continue
+        } else {
+            Write-Warning "Diagnostic extraction script not found at: $extractScript"
+            if (-not $KeepVM) {
+                Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
+    catch {
+        Write-Warning "Failed to extract diagnostics: $_"
+        if (-not $KeepVM) {
+            Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+    
     exit 1
 }
 
 # Wait for EGS readiness
 Write-Information "Waiting for EGS to be ready..." -InformationAction Continue
 if (-not (Wait-EGSReady -VmId $vmId -TimeoutMinutes 10)) {
-    Write-Error "EGS not ready after 10 minutes"
-    if (-not $KeepVM) {
-        Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
-    }
+    Write-Error "EGS not ready after 10 minutes - extracting diagnostics..."
+    
+    # Call diagnostic extraction script
+    $diagnosticsPath = Join-Path $PSScriptRoot "diagnostics\$(Get-Date -Format 'yyyyMMdd_HHmmss')_$($Geneset.Replace('/','-'))"
+    & "$PSScriptRoot\Extract-CatletDiagnostics.ps1" -CatletId $catlet.Id -OutputPath $diagnosticsPath -KeepCatlet:$KeepVM
+    
     exit 1
 }
 
