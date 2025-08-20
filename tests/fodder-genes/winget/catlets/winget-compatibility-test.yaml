@@ -1,0 +1,9 @@
+name: winget-compatibility-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+fodder:
+  # Guest services gene enables SSH access
+  - source: gene:dbosoft/guest-services:win-install
+  
+  # Install winget using the gene being tested (may fail on Server 2019)
+  - source: gene:{{GENE_TAG}}

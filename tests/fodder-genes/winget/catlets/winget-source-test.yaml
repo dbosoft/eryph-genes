@@ -1,0 +1,18 @@
+name: winget-source-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+fodder:
+  # Guest services gene enables SSH access
+  - source: gene:dbosoft/guest-services:win-install
+  
+  # Install winget using the gene being tested
+  - source: gene:{{GENE_TAG}}
+  
+  # Create temp directory for testing
+  - name: prepare-temp-dir
+    type: shellscript
+    fileName: prepare-temp.ps1
+    content: |
+      #ps1_sysnative
+      New-Item -ItemType Directory -Path "C:\temp" -Force
+      Write-Host "Temp directory prepared for testing"

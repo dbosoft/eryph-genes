@@ -312,9 +312,9 @@ fodder:
               } elseif ($exitCode -eq 3010) {
                   Write-Host "Visual Studio installation completed successfully (reboot required)"
                   $installed = $true
-                  # Exit with cloud-init code 1001 to request reboot and continue
+                  # Exit with cloud-init code 1003 to request reboot and continue
                   Write-Host "Requesting system reboot to complete VS installation..."
-                  exit 1001
+                  exit 1003
               } elseif ($exitCode -eq 1641) {
                   Write-Host "Visual Studio installer initiated a restart"
                   # Exit with cloud-init code 1003 to reboot and retry

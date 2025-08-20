@@ -194,7 +194,7 @@ fodder:
   # Your test fodder here
   - name: my-setup
     type: cloud-config
-    content: |
+    content:
       packages:
         - nginx
 ```

@@ -93,8 +93,9 @@ fodder:
                 }
                 
                 if ($rearmSuccess) {
-                    # Exit with code 1001 to trigger reboot
-                    exit 1001
+                    # Use safe cloudbase-init reboot code that continues processing
+                    Write-Host "License rearm successful! Using exit code 1003 to reboot and continue cloud-init."
+                    exit 1003
                 } else {
                     # Check if maximum rearms reached
                     if ($rearmResult -match "maximum") {
@@ -130,8 +131,9 @@ fodder:
                         }
                         
                         if ($rearmSuccess) {
-                            # Exit with code 1001 to trigger eryph reboot
-                            exit 1001
+                            # Use safe cloudbase-init reboot code that continues processing
+                            Write-Host "Preventive rearm successful! Using exit code 1003 to reboot and continue cloud-init."
+                            exit 1003
                         }
                     }
                 } else {

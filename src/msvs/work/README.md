@@ -287,12 +287,14 @@ The installation script properly handles Visual Studio's reboot requirements usi
 
 ### Exit Codes
 - **Exit 0**: Installation completed successfully, no reboot needed
-- **Exit 1001**: Installation completed but requires reboot (cloud-init will reboot and continue)
+- **Exit 1003**: Installation completed but requires reboot (cloud-init will reboot and continue)
 - **Exit 1003**: Installation needs to restart and retry (cloud-init will reboot and retry the script)
+
+**⚠️ CRITICAL**: Never use exit code 1001! It stops ALL cloudbase-init processing, preventing EGS setup and other critical configurations from running.
 
 ### Common Scenarios
 1. **Simple workloads**: Usually complete without reboot
-2. **Windows SDK components**: Often require reboot (exit 3010 → 1001)
+2. **Windows SDK components**: Often require reboot (exit 3010 → 1003)
 3. **C++ tools**: May require mid-installation reboot (exit 1641 → 1003)
 4. **Multiple language packs**: Might require reboot
 

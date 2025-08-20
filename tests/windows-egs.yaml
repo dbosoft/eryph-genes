@@ -1,0 +1,10 @@
+name: test-windows-egs
+parent: dbosoft/winsrv2022-standard/starter
+
+# Windows test catlet with EGS (Eryph Guest Services)
+# No SSH key variables needed - EGS handles authentication automatically
+
+fodder:
+  # Include guest services for credential-free SSH access
+  - source: gene:dbosoft/guest-services:latest:win-install
+  
