@@ -75,29 +75,42 @@ Describe "Windows Base Catlet Validation" {
         It "Should have completed cloudbase-init execution without errors" {
             $service = Get-Service -Name cloudbase-init -ErrorAction SilentlyContinue
             
-            # Service being stopped is actually a GOOD sign - means it completed
-            if ($service -and $service.Status -eq "Stopped") {
-                # This is the expected state after successful completion
-                $true | Should -Be $true -Because "Cloudbase-init service is stopped (indicates successful completion)"
-            } else {
-                # If still running, check logs
-                $logPath = "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log"
-                if (Test-Path $logPath) {
-                    $log = Get-Content $logPath -Raw
-                    
-                    # Check for errors using the analyzer
-                    $analyzerPath = Join-Path $PSScriptRoot "CloudInit.Analyzers.psm1"
-                    if (Test-Path $analyzerPath) {
-                        Import-Module $analyzerPath -Force
-                        $errors = $log | Get-CloudbaseInitUserDataError
-                        $errors | Should -BeNullOrEmpty -Because "Should not have user data errors"
-                    }
-                    
-                    # Check for critical errors
-                    $log | Should -Not -Match "CRITICAL|ERROR.*Failed" -Because "Should not have critical errors"
-                } else {
-                    Set-ItResult -Skipped -Because "Cloudbase-init log not found (may have been cleaned up)"
+            # Wait for cloudbase-init to complete if it's still running
+            if ($service -and $service.Status -eq "Running") {
+                Write-Host "Cloudbase-init is still running, waiting for completion..."
+                $timeout = 300  # 5 minutes
+                $waited = 0
+                while ($service.Status -eq "Running" -and $waited -lt $timeout) {
+                    Start-Sleep -Seconds 10
+                    $waited += 10
+                    $service.Refresh()
+                    Write-Host "Waited $waited seconds for cloudbase-init to complete..."
                 }
+                
+                if ($service.Status -eq "Running") {
+                    Write-Warning "Cloudbase-init still running after $timeout seconds, proceeding with log check"
+                } else {
+                    Write-Host "Cloudbase-init completed after $waited seconds"
+                }
+            }
+            
+            # Always check logs regardless of service status
+            $logPath = "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log"
+            if (Test-Path $logPath) {
+                $log = Get-Content $logPath -Raw
+                
+                # Check for errors using the analyzer
+                $analyzerPath = Join-Path $PSScriptRoot "CloudInit.Analyzers.psm1"
+                if (Test-Path $analyzerPath) {
+                    Import-Module $analyzerPath -Force
+                    $errors = $log | Get-CloudbaseInitUserDataError
+                    $errors | Should -BeNullOrEmpty -Because "Should not have user data errors"
+                }
+                
+                # Check for critical errors
+                $log | Should -Not -Match "CRITICAL|ERROR.*Failed" -Because "Should not have critical errors"
+            } else {
+                Set-ItResult -Skipped -Because "Cloudbase-init log not found (may have been cleaned up)"
             }
         }
     }

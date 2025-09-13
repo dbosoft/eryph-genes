@@ -1,0 +1,17 @@
+cpu:
+  count: 2
+memory:
+  startup: 4096
+drives:
+- name: sda
+network_adapters:
+- name: eth0
+capabilities:
+- name: secure_boot
+  details:
+  - Template:MicrosoftWindows
+- name: tpm
+
+
+fodder:
+  - source: gene:dbosoft/winconfig:rearm-eval

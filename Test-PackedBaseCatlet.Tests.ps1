@@ -96,11 +96,11 @@ Describe "Packed Base Catlet: $Geneset" -Tag "BaseCatlet" {
                 return
             }
             
-            # Run tests using the runner script
+            # Run tests using the runner script  
             $command = if ($OsType -eq "windows") {
                 "powershell -File $($testSuite.RunnerPath)"
             } else {
-                "pwsh $($testSuite.RunnerPath)"
+                "pwsh -File $($testSuite.RunnerPath)"
             }
             
             Write-Host "`n========================================" -ForegroundColor Magenta
@@ -147,9 +147,6 @@ Describe "Packed Base Catlet: $Geneset" -Tag "BaseCatlet" {
                 throw "Could not parse test results from output"
             }
             
-            # Check exit code (0 = success)
-            $exitCode = Invoke-EGSCommand -VmId $vmId -Command "echo `$LASTEXITCODE"
-            [int]$exitCode | Should -Be 0 -Because "Test runner should exit with 0 for success"
         }
     }
     

@@ -102,7 +102,7 @@ Describe "Fodder Gene: $Gene" -Tag "FodderGene" {
                 
                 # Add PowerShell Core for Linux if needed
                 if ($osType -eq "linux") {
-                    $fodderLines += "  - source: gene:dbosoft/powershell:install"
+                    $fodderLines += "  - source: gene:dbosoft/powershell:linux-install"
                 }
                 
                 # Add the gene being tested

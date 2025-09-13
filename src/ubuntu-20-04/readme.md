@@ -2,7 +2,7 @@
 
 # Deprecated
 
-Ubuntu 23.04 is out of maintainance. We will no longer provide updated versions of this catlet.
+Ubuntu 20.04 is out of maintainance. We will no longer provide updated versions of this catlet.
 
 {{> ubuntu-basecatlet-server }}
 

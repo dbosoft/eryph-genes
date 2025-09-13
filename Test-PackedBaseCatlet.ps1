@@ -142,16 +142,12 @@ Write-Information "Successfully copied .packed contents to genepool" -Informatio
 # Deploy test catlet
 Write-Information "=== DEPLOYING TEST CATLET ===" -InformationAction Continue
 
-# Determine EGS fodder based on OS type
-$egsFodder = if ($OsType -eq "windows") { "win-install" } else { "linux-install" }
-
 # Create test catlet configuration
 $catletYaml = @"
 name: catlettest
 parent: $Geneset
 
 fodder:
-  - source: gene:dbosoft/guest-services:$egsFodder
 "@
 
 if ($OsType -eq "windows") {
@@ -164,7 +160,7 @@ if ($OsType -eq "windows") {
     # Add PowerShell Core for Linux
     $catletYaml += @"
 
-  - source: gene:dbosoft/powershell:install
+  - source: gene:dbosoft/powershell:linux-install
   - source: gene:dbosoft/starter-food:linux-starter
 "@
 }
@@ -186,27 +182,35 @@ catch {
 # Setup EGS
 Write-Information "Setting up EGS connection..." -InformationAction Continue
 if (-not (Initialize-EGSConnection -VmId $vmId)) {
-    Write-Error "Failed to setup EGS connection - extracting diagnostics..."
+    Write-Error "Failed to setup EGS connection - extracting diagnostics..." -ErrorAction Continue
     
     # Extract diagnostics when EGS setup fails
     $diagnosticsPath = Join-Path $PSScriptRoot "diagnostics\$(Get-Date -Format 'yyyyMMdd_HHmmss')_$($Geneset.Replace('/','-'))_egs-setup-failed"
     Write-Information "Extracting diagnostics to: $diagnosticsPath" -InformationAction Continue
     
-    try {
-        # Use our diagnostic extraction script
-        $extractScript = Join-Path $PSScriptRoot "Extract-CatletDiagnostics.ps1"
-        if (Test-Path $extractScript) {
-            & $extractScript -CatletId $catlet.Id -OutputPath $diagnosticsPath -KeepCatlet:$KeepVM
-            Write-Information "Diagnostics extracted successfully" -InformationAction Continue
-        } else {
-            Write-Warning "Diagnostic extraction script not found at: $extractScript"
+    if ($OsType -eq "windows") {
+        try {
+            # Use our diagnostic extraction script (Windows only)
+            $extractScript = Join-Path $PSScriptRoot "Extract-CatletDiagnostics.ps1"
+            if (Test-Path $extractScript) {
+                Write-Information "Extracting Windows diagnostics..." -InformationAction Continue
+                & $extractScript -CatletId $catlet.Id -OutputPath $diagnosticsPath -KeepCatlet:$KeepVM
+                Write-Information "Windows diagnostics extracted successfully" -InformationAction Continue
+            } else {
+                Write-Warning "Windows diagnostic extraction script not found at: $extractScript"
+                if (-not $KeepVM) {
+                    Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+        catch {
+            Write-Warning "Failed to extract diagnostics: $_"
             if (-not $KeepVM) {
                 Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
             }
         }
-    }
-    catch {
-        Write-Warning "Failed to extract diagnostics: $_"
+    } else {
+        Write-Information "Skipping diagnostic extraction for Linux catlet (Windows-only feature)" -InformationAction Continue
         if (-not $KeepVM) {
             Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
         }
@@ -228,27 +232,35 @@ try {
     Write-Information "Catlet started successfully" -InformationAction Continue
 }
 catch {
-    Write-Error "Failed to start catlet: $_ - extracting diagnostics..."
+    Write-Error "Failed to start catlet: $_ - extracting diagnostics..."  -ErrorAction Continue
     
     # Extract diagnostics when catlet fails to start
     $diagnosticsPath = Join-Path $PSScriptRoot "diagnostics\$(Get-Date -Format 'yyyyMMdd_HHmmss')_$($Geneset.Replace('/','-'))_startup-failed"
     Write-Information "Extracting diagnostics to: $diagnosticsPath" -InformationAction Continue
     
-    try {
-        # Use our diagnostic extraction script
-        $extractScript = Join-Path $PSScriptRoot "Extract-CatletDiagnostics.ps1"
-        if (Test-Path $extractScript) {
-            & $extractScript -CatletId $catlet.Id -OutputPath $diagnosticsPath -KeepCatlet:$KeepVM
-            Write-Information "Diagnostics extracted successfully" -InformationAction Continue
-        } else {
-            Write-Warning "Diagnostic extraction script not found at: $extractScript"
+    if ($OsType -eq "windows") {
+        try {
+            # Use our diagnostic extraction script (Windows only)
+            $extractScript = Join-Path $PSScriptRoot "Extract-CatletDiagnostics.ps1"
+            if (Test-Path $extractScript) {
+                Write-Information "Extracting Windows diagnostics..." -InformationAction Continue
+                & $extractScript -CatletId $catlet.Id -OutputPath $diagnosticsPath -KeepCatlet:$KeepVM
+                Write-Information "Windows diagnostics extracted successfully" -InformationAction Continue
+            } else {
+                Write-Warning "Windows diagnostic extraction script not found at: $extractScript"
+                if (-not $KeepVM) {
+                    Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+        catch {
+            Write-Warning "Failed to extract diagnostics: $_"
             if (-not $KeepVM) {
                 Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
             }
         }
-    }
-    catch {
-        Write-Warning "Failed to extract diagnostics: $_"
+    } else {
+        Write-Information "Skipping diagnostic extraction for Linux catlet (Windows-only feature)" -InformationAction Continue
         if (-not $KeepVM) {
             Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
         }
@@ -260,11 +272,19 @@ catch {
 # Wait for EGS readiness
 Write-Information "Waiting for EGS to be ready..." -InformationAction Continue
 if (-not (Wait-EGSReady -VmId $vmId -TimeoutMinutes 10)) {
-    Write-Error "EGS not ready after 10 minutes - extracting diagnostics..."
+    Write-Error "EGS not ready after 10 minutes - extracting diagnostics..." -ErrorAction Continue
     
-    # Call diagnostic extraction script
+    # Call diagnostic extraction script (Windows only)
     $diagnosticsPath = Join-Path $PSScriptRoot "diagnostics\$(Get-Date -Format 'yyyyMMdd_HHmmss')_$($Geneset.Replace('/','-'))"
-    & "$PSScriptRoot\Extract-CatletDiagnostics.ps1" -CatletId $catlet.Id -OutputPath $diagnosticsPath -KeepCatlet:$KeepVM
+    if ($OsType -eq "windows") {
+        Write-Information "Extracting Windows diagnostics..." -InformationAction Continue
+        & "$PSScriptRoot\Extract-CatletDiagnostics.ps1" -CatletId $catlet.Id -OutputPath $diagnosticsPath -KeepCatlet:$KeepVM
+    } else {
+        Write-Information "Skipping diagnostic extraction for Linux catlet (Windows-only feature)" -InformationAction Continue
+        if (-not $KeepVM) {
+            Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
     
     exit 1
 }

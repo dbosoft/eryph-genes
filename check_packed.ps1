@@ -1,10 +1,34 @@
 
+param(
+    [Parameter(Mandatory=$false)]
+    [switch]$Staged
+)
+
 Push-Location $PSScriptRoot
 
-$InformationPreference= 'Continue'
-$changedGenesets = Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq '.packed' } | 
-        Resolve-Path -Relative | 
-        ForEach-Object { $_.Replace(".\genes\", "").Replace("\.packed", "").Replace("\", "/")}
+$InformationPreference = 'Continue'
+
+# Always start with all .packed directories
+$packedGenesets = Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq '.packed' } | 
+    Resolve-Path -Relative | 
+    ForEach-Object { $_.Replace(".\genes\", "").Replace("\.packed", "").Replace("\", "/")}
+
+if ($Staged) {
+    Write-Information "Filtering to only staged genesets..."
+    # Get staged files from git
+    $stagedFiles = & git diff --cached --name-only
+    
+    # Filter packed genesets to only those with staged changes
+    $changedGenesets = $packedGenesets | Where-Object {
+        $genesetPath = "genes/$($_.Replace('\', '/'))"
+        # Check if any staged files belong to this geneset
+        $hasStaged = $stagedFiles | Where-Object { $_ -like "$genesetPath/*" }
+        [bool]$hasStaged
+    }
+} else {
+    Write-Information "Using all genesets with .packed directories..."
+    $changedGenesets = $packedGenesets
+}
 
 
 Write-Information "Changed Genesets:"

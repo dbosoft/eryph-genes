@@ -9,5 +9,5 @@ fodder:
   - source: gene:dbosoft/guest-services:linux-install
   
   # Include PowerShell Core for running Pester tests
-  - source: gene:dbosoft/powershell:install
+  - source: gene:dbosoft/powershell:linux-install
   

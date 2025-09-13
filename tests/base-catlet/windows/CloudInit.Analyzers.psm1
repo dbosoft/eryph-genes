@@ -56,25 +56,41 @@ function Get-CloudbaseInitUserDataError {
             $logLines += $currentLogLine
         }
 
-        $first = $true
+        # Look for script failures (non-zero exit codes) and stderr output
+        $errors = @()
+        
         foreach ($logLine in $logLines) {
-            if ($logLine -match "User_data (stdout|stderr)") {
+            # Check for script failures with non-zero exit codes
+            if ($logLine -match "Script .* ended with exit code: (\d+)") {
+                $exitCode = [int]$matches[1]
+                if ($exitCode -ne 0) {
+                    if ($logLine -match "Script `"([^`"]+)`".*ended with exit code: (\d+)") {
+                        $scriptName = $matches[1]
+                        $errors += "Script '$scriptName' failed with exit code $exitCode"
+                    } else {
+                        $errors += "Script failed with exit code $exitCode"
+                    }
+                }
+            }
+            
+            # Also check for stderr output (original functionality)
+            elseif ($logLine -match "User_data stderr") {
                 if ($logLine -match "b(['`"])(.*?)(\1)") {
                     $msg = $matches[2] -replace "\\r\\n|\\n", "`n"
-
-                    if ($first) {
-                        $first = $false
-                        Write-Information "fodder command error(s) found in Cloudbase-Init log:" `
-                         -InformationAction Continue
+                    # Only add non-empty messages
+                    if ($msg -and $msg.Trim() -ne "") {
+                        $errors += $msg
                     }
-                    Write-Output $msg
                 }
             }
         }
 
-        if ($first) {
-            Write-Warning "No fodder command error(s) found in Cloudbase-Init log. See full log"
-            $logLines | Write-Output
+        # Filter out any empty or null entries
+        $cleanErrors = $errors | Where-Object { $_ -and $_.Trim() -ne "" }
+        
+        if ($cleanErrors.Count -gt 0) {
+            Write-Information "fodder command error(s) found in Cloudbase-Init log:" -InformationAction Continue
+            $cleanErrors | ForEach-Object { Write-Output $_ }
         }
     }
 }

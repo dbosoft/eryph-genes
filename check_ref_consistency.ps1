@@ -71,7 +71,7 @@ foreach ($tagFile in $tagFiles) {
         }
     }
     catch {
-        Write-Host "  ✗ Error reading $($tagFile.FullName): $_" -ForegroundColor Red
+        Write-Host "  X Error reading $($tagFile.FullName): $_" -ForegroundColor Red
         $errorList += @{
             File = $tagFile.FullName
             Error = $_.ToString()
@@ -104,10 +104,10 @@ foreach ($tagInfo in $tagsWithRef) {
             $remoteRef = $response.value.manifest.ref
             
             if ($tagInfo.LocalRef -eq $remoteRef) {
-                Write-Host "  ✓ Consistent: ref = $($tagInfo.LocalRef)" -ForegroundColor Green
+                Write-Host "  OK Consistent: ref = $($tagInfo.LocalRef)" -ForegroundColor Green
             }
             else {
-                Write-Host "  ✗ MISMATCH!" -ForegroundColor Red
+                Write-Host "  X MISMATCH!" -ForegroundColor Red
                 Write-Host "    Local:  $($tagInfo.LocalRef)" -ForegroundColor Yellow
                 Write-Host "    Remote: $remoteRef" -ForegroundColor Yellow
                 
@@ -120,7 +120,7 @@ foreach ($tagInfo in $tagsWithRef) {
             }
         }
         elseif ($response.value -and $response.value.manifest -and -not $response.value.manifest.ref) {
-            Write-Host "  ⚠ Remote manifest has no ref (local: $($tagInfo.LocalRef))" -ForegroundColor Yellow
+            Write-Host "  ! Remote manifest has no ref (local: $($tagInfo.LocalRef))" -ForegroundColor Yellow
             $mismatches += @{
                 Geneset = $tagInfo.FullName
                 LocalRef = $tagInfo.LocalRef
@@ -129,7 +129,7 @@ foreach ($tagInfo in $tagsWithRef) {
             }
         }
         else {
-            Write-Host "  ⚠ Unexpected API response structure" -ForegroundColor Yellow
+            Write-Host "  ! Unexpected API response structure" -ForegroundColor Yellow
             $errorList += @{
                 File = $tagInfo.FilePath
                 Error = "Unexpected API response structure"
@@ -138,14 +138,14 @@ foreach ($tagInfo in $tagsWithRef) {
     }
     catch {
         if ($_.Exception.Response.StatusCode -eq 'NotFound') {
-            Write-Host "  ⚠ Not found in genepool (local ref: $($tagInfo.LocalRef))" -ForegroundColor Yellow
+            Write-Host "  ! Not found in genepool (local ref: $($tagInfo.LocalRef))" -ForegroundColor Yellow
             $errorList += @{
                 File = $tagInfo.FilePath
                 Error = "Geneset tag not found in genepool"
             }
         }
         else {
-            Write-Host "  ✗ API Error: $_" -ForegroundColor Red
+            Write-Host "  X API Error: $_" -ForegroundColor Red
             $errorList += @{
                 File = $tagInfo.FilePath
                 Error = $_.ToString()
@@ -190,15 +190,15 @@ if ($errorList.Count -gt 0) {
 
 if ($mismatches.Count -gt 0) {
     Write-Host ""
-    Write-Host "⚠ Found $($mismatches.Count) ref mismatch(es) between local files and genepool!" -ForegroundColor Red
+    Write-Host "! Found $($mismatches.Count) ref mismatch(es) between local files and genepool!" -ForegroundColor Red
     exit 1
 }
 elseif ($errorList.Count -gt 0) {
     Write-Host ""
-    Write-Host "⚠ Completed with $($errorList.Count) error(s)" -ForegroundColor Yellow
+    Write-Host "! Completed with $($errorList.Count) error(s)" -ForegroundColor Yellow
     exit 2
 }
 else {
     Write-Host ""
-    Write-Host "✓ All refs are consistent between local files and genepool!" -ForegroundColor Green
+    Write-Host "OK All refs are consistent between local files and genepool!" -ForegroundColor Green
 }

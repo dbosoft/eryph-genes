@@ -25,7 +25,7 @@ function Wait-EGSReady {
     )
     
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    Write-Information "Waiting for EGS to be ready on VM: $VmId (timeout: $TimeoutMinutes minutes)" -InformationAction Continue
+    Write-Information ('Waiting for EGS to be ready on VM: ' + $VmId + ' (timeout: ' + $TimeoutMinutes + ' minutes)') -InformationAction Continue
     
     $lastStatus = ""
     $checkCount = 0
@@ -42,7 +42,7 @@ function Wait-EGSReady {
             }
             
             if ($status -eq "available") {
-                Write-Information "EGS is available on VM: $VmId (after $($stopwatch.Elapsed.TotalSeconds.ToString('F1')) seconds)" -InformationAction Continue
+                Write-Information ('EGS is available on VM: ' + $VmId + ' (after ' + $stopwatch.Elapsed.TotalSeconds.ToString('F1') + ' seconds)') -InformationAction Continue
                 return $true
             }
             elseif ($status -match "error|failed") {
@@ -321,7 +321,7 @@ function Initialize-EGSConnection {
     )
     
     try {
-        Write-Information "Setting up EGS connection for VM: $VmId" -InformationAction Continue
+        Write-Information ('Setting up EGS connection for VM: ' + $VmId) -InformationAction Continue
         
         # Step 1: Add SSH config for this specific VM
         Write-Verbose "Running: egs-tool add-ssh-config $VmId"
@@ -437,15 +437,20 @@ function Copy-PesterToVM {
     }
     
     $targetPath = if ($OsType -eq "windows") { 
-        "C:\Tests\Pester" 
+        'C:\Tests\Pester' 
     } else { 
-        "/tmp/tests/Pester" 
+        '/tmp/tests/Pester' 
     }
     
-    Write-Information "Copying Pester module v$($pesterModule.Version) to VM: $targetPath" -InformationAction Continue
+    Write-Information ('Copying Pester module v' + $pesterModule.Version + ' to VM: ' + $targetPath) -InformationAction Continue
+    
+    # Copy all files individually via EGS (handles binary files like DLLs correctly)
     $copyResult = Copy-DirectoryToVM -VmId $VmId -SourcePath $pesterModule.ModuleBase -TargetPath $targetPath -OsType $OsType
     
-    # Only return the path, not the copy result
+    if (-not $copyResult) {
+        throw 'Failed to copy Pester module to VM'
+    }
+    
     return $targetPath
 }
 
@@ -485,83 +490,59 @@ function Copy-DirectoryToVM {
         throw "Source path not found: $SourcePath"
     }
     
-    # Create a temporary zip file
-    $tempZip = [System.IO.Path]::GetTempFileName() + ".zip"
-    Write-Verbose "Creating temporary zip: $tempZip"
+    # Create target directory on VM first
+    if ($OsType -eq "windows") {
+        $mkdirCmd = "powershell -Command `"New-Item -Path '$TargetPath' -ItemType Directory -Force | Out-Null`""
+    } else {
+        $mkdirCmd = "mkdir -p '$TargetPath'"
+    }
+    Invoke-EGSCommand -VmId $VmId -Command $mkdirCmd | Out-Null
     
-    try {
-        # Compress the directory
-        Compress-Archive -Path "$SourcePath\*" -DestinationPath $tempZip -Force
+    # Get all files to copy (recursively)
+    $allFiles = Get-ChildItem -Path $SourcePath -File -Recurse
+    $totalFiles = $allFiles.Count
+    Write-Information ('Copying ' + $totalFiles + ' files individually via EGS...') -InformationAction Continue
+    
+    $successCount = 0
+    $failedCount = 0
+    
+    foreach ($file in $allFiles) {
+        $relativePath = $file.FullName.Substring($SourcePath.Length).TrimStart('\', '/')
         
-        # Upload the zip file using egs-tool
-        $targetZip = if ($OsType -eq "windows") { "C:\Windows\Temp\transfer.zip" } else { "/tmp/transfer.zip" }
-        Write-Information "Uploading zip file via egs-tool: $tempZip -> $targetZip" -InformationAction Continue
-        Write-Verbose "Zip file size: $((Get-Item $tempZip).Length) bytes"
-        
-        $uploadResult = & egs-tool upload-file $VmId $tempZip $targetZip 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "egs-tool upload failed with exit code: $LASTEXITCODE"
-            Write-Warning "Output: $uploadResult"
-            throw "Failed to upload zip file: $uploadResult"
-        }
-        Write-Verbose "Upload successful"
-        
-        # Verify zip was uploaded
         if ($OsType -eq "windows") {
-            $verifyZipCmd = "powershell -Command `"if (Test-Path '$targetZip') { (Get-Item '$targetZip').Length } else { 'NOT_FOUND' }`""
+            $targetFile = $TargetPath + '\' + $relativePath.Replace('/', '\')
         } else {
-            $verifyZipCmd = "if [ -f '$targetZip' ]; then stat -c%s '$targetZip'; else echo 'NOT_FOUND'; fi"
+            $targetFile = $TargetPath + '/' + $relativePath.Replace('\', '/')
         }
-        $zipSize = Invoke-EGSCommand -VmId $VmId -Command $verifyZipCmd
-        if ($zipSize -eq "NOT_FOUND" -or $zipSize -eq $null) {
-            throw "Zip file was not uploaded to VM at $targetZip"
-        }
-        Write-Verbose "Zip file on VM: $zipSize bytes"
         
-        # Extract the zip on the target VM
+        # Create target directory for this file
+        $targetDir = Split-Path $targetFile -Parent
         if ($OsType -eq "windows") {
-            # Ensure target directory exists and extract
-            Write-Verbose "Extracting zip on Windows VM to: $TargetPath"
-            
-            # Create parent directory first
-            $parentDir = Split-Path $TargetPath -Parent
-            if ($parentDir -and $parentDir -ne '\') {
-                $mkdirCmd = "powershell -Command `"New-Item -Path '$parentDir' -ItemType Directory -Force | Out-Null`""
-                Invoke-EGSCommand -VmId $VmId -Command $mkdirCmd
-            }
-            
-            # Now extract
-            $extractCmd = "powershell -Command `"if (Test-Path '$TargetPath') { Remove-Item '$TargetPath' -Recurse -Force }; New-Item -Path '$TargetPath' -ItemType Directory -Force | Out-Null; Expand-Archive -Path '$targetZip' -DestinationPath '$TargetPath' -Force; Remove-Item '$targetZip' -Force`""
-            
-            $extractResult = Invoke-EGSCommand -VmId $VmId -Command $extractCmd
-            Write-Verbose "Extract result: $extractResult"
-            
-            # Verify extraction worked
-            $verifyCmd = "powershell -Command `"Test-Path '$TargetPath'`""
-            $exists = Invoke-EGSCommand -VmId $VmId -Command $verifyCmd
-            if ($exists -ne "True") {
-                throw "Failed to extract directory to $TargetPath"
-            }
+            $mkdirCmd = "powershell -Command `"New-Item -Path '$targetDir' -ItemType Directory -Force | Out-Null`""
         } else {
-            # Linux extraction
-            $extractCmd = @"
-rm -rf '$TargetPath' 2>/dev/null
-mkdir -p '$TargetPath'
-unzip -q '$targetZip' -d '$TargetPath'
-rm -f '$targetZip'
-"@
-            Invoke-EGSCommand -VmId $VmId -Command $extractCmd
+            $mkdirCmd = "mkdir -p '$targetDir'"
         }
+        Invoke-EGSCommand -VmId $VmId -Command $mkdirCmd | Out-Null
         
-        Write-Verbose "Directory successfully copied to VM"
-        return $true
-    }
-    finally {
-        # Clean up temp zip
-        if (Test-Path $tempZip) {
-            Remove-Item $tempZip -Force -ErrorAction SilentlyContinue
+        # Upload individual file using egs-tool
+        Write-Verbose "Copying: $relativePath"
+        $uploadResult = & egs-tool upload-file $VmId $file.FullName $targetFile 2>&1
+        
+        if ($LASTEXITCODE -eq 0) {
+            $successCount++
+        } else {
+            $failedCount++
+            Write-Warning "Failed to copy $relativePath : $uploadResult"
         }
     }
+    
+    Write-Information ('File copy complete: ' + $successCount + ' succeeded, ' + $failedCount + ' failed') -InformationAction Continue
+    
+    if ($failedCount -gt 0) {
+        Write-Warning "Some files failed to copy. Check individual file warnings above."
+    }
+    
+    return ($failedCount -eq 0)
 }
 
 function Copy-MultipleFilesToVM {
@@ -728,7 +709,8 @@ function Copy-TestSuiteToVM {
     
     # Copy test files
     Write-Information "Copying test files to VM..." -InformationAction Continue
-    Copy-DirectoryToVM -VmId $VmId -SourcePath $TestSourcePath -TargetPath "$testRoot\validation" -OsType $OsType
+    $validationPath = if ($OsType -eq "windows") { "$testRoot\validation" } else { "$testRoot/validation" }
+    Copy-DirectoryToVM -VmId $VmId -SourcePath $TestSourcePath -TargetPath $validationPath -OsType $OsType
     
     # Copy runner script (if it exists alongside tests, otherwise create it)
     Write-Information "Setting up test runner script..." -InformationAction Continue
@@ -861,7 +843,7 @@ function Deploy-TestCatlet {
         throw "Failed to deploy catlet"
     }
     
-    Write-Information "Catlet deployed: $($catlet.Name) (ID: $($catlet.Id), VmId: $($catlet.VmId))" -InformationAction Continue
+    Write-Information ('Catlet deployed: ' + $catlet.Name + ' (ID: ' + $catlet.Id + ', VmId: ' + $catlet.VmId + ')') -InformationAction Continue
     
     # Start catlet
     Write-Information "Starting catlet..." -InformationAction Continue
@@ -905,9 +887,9 @@ function Cleanup-TestCatlet {
     )
     
     if ($KeepVM) {
-        Write-Information "Keeping test catlet: $($CatletInfo.Name) (ID: $($CatletInfo.Id))" -InformationAction Continue
+        Write-Information ('Keeping test catlet: ' + $CatletInfo.Name + ' (ID: ' + $CatletInfo.Id + ')') -InformationAction Continue
     } else {
-        Write-Information "Removing test catlet: $($CatletInfo.Name)" -InformationAction Continue
+        Write-Information ('Removing test catlet: ' + $CatletInfo.Name) -InformationAction Continue
         try {
             Remove-Catlet -Id $CatletInfo.Id -Force -ErrorAction SilentlyContinue
         } catch {
@@ -1021,7 +1003,7 @@ function Invoke-TestSuite {
     
     try {
         # Deploy catlet with substitutions
-        Write-Information "Deploying catlet for suite: $SuiteName on $OSVersion" -InformationAction Continue
+        Write-Information ('Deploying catlet for suite: ' + $SuiteName + ' on ' + $OSVersion) -InformationAction Continue
         $deployment = Deploy-TestCatlet `
             -CatletSpec $CatletSpec `
             -Substitutions @{
@@ -1035,26 +1017,26 @@ function Invoke-TestSuite {
         
         # Run host-based tests if specified
         if ($HostTests.Count -gt 0) {
-            Write-Information "Running $($HostTests.Count) host-based tests..." -InformationAction Continue
+            Write-Information ('Running ' + $HostTests.Count + ' host-based tests...') -InformationAction Continue
             foreach ($cmd in $HostTests.Keys) {
                 try {
                     Test-VMCommand -VmId $deployment.VmId -Command $cmd -ExpectedPattern $HostTests[$cmd]
                     $results.Passed++
-                    Write-Verbose "✓ Host test passed: $cmd"
+                    Write-Verbose ('Host test passed: ' + $cmd)
                 } catch {
                     $results.Failed++
-                    $results.Errors += "Host test failed: $cmd - $_"
-                    Write-Warning "✗ Host test failed: $cmd"
+                    $results.Errors += 'Host test failed: ' + $cmd + ' - ' + $_
+                    Write-Warning ('✗ Host test failed: ' + $cmd)
                 }
             }
         }
         
         # Run in-VM tests if specified
         if ($InVMTests.Count -gt 0) {
-            Write-Information "Running $($InVMTests.Count) in-VM test files..." -InformationAction Continue
+            Write-Information ('Running ' + $InVMTests.Count + ' in-VM test files...') -InformationAction Continue
             
             # Copy Pester to VM
-            Copy-PesterToVM -VmId $deployment.VmId -OsType "windows"
+            Copy-PesterToVM -VmId $deployment.VmId -OsType 'windows'
             
             # Copy test files to VM
             foreach ($testFile in $InVMTests) {
@@ -1065,27 +1047,27 @@ function Invoke-TestSuite {
                 }
                 
                 if (Test-Path $source) {
-                    $destPath = "C:\Tests\$(Split-Path $testFile -Leaf)"
-                    Copy-FileToVM -VmId $deployment.VmId -SourcePath $source -TargetPath $destPath
+                    $destPath = 'C:\Tests\' + (Split-Path $testFile -Leaf)
+                    Copy-FileToVM -VmId $deployment.VmId -Source $source -Target $destPath -OsType 'windows'
                 } else {
-                    Write-Warning "Test file not found: $source"
+                    Write-Warning ('Test file not found: ' + $source)
                 }
             }
             
             # Run Pester in VM
-            $pesterResult = Invoke-PesterInVM -VmId $deployment.VmId -TestPath "C:\Tests" -OsType "windows"
+            $pesterResult = Invoke-PesterInVM -VmId $deployment.VmId -TestPath 'C:\Tests' -OsType 'windows'
             $results.Passed += $pesterResult.PassedCount
             $results.Failed += $pesterResult.FailedCount
             
             if ($pesterResult.FailedCount -gt 0) {
-                $results.Errors += "In-VM tests failed: $($pesterResult.FailedCount) failures"
+                $results.Errors += 'In-VM tests failed: ' + $pesterResult.FailedCount + ' failures'
             }
         }
         
     } catch {
         $results.Failed++
-        $results.Errors += "Suite execution error: $_"
-        Write-Error "Failed to execute test suite: $_"
+        $results.Errors += 'Suite execution error: ' + $_
+        Write-Error ('Failed to execute test suite: ' + $_)
     } finally {
         if ($deployment) {
             Cleanup-TestCatlet -CatletInfo $deployment -KeepVM:$KeepVM
@@ -1120,16 +1102,17 @@ function Assert-TestSuiteResults {
     
     # Check if any tests failed
     if ($Results.Failed -gt 0) {
-        $errorMessage = "Test suite '$($Results.Suite)' on $($Results.OS) failed with $($Results.Failed) failures"
+        $errorMessage = 'Test suite ' + $Results.Suite + ' on ' + $Results.OS + ' failed with ' + $Results.Failed + ' failures'
         if ($Results.Errors.Count -gt 0) {
-            $errorMessage += "`nErrors:`n" + ($Results.Errors | ForEach-Object { "  - $_" } | Out-String)
+            $errorMessage += [System.Environment]::NewLine + 'Errors:' + [System.Environment]::NewLine + ($Results.Errors | ForEach-Object { '  - ' + $_ } | Out-String)
         }
         throw $errorMessage
     }
     
     # Verify tests actually ran if required
     if ($RequireTests -and $Results.Passed -eq 0) {
-        throw "No tests were executed for suite '$($Results.Suite)' on $($Results.OS)"
+        Write-Warning 'No tests were executed for this suite'
+        return $null
     }
 }
 

@@ -100,19 +100,51 @@ function Mount-VHDAndExtractLogs {
     )
     
     Write-Information "Mounting VHD: $VhdPath"
+    Write-Information "WARNING: This script is designed for Windows VHDs only!"
     $mountedDrive = $null
     
     try {
-        # Mount the VHD
+        # Mount the VHD (this is ONLY a VHD file from a catlet, never host partitions)
+        Write-Information "Mounting catlet VHD file (not host partition): $VhdPath"
         $mountResult = Mount-VHD -Path $VhdPath -Passthru -ReadOnly
-        $mountedDrive = $mountResult | Get-Disk | Get-Partition | Where-Object { $_.Type -eq 'Basic' -and $_.Size -gt 1GB } | Get-Volume | Select-Object -First 1
+        $disk = $mountResult | Get-Disk
+        $partitions = $disk | Get-Partition
         
-        if (-not $mountedDrive -or -not $mountedDrive.DriveLetter) {
-            throw "Failed to get drive letter for mounted VHD"
+        Write-Information "Found $($partitions.Count) partitions in VHD"
+        $partitions | ForEach-Object {
+            Write-Information "VHD Partition $($_.PartitionNumber): Type=$($_.Type), Size=$([math]::Round($_.Size/1GB, 2))GB"
         }
         
-        $driveLetter = $mountedDrive.DriveLetter
-        Write-Information "VHD mounted as drive: ${driveLetter}:"
+        # Find the largest partition in the VHD (likely contains the OS)
+        # We use simple logic: largest partition over 1GB
+        $partition = $partitions | Where-Object { 
+            $_.Size -gt 1GB 
+        } | Sort-Object Size -Descending | Select-Object -First 1
+        
+        if (-not $partition) {
+            throw "No suitable partition found in catlet VHD (no partition > 1GB)"
+        }
+        
+        Write-Information "Selected VHD partition $($partition.PartitionNumber) ($([math]::Round($partition.Size/1GB, 2))GB)"
+        
+        # Assign drive letter if the partition doesn't have one
+        if (-not $partition.DriveLetter) {
+            Write-Information "VHD partition has no drive letter, assigning one..."
+            $availableLetter = 67..90 | ForEach-Object { [char]$_ } | Where-Object { 
+                -not (Get-PSDrive -Name $_ -ErrorAction SilentlyContinue) 
+            } | Select-Object -First 1
+            
+            if (-not $availableLetter) {
+                throw "No available drive letters to assign to VHD partition"
+            }
+            
+            Set-Partition -InputObject $partition -NewDriveLetter $availableLetter
+            Write-Information "Assigned drive letter ${availableLetter}: to VHD partition"
+            $driveLetter = $availableLetter
+        } else {
+            $driveLetter = $partition.DriveLetter
+            Write-Information "VHD partition already has drive letter: ${driveLetter}:"
+        }
         
         # Create output directory
         if (-not (Test-Path $OutputPath)) {
@@ -165,13 +197,14 @@ function Mount-VHDAndExtractLogs {
             }
         }
         
-        # Extract cloud-init logs (Linux)
+        # Extract cloud-init logs (Linux - these paths typically won't exist on Windows VHDs)
         $cloudInitPaths = @(
             "${driveLetter}:\var\log\cloud-init.log",
             "${driveLetter}:\var\log\cloud-init-output.log"
         )
         
-        Write-Information "Extracting cloud-init logs..."
+        Write-Information "Checking for cloud-init logs (Linux)..."
+        $linuxLogsFound = 0
         foreach ($logPath in $cloudInitPaths) {
             if (Test-Path $logPath) {
                 $fileName = "cloud-init_$(Split-Path $logPath -Leaf)"
@@ -179,7 +212,12 @@ function Mount-VHDAndExtractLogs {
                 Copy-Item -Path $logPath -Destination $destPath -Force
                 Write-Information "Extracted: $logPath -> $destPath"
                 $logsExtracted++
+                $linuxLogsFound++
             }
+        }
+        
+        if ($linuxLogsFound -gt 0) {
+            Write-Warning "Found Linux logs! This script is primarily designed for Windows VHDs. Consider using Linux-specific diagnostic tools."
         }
         
         # Extract Windows boot, setup and component servicing logs

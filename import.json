@@ -1,24 +1,10 @@
 
 [
-    {"ubuntu-20.04": {
-        "osType": "linux",
-        "pack": "dbosoft/ubuntu-20.04/{date}",        
-        "update": [ 
-            "dbosoft/ubuntu-20.04/latest" 
-        ]
-    }},
     {"ubuntu-22.04": {
         "osType": "linux",
         "pack": "dbosoft/ubuntu-22.04/{date}",        
         "update": [ 
             "dbosoft/ubuntu-22.04/latest" 
-        ]
-    }},
-    {"ubuntu-23.04": {
-        "osType": "linux",
-        "pack": "dbosoft/ubuntu-23.04/{date}",        
-        "update": [ 
-            "dbosoft/ubuntu-23.04/latest" 
         ]
     }},
     {"ubuntu-24.04": {
