@@ -70,7 +70,7 @@ $keys | ForEach-Object {
             exit
         }
     }
-    Write-Host ('  ✓ Found build output at: ' + $buildGeneset) -ForegroundColor Green
+    Write-Host ('  OK Found build output at: ' + $buildGeneset) -ForegroundColor Green
 
     $packTarget = $importSpec.pack
     
@@ -91,9 +91,9 @@ $keys | ForEach-Object {
         if((Test-Path $genesetJsonPath -PathType Leaf) -ne $true){
             Write-Information ('  Creating geneset: ' + $packTarget)
             & eryph-packer geneset init $packTarget --public --workdir genes
-            Write-Host '  ✓ Geneset created' -ForegroundColor Green
+            Write-Host '  OK Geneset created' -ForegroundColor Green
         } else {
-            Write-Host '  ✓ Geneset already exists (geneset.json found)' -ForegroundColor Green
+            Write-Host '  OK Geneset already exists (geneset.json found)' -ForegroundColor Green
         }
 
         # Check for geneset-tag.json file, not just directory
@@ -101,14 +101,14 @@ $keys | ForEach-Object {
         if((Test-Path $genesetTagJsonPath -PathType Leaf) -ne $true){
             Write-Information ('  Creating geneset tag: ' + $packTarget)
             & eryph-packer geneset-tag init $packTarget  --workdir genes
-            Write-Host '  ✓ Geneset tag created' -ForegroundColor Green
+            Write-Host '  OK Geneset tag created' -ForegroundColor Green
         } else {
-            Write-Host '  ✓ Geneset tag already exists (geneset-tag.json found)' -ForegroundColor Green
+            Write-Host '  OK Geneset tag already exists (geneset-tag.json found)' -ForegroundColor Green
         }
 
         Write-Information 'Step 4: Adding VM to geneset...'
         & eryph-packer geneset-tag add-vm $packTarget $buildGeneset  --workdir genes
-        Write-Host '  ✓ VM added to geneset' -ForegroundColor Green
+        Write-Host '  OK VM added to geneset' -ForegroundColor Green
 
         # Add rearm-eval fodder for Windows VMs
         if ($importSpec.osType -eq "windows") {
@@ -118,16 +118,16 @@ $keys | ForEach-Object {
             # Append fodder section with rearm-eval
             $fodderContent = [System.Environment]::NewLine + [System.Environment]::NewLine + 'fodder:' + [System.Environment]::NewLine + '  - source: gene:dbosoft/winconfig:rearm-eval'
             Add-Content -Path $catletPath -Value $fodderContent
-            Write-Host '  ✓ Added rearm-eval fodder for Windows evaluation period' -ForegroundColor Green
+            Write-Host '  OK Added rearm-eval fodder for Windows evaluation period' -ForegroundColor Green
         }
         
         Write-Information 'Step 6: Packing geneset...'
         & eryph-packer geneset-tag pack $packTarget --workdir genes
-        Write-Host '  ✓ Geneset packed successfully' -ForegroundColor Green
+        Write-Host '  OK Geneset packed successfully' -ForegroundColor Green
         
         Write-Information 'Step 7: Staging for git...'
         git add $geneSetPath  | Out-Null
-        Write-Host '  ✓ Changes staged for git' -ForegroundColor Green
+        Write-Host '  OK Changes staged for git' -ForegroundColor Green
     }
 
     $updateTarget = $importSpec.update
@@ -143,16 +143,16 @@ $keys | ForEach-Object {
         Write-Information ('  Updating reference from ' + $packTarget + ' to ' + $updateTarget)
         & eryph-packer geneset-tag ref $updateTarget $packTarget  --workdir genes | Out-Null
         & eryph-packer geneset-tag pack $updateTarget --workdir genes  | Out-Null
-        Write-Host '  ✓ Latest reference updated' -ForegroundColor Green
+        Write-Host '  OK Latest reference updated' -ForegroundColor Green
     }
 
     if($RemoveBuild){
         Write-Information 'Step 9: Cleaning up build output...'
         Remove-Item -Path $buildGeneset -Recurse -Force
-        Write-Host '  ✓ Build output removed' -ForegroundColor Green
+        Write-Host '  OK Build output removed' -ForegroundColor Green
     }
 
-    Write-Host ('✓ Completed packing: ' + $packTarget) -ForegroundColor Green
+    Write-Host ('OK Completed packing: ' + $packTarget) -ForegroundColor Green
     Write-Output $packTarget
 }
 

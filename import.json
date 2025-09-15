@@ -21,6 +21,20 @@
             "dbosoft/ubuntu-25.04/latest" 
         ]
     }},    
+    {"almalinux-9": {
+        "osType": "linux",
+        "pack": "dbosoft/almalinux-9/{date}",        
+        "update": [ 
+            "dbosoft/almalinux-9/latest" 
+        ]
+    }},    
+    {"oracle-9": {
+        "osType": "linux",
+        "pack": "dbosoft/oraclelinux-9/{date}",        
+        "update": [ 
+            "dbosoft/oraclelinux-9/latest" 
+        ]
+    }},        
     {"winsrv2016-standard": {
         "osType": "windows",
         "pack": "dbosoft/winsrv2016-standard/{date}",        

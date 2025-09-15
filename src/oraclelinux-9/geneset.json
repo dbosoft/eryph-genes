@@ -1,0 +1,8 @@
+{
+  "version": "1.1",
+  "geneset": "dbosoft/oraclelinux-9",
+  "public": true,
+  "short_description": "Oracle Linux 9",
+  "description": "Base catlet for Oracle Linux 9",
+  "description_markdown_file": "readme.md"
+}

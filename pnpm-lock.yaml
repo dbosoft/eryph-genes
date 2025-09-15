@@ -40,6 +40,19 @@ importers:
 
   packages/templates: {}
 
+  src/almalinux-9:
+    dependencies:
+      '@dbosoft/linux-starter-catlet':
+        specifier: workspace:*
+        version: link:../linux-starter-catlet
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
   src/chocolatey:
     dependencies:
       '@dbosoft/chocolatey-default':

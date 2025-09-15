@@ -56,17 +56,17 @@ foreach ($tagFile in $latestTags) {
         $result = & eryph-packer @arguments 2>&1
         
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "  ✓ Successfully packed $relativePath" -ForegroundColor Green
+            Write-Host "  OK Successfully packed $relativePath" -ForegroundColor Green
             $successCount++
         } else {
-            Write-Host "  ✗ Failed to pack $relativePath" -ForegroundColor Red
+            Write-Host "  X Failed to pack $relativePath" -ForegroundColor Red
             Write-Host "    Error: $result" -ForegroundColor Red
             $failureCount++
             $failures += $relativePath
         }
     }
     catch {
-        Write-Host "  ✗ Exception while packing $relativePath" -ForegroundColor Red
+        Write-Host "  X Exception while packing $relativePath" -ForegroundColor Red
         Write-Host "    Error: $_" -ForegroundColor Red
         $failureCount++
         $failures += $relativePath

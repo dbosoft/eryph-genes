@@ -61,9 +61,12 @@ function Get-CloudbaseInitUserDataError {
         
         foreach ($logLine in $logLines) {
             # Check for script failures with non-zero exit codes
+            # Note: Exit codes 0, 1001, and 1003 are considered successful
+            # 1003 specifically indicates a reboot request, not an error
             if ($logLine -match "Script .* ended with exit code: (\d+)") {
                 $exitCode = [int]$matches[1]
-                if ($exitCode -ne 0) {
+                $successCodes = @(0, 1001, 1003)
+                if ($exitCode -notin $successCodes) {
                     if ($logLine -match "Script `"([^`"]+)`".*ended with exit code: (\d+)") {
                         $scriptName = $matches[1]
                         $errors += "Script '$scriptName' failed with exit code $exitCode"
