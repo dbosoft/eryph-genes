@@ -19,28 +19,107 @@ fodder:
     import re
     import subprocess
     import urllib.request
+    import sys
 
+    def detect_distro():
+        """Detect if we're on DEB or RPM based system"""
+        try:
+            with open('/etc/os-release', 'r') as f:
+                content = f.read()
+                if 'debian' in content.lower() or 'ubuntu' in content.lower():
+                    return 'deb'
+                elif 'rhel' in content.lower() or 'centos' in content.lower() or 'almalinux' in content.lower() or 'rocky' in content.lower():
+                    return 'rpm'
+        except:
+            pass
+
+        # Fallback: check for package managers
+        if os.path.exists('/usr/bin/dpkg'):
+            return 'deb'
+        elif os.path.exists('/usr/bin/rpm'):
+            return 'rpm'
+
+        raise Exception("Cannot detect distribution type (DEB or RPM)")
+
+    def install_pwsh_deb(version):
+        """Install PowerShell on Debian/Ubuntu systems"""
+        print(f"Installing PowerShell {version} on DEB-based system...")
+
+        # Download DEB package
+        deb_url = f"https://github.com/PowerShell/PowerShell/releases/download/v{version}/PowerShell_{version}-1.deb_amd64.deb"
+        urllib.request.urlretrieve(deb_url, '/tmp/powershell.deb')
+
+        # Install package
+        result = subprocess.run(['dpkg', '-i', '/tmp/powershell.deb'], capture_output=True, text=True)
+        if result.returncode != 0:
+            # Try to fix dependencies
+            subprocess.run(['apt-get', 'install', '-f', '-y'])
+            # Retry installation
+            result = subprocess.run(['dpkg', '-i', '/tmp/powershell.deb'])
+            if result.returncode != 0:
+                raise Exception(f"dpkg failed with exit code {result.returncode}")
+
+        # Cleanup
+        os.remove('/tmp/powershell.deb')
+        return 'ssh'  # Ubuntu uses 'ssh' service name
+
+    def install_pwsh_rpm(version):
+        """Install PowerShell on RHEL/CentOS/AlmaLinux systems"""
+        print(f"Installing PowerShell {version} on RPM-based system...")
+
+        # Download RPM package
+        rpm_url = f"https://github.com/PowerShell/PowerShell/releases/download/v{version}/powershell-{version}-1.rh.x86_64.rpm"
+        urllib.request.urlretrieve(rpm_url, '/tmp/powershell.rpm')
+
+        # Install package
+        result = subprocess.run(['rpm', '-i', '/tmp/powershell.rpm'], capture_output=True, text=True)
+        if result.returncode != 0:
+            # Try with yum/dnf for dependency resolution
+            for pkg_mgr in ['dnf', 'yum']:
+                if os.path.exists(f'/usr/bin/{pkg_mgr}'):
+                    result = subprocess.run([pkg_mgr, 'install', '-y', '/tmp/powershell.rpm'])
+                    if result.returncode == 0:
+                        break
+            else:
+                raise Exception(f"RPM installation failed with exit code {result.returncode}")
+
+        # Cleanup
+        os.remove('/tmp/powershell.rpm')
+        return 'sshd'  # RHEL uses 'sshd' service name
+
+    # Main installation logic
     version = '{{ pwshVersion }}'
-    if version == 'latest':
-      with urllib.request.urlopen('https://api.github.com/repos/PowerShell/PowerShell/releases/latest') as response:
-        data = response.read().decode('utf-8')
-        json_data = json.loads(data)
-        version = re.sub('^v', '', json_data['tag_name'])
-
-    urllib.request.urlretrieve(f"https://github.com/PowerShell/PowerShell/releases/download/v{version}/PowerShell_{version}-1.deb_amd64.deb", '/powershell.deb')
-    result = subprocess.run(['dpkg', '-i', '/powershell.deb'])
-    if result.returncode != 0:
-      raise Exception(f"dpkg failed with exit code {result.returncode}")
-
-    os.remove('/powershell.deb')
-
-    with open('/etc/ssh/sshd_config.d/99-powershell.conf', 'w') as f:
-      f.write('Subsystem powershell /usr/bin/pwsh -sshs')
-
     enable_ssh = '{{ enableSsh }}'
-    if enable_ssh != 'true':
-      quit()
 
-    result = subprocess.run(['systemctl', 'restart', 'ssh.service'])
-    if result.returncode != 0:
-      raise Exception(f"sshd restart failed with exit code {result.returncode}")
+    # Get latest version if needed
+    if version == 'latest':
+        try:
+            with urllib.request.urlopen('https://api.github.com/repos/PowerShell/PowerShell/releases/latest') as response:
+                data = response.read().decode('utf-8')
+                json_data = json.loads(data)
+                version = re.sub('^v', '', json_data['tag_name'])
+        except Exception as e:
+            print(f"Failed to get latest version: {e}")
+            version = "7.4.6"  # Fallback version
+
+    # Detect distribution and install PowerShell
+    distro_type = detect_distro()
+    print(f"Detected distribution type: {distro_type.upper()}")
+
+    if distro_type == 'deb':
+        ssh_service = install_pwsh_deb(version)
+    else:  # rpm
+        ssh_service = install_pwsh_rpm(version)
+
+    # Configure SSH subsystem
+    os.makedirs('/etc/ssh/sshd_config.d', exist_ok=True)
+    with open('/etc/ssh/sshd_config.d/99-powershell.conf', 'w') as f:
+        f.write('Subsystem powershell /usr/bin/pwsh -sshs\n')
+
+    # Restart SSH service if requested
+    if enable_ssh == 'true':
+        result = subprocess.run(['systemctl', 'restart', ssh_service])
+        if result.returncode != 0:
+            raise Exception(f"SSH service restart failed with exit code {result.returncode}")
+
+    print(f"PowerShell {version} installation completed successfully!")

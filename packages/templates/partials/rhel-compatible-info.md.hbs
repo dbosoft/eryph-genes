@@ -1,0 +1,41 @@
+----
+
+# General Information
+
+## RHEL-Compatible Catlets Naming Convention
+
+The naming convention for the RHEL-compatible server catlets is as follows:
+
+`almalinux-<version>`, `oracle-<version>`, `rhel-<version>`
+
+where `<version>` is the major version number, e.g. `8`, `9`, `10`.
+We focus on current and supported enterprise Linux versions.
+
+## Available Distributions
+
+### AlmaLinux
+- **Binary compatible** with RHEL
+- **Free and open source** - No subscription required
+- **Enterprise-focused** with backing from CloudLinux
+- **Fast security updates** and community support
+- **Recommended** for most use cases requiring RHEL compatibility
+
+### Oracle Linux
+- **100% binary compatible** with RHEL
+- **Free for production use** including support
+- **UEK kernel** (Unbreakable Enterprise Kernel) - Optimized for performance
+- **Oracle backing** with enterprise support options
+- **Note**: UEK2 is not supported on Hyper-V and Azure due to missing drivers
+
+### RHEL (Red Hat Enterprise Linux)
+- **The original** enterprise Linux distribution
+- **Commercial subscription** required for downloads and support
+- **Free developer subscription** available (16 systems)
+- **Full enterprise support** from Red Hat
+
+## Monthly Builds
+
+We **plan** to build the server catlets monthly. The build date is part of the tag name.
+The tag `latest` is updated with each released version.
+
+Currently the builds have to be triggered manually. We are working on automating this process.

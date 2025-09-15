@@ -87,12 +87,12 @@ $keys | ForEach-Object {
     try{
         Write-Information 'Step 1: Building template with Packer...'
         & $BuildScript -Filter $TemplateName
-        Write-Host '  ✓ Packer build completed' -ForegroundColor Green
+        Write-Host '  OK Packer build completed' -ForegroundColor Green
         
         Set-Location $PSScriptRoot
         Write-Information 'Step 2: Packing build output...'
         $packed = .\.\pack_build.ps1 $TemplateName -BuildPath $resolvedBuildPath -RemoveBuild
-        Write-Host ('  ✓ Packed to: ' + $packed) -ForegroundColor Green
+        Write-Host ('  OK Packed to: ' + $packed) -ForegroundColor Green
         
         # Construct geneset name directly instead of parsing from output
         $day = Get-Date -Format 'yyyyMMdd'
@@ -102,14 +102,14 @@ $keys | ForEach-Object {
         Set-Location $PSScriptRoot
         Write-Information 'Step 3: Running validation tests...'
         .\test-PackedBaseCatlet.ps1 -Geneset $genesetName -GenepoolPath $GenepoolPath -OsType $osType
-        Write-Host '  ✓ Tests passed' -ForegroundColor Green
+        Write-Host '  OK Tests passed' -ForegroundColor Green
         
         $successCount++
-        Write-Host ('✓ ' + $TemplateName + ' completed successfully') -ForegroundColor Green
+        Write-Host ('OK ' + $TemplateName + ' completed successfully') -ForegroundColor Green
     }catch{
         $failedCount++
         $ErrorActionPreference = 'Continue'
-        Write-Host ('✗ ' + $TemplateName + ' failed: ' + $_) -ForegroundColor Red
+        Write-Host ('X ' + $TemplateName + ' failed: ' + $_) -ForegroundColor Red
         Write-Error $_ 
         $ErrorActionPreference = 'Stop'
     }
@@ -120,9 +120,9 @@ Write-Host '========================================' -ForegroundColor Cyan
 Write-Host ' BUILD SUMMARY' -ForegroundColor Cyan
 Write-Host '========================================' -ForegroundColor Cyan
 Write-Host ('Total Templates: ' + $templateCount) -ForegroundColor White
-Write-Host ('✓ Successful: ' + $successCount) -ForegroundColor Green
+Write-Host ('OK Successful: ' + $successCount) -ForegroundColor Green
 if ($failedCount -gt 0) {
-    Write-Host ('✗ Failed: ' + $failedCount) -ForegroundColor Red
+    Write-Host ('X Failed: ' + $failedCount) -ForegroundColor Red
 }
 Write-Host '========================================' -ForegroundColor Cyan
 

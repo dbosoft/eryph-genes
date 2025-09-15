@@ -160,7 +160,7 @@ if ($OsType -eq "windows") {
     # Add PowerShell Core for Linux
     $catletYaml += @"
 
-  - source: gene:dbosoft/powershell:linux-install
+  - source: gene:dbosoft/powershell/next:linux-install
   - source: gene:dbosoft/starter-food:linux-starter
 "@
 }
