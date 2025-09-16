@@ -1,7 +1,7 @@
 {
   "name": "@dbosoft/powershell-default",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "scripts": {
     "build": "build-geneset-tag",
     "publish": "build-geneset-tag publish"

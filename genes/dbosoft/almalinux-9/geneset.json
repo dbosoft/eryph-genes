@@ -2,6 +2,7 @@
   "version": "1.1",
   "geneset": "dbosoft/almalinux-9",
   "public": true,
-  "short_description": "almalinux-9",
+  "short_description": "AlmaLinux 9",
+  "description": "Base catlet for AlmaLinux 9",
   "description_markdown_file": "readme.md"
 }

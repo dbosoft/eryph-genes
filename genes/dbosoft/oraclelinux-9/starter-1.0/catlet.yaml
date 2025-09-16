@@ -1,0 +1,5 @@
+ 
+parent: dbosoft/oraclelinux-9/latest
+fodder:
+ - source: gene:dbosoft/starter-food:linux-starter
+
