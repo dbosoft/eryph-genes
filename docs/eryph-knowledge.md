@@ -228,15 +228,17 @@ fodder:
 ```yaml
 # CORRECT formats:
 # Implicit tag (uses 'latest'):
-- source: gene:dbosoft/guest-services:win-install     # gene:<geneset>:<fodder-name>
+- source: gene:dbosoft/winget:install                 # gene:<geneset>:<fodder-name>
 
 # Explicit tag:
-- source: gene:dbosoft/guest-services/v1.0:win-install # gene:<geneset>/<tag>:<fodder-name>
+- source: gene:dbosoft/winget/v1.0:install            # gene:<geneset>/<tag>:<fodder-name>
 
 # WRONG formats (DO NOT USE):
-- source: gene:dbosoft/guest-services:latest:win-install  # WRONG: tag in wrong position
-- source: dbosoft/guest-services                          # WRONG: missing gene: prefix (only for parent!)
+- source: gene:dbosoft/winget:latest:install              # WRONG: tag in wrong position
+- source: dbosoft/winget                                  # WRONG: missing gene: prefix (only for parent!)
 ```
+
+Note: `gene:dbosoft/guest-services:*-install` is NOT a valid fodder reference for test catlets — EGS ships in every base catlet and SSH keys are auto-exchanged via `egs-tool update-ssh-config`.
 
 Example usage:
 ```yaml
@@ -334,16 +336,14 @@ Get-Content test.yaml | New-Catlet -Variables @{sshkey = "ssh-rsa..."} -SkipVari
 
 ## Common Inline Fodder Examples
 
-### Windows Feature Installation with EGS
+### Windows Feature Installation
 
 ```yaml
 name: test-windows-feature
 parent: dbosoft/winsrv2022-standard/starter
 
+# EGS ships in the base catlet; SSH keys are auto-exchanged via `egs-tool update-ssh-config`.
 fodder:
-# Add EGS for SSH access (automatic key mode - no variables needed)
-- source: gene:dbosoft/guest-services:win-install
-
 # Install Windows feature (example: IIS)
 - name: feature-install
   type: shellscript
@@ -360,16 +360,14 @@ fodder:
     Set-Service W3SVC -StartupType Automatic
 ```
 
-### Linux Package Installation with EGS
+### Linux Package Installation
 
 ```yaml
 name: test-linux-package
 parent: dbosoft/ubuntu-22.04/starter
 
+# EGS ships in the base catlet; SSH keys are auto-exchanged via `egs-tool update-ssh-config`.
 fodder:
-# Add EGS for SSH access (automatic key mode - no variables needed)
-- source: gene:dbosoft/guest-services:linux-install
-
 # Install and configure packages
 - name: package-setup
   type: cloud-config

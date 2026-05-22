@@ -36,7 +36,6 @@ variables:
     value: "Gene extraction and deployment test completed"
 
 fodder:
-  - source: gene:dbosoft/guest-services:win-install
   - source: gene:dbosoft/test:orchestration-test
     variables:
       - name: environment

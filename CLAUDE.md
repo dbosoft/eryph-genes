@@ -203,9 +203,14 @@ If STATE error → Handle directly (see Error Handling below)
 
 **EGS Executor:**
 - `run-ssh` → Run ANY command in VM (you compose the command) - REQUIRES VmId
-- `setup-egs` → Configure SSH access - REQUIRES VmId
+- `setup-egs` → Configure SSH access (`add-ssh-config` + `update-ssh-config`) - REQUIRES VmId, optional `alias`
 - `test-egs` → Check EGS status with `egs-tool get-status {vmid}` - REQUIRES VmId
-- `upload-file`, `download-file` → File transfer - REQUIRES VmId
+- `get-data` → Read key-value data associated with the VM - REQUIRES VmId (optional `json` flag)
+- `get-ssh-key` → Return the host's EGS public key (host-side, no VmId)
+- `upload-file`, `download-file` → Single-file transfer - REQUIRES VmId (optional `overwrite` flag)
+- `upload-directory`, `download-directory` → Directory transfer - REQUIRES VmId (optional `recursive` / `overwrite` flags)
+- `set-shell` → Configure the interactive SSH shell in the VM - REQUIRES VmId (`command`/`arguments`, or `reset`)
+- `initialize-host`, `unregister-host` → One-time EGS host setup / cleanup (no VmId, destructive — use sparingly)
 
 **Build Executor:**
 - `build-gene` → Build with turbo
@@ -247,12 +252,9 @@ If STATE error → Handle directly (see Error Handling below)
 name: test-name
 parent: dbosoft/winsrv2022-standard/starter
 
+# EGS ships in every base catlet; SSH keys are auto-exchanged via `egs-tool update-ssh-config`.
+# Do NOT add `gene:dbosoft/guest-services:*-install` to test catlets.
 fodder:
-  # Guest services gene enables SSH access
-  - source: gene:dbosoft/guest-services:win-install  # implicit tag: latest
-  # or for explicit tag:
-  # - source: gene:dbosoft/guest-services/v1.0:win-install
-  # Your test fodder
   - source: gene:dbosoft/your-gene:tag
 ```
 

@@ -40,9 +40,7 @@ Create minimal test catlet:
 ```yaml
 name: debug-connectivity-test
 parent: dbosoft/ubuntu-24.04/starter  # or appropriate base
-
-fodder:
-  - source: gene:dbosoft/guest-services:linux-install  # or win-install
+# EGS ships in the base catlet; no fodder required for SSH connectivity.
 ```
 
 **Test Requirements:**
@@ -59,7 +57,7 @@ name: debug-increment-test
 parent: dbosoft/ubuntu-24.04/starter
 
 fodder:
-  - source: gene:dbosoft/guest-services:linux-install
+  # EGS ships in the base catlet; SSH keys are auto-exchanged via egs-tool.
   # Add your next fodder item here - only ONE at a time
   - name: test-item-1
     type: cloud-config

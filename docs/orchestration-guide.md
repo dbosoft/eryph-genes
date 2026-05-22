@@ -155,9 +155,7 @@ When user requests complex functionality, **NEVER** create elaborate fodder on f
    ```yaml
    name: connectivity-test
    parent: appropriate/base/image
-   
-   fodder:
-     - source: gene:dbosoft/guest-services:linux-install  # or win-install
+   # EGS ships in the base catlet; no fodder required for SSH connectivity.
    ```
 
 2. **Deploy and verify SSH access works:**

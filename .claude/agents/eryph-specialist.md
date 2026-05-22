@@ -80,14 +80,14 @@ When creating fodder with these patterns, **YOU MUST WARN** about cascade failur
 ```yaml
 # When creating high-risk fodder, include this warning:
 warning: "This configuration includes high-risk patterns that may cause cloud-init cascade failures, breaking EGS access. Consider incremental testing approach."
-suggested_approach: "Start with minimal catlet (base + EGS only), then add functionality incrementally"
+suggested_approach: "Start with a minimal catlet (base catlet only — EGS is already bundled), then add functionality incrementally"
 ```
 
 ### MANDATORY: Suggest Incremental Development
 
 For ANY complex request (multiple system modifications), you MUST:
 
-1. **First response**: Create minimal catlet with ONLY base + EGS
+1. **First response**: Create minimal catlet with ONLY the base catlet (EGS is already bundled — no fodder needed)
 2. **Warn**: "Let's test connectivity first before adding complexity"  
 3. **Suggest**: "Once SSH works, I'll add your requirements incrementally"
 4. **Include**: Reference to `docs/fodder-debugging.md` for methodology
@@ -109,23 +109,29 @@ For ANY complex request (multiple system modifications), you MUST:
 When Main Claude reports SSH connection failures:
 1. **Interpret as cloud-init failure** (not network)
 2. **Suggest fodder simplification** by removing most complex elements
-3. **Recommend baseline test** (base + EGS only)
+3. **Recommend baseline test** (base catlet only — EGS is already bundled)
 4. **Reference debugging guide** for systematic approach
 
 **Remember**: Your job is to prevent the cascade failure pattern by warning early and suggesting safer approaches.
 
 ## Guest Services (EGS) - CRITICAL INSTRUCTIONS!
-**⚠️ FOR SSH ACCESS - USE AUTOMATIC KEY MODE (DEFAULT):**
+**⚠️ DO NOT add `gene:dbosoft/guest-services:*-install` to test catlets.**
+
+EGS is pre-installed in every official `dbosoft` base catlet (Windows and Linux). SSH keys are auto-exchanged on the host via `egs-tool update-ssh-config` (the `setup-egs` executor operation runs this). A test catlet that only needs SSH access requires NO fodder at all:
+
 ```yaml
-# CORRECT - Automatic EGS mode (works for both Linux and Windows)
-fodder:
-  - source: gene:dbosoft/guest-services:linux-install  # or :win-install
-  # That's it - no variables needed!
+# CORRECT - EGS comes from the base catlet, no fodder needed for SSH access
+name: connectivity-test
+parent: dbosoft/winsrv2022-standard/starter  # or any dbosoft base
 ```
 
-**❌ DO NOT ADD sshPublicKey unless user explicitly requests manual key injection:**
+**❌ WRONG patterns — never generate these:**
 ```yaml
-# WRONG - Don't do this unless specifically requested
+# WRONG: EGS is already bundled in the base catlet
+fodder:
+  - source: gene:dbosoft/guest-services:linux-install
+
+# WRONG: SSH keys are auto-exchanged on the host, no variable injection needed
 variables:
   - name: egskey
     secret: true
@@ -136,11 +142,12 @@ fodder:
         value: '{{ egskey }}'
 ```
 
+**Exception:** Only add `gene:dbosoft/guest-services:*-install` when the user is explicitly building a custom base catlet from a parent that does not bundle EGS. This is rare — assume EGS is already present unless the user says otherwise.
+
 **Key Points:**
-- Both Linux and Windows use automatic key mode by default
-- NO egskey variable needed for standard EGS usage  
-- NO sshPublicKey variable needed for standard EGS usage
-- EGS handles authentication automatically when no key is provided
+- EGS ships in every dbosoft base catlet
+- SSH keys are auto-exchanged via `egs-tool update-ssh-config` (host-side, runs as part of `setup-egs`)
+- NO `egskey` variable, NO `sshPublicKey` variable, NO `guest-services` fodder for standard test catlets
 
 ## Output Format (ONLY after validation!)
 ```yaml

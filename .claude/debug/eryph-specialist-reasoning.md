@@ -1,47 +1,40 @@
-# Eryph Specialist Reasoning - SAProuter Build Working Catlet
+# Eryph Specialist Reasoning - test-include-win-std
 
-## STEP 1: Schema Reading (MANDATORY)
-✓ Read catlet-schema-v1.0.json lines 1-618
-✓ Verified variables format: Array-of-objects (lines 140-147, 565-616)
-✓ Confirmed fodder structure: name + content for inline (lines 478-535)
-✓ No `source: inline` needed for inline fodder
+## Schema Sections Read
 
-## STEP 2: Property Verification
-✓ Variables: Array format with name/value objects (NOT key-value pairs)
-✓ Fodder: Inline fodder needs name + type + content
-✓ Parent: Uses format without `gene:` prefix
-✓ Memory/CPU: Simple number format allowed
+- `docs/catlet-schema-v1.0.json` lines 1-100 (top-level properties, parent pattern)
+- `docs/catlet-schema-v1.0.json` lines 386-535 (fodder definitions, fodder_other)
+- `.claude/debug/eryph-specialist-reasoning.md` (previous run for include-url pattern)
 
-## STEP 3: SAProuter Requirements Analysis
-- User requested "working SAProuter build scripts incrementally"
-- Reference: T:\saprouter\saprouter-build\saprouter-build\ scripts (6 scripts)
-- PSE relative path corrections needed (SECUDIR relative paths)
-- Memory: 4GB, CPU: 2 (SAProuter needs more resources)
-- No Unicode characters - ASCII only
-- Keep EGS gene for SSH access
+## Key Schema Findings
 
-## STEP 4: SAProuter Build Scripts Design
-Based on typical SAP requirements and build processes:
+### parent format (line 65)
+Pattern: `^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*/[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*(/[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*)?$`
+- `dbosoft/winsrv2022-standard/20260518` matches - valid
+- NO `gene:` prefix
 
-1. **Install-SAProuter.ps1** - Downloads and installs SAProuter binary
-2. **Configure-SAProuter.ps1** - Sets up configuration files and directories
-3. **Setup-PSE.ps1** - Creates PSE (Personal Security Environment) with relative paths
-4. **Configure-Routes.ps1** - Sets up routing table
-5. **Install-Service.ps1** - Installs as Windows service
-6. **Test-SAProuter.ps1** - Validates installation and connectivity
+### fodder_other (lines 478-535)
+- Required: `name` + `content`
+- `type`: enum including `include-url`
+- `content`: plain `string` (not a block scalar, single-line URL is fine)
+- `filename`: NOT required for include-url (only shellscript on Windows)
 
-## STEP 5: YAML Generation Strategy
-- Parent: dbosoft/winsrv2022-standard/starter (Windows base)
-- EGS: gene:dbosoft/guest-services:win-install (automatic key mode)
-- Memory: 4096 (4GB), CPU: 2
-- All scripts as write_files in cloud-config
-- PSE corrections: Use relative paths with SECUDIR environment variable
-- ASCII only content (no Unicode characters)
+## Design Decisions
 
-## STEP 6: Validation Checklist
-✓ Variables in array-of-objects format
-✓ Content after | properly indented (minimum 2 spaces from content:)
-✓ PowerShell here-strings maintain indentation
-✓ No tabs, only spaces
-✓ All fodder items have required name + type + content
-✓ No Unicode characters used
+1. **parent**: `dbosoft/winsrv2022-standard/20260518` - full standard (not core), specific tag
+2. **No EGS gene**: EGS is embedded in the 20260518 base image - no guest-services fodder needed
+3. **Include fodder**: `type: include-url`, content = raw URL string (single line, no block scalar)
+4. **No variables**: nothing parameterised
+
+## Validation Checklist
+
+- [x] name: test-include-win-std - matches pattern, valid
+- [x] parent: dbosoft/winsrv2022-standard/20260518 - no gene: prefix, matches pattern
+- [x] fodder_other: name + content both present (required fields satisfied)
+- [x] type: include-url - valid enum value
+- [x] content: plain string URL - correct type per schema
+- [x] No filename (not required for include-url)
+- [x] No variables (none needed)
+- [x] No EGS gene reference (correctly omitted per user requirement)
+- [x] No tabs, 2 spaces per level
+- [x] No high-risk patterns

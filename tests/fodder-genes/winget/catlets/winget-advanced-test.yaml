@@ -2,9 +2,6 @@ name: winget-advanced-test
 parent: dbosoft/{{OS_VERSION}}/starter
 
 fodder:
-  # Guest services gene enables SSH access
-  - source: gene:dbosoft/guest-services:win-install
-  
   # Install winget using the gene being tested
   - source: gene:{{GENE_TAG}}
   

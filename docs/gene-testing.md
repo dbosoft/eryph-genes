@@ -89,7 +89,7 @@ name: test-{genename}-basic
 parent: dbosoft/{{ os_version }}/starter
 
 fodder:
-  - source: gene:dbosoft/guest-services:win-install
+  # EGS ships in the base catlet; do not add `gene:dbosoft/guest-services:*-install`.
   - source: gene:dbosoft/{genename}:{{ gene_tag }}
 
 variables:
@@ -283,7 +283,7 @@ name: test-{{ gene_name }}-{{ os_version }}
 parent: dbosoft/{{ os_version }}/starter
 
 fodder:
-  - source: gene:dbosoft/guest-services:win-install
+  # EGS ships in the base catlet; do not add `gene:dbosoft/guest-services:*-install`.
   - source: gene:dbosoft/myapp:{{ gene_tag }}
 ```
 
