@@ -79,6 +79,17 @@ $keys | ForEach-Object {
         Write-Information 'Step 2: Preparing pack target...'
         $day = Get-Date -Format 'yyyyMMdd'
         $packTarget = $packTarget.replace('{date}', $day)
+
+        # Detect same-day conflict and bump tag with -2, -3, ... suffix
+        $baseTag = $packTarget
+        $suffix = 2
+        while(Test-Path ('genes\' + $packTarget.Replace('/', '\'))){
+            $packTarget = $baseTag + '-' + $suffix
+            $suffix++
+        }
+        if($packTarget -ne $baseTag){
+            Write-Warning ('  Existing tag ' + $baseTag + ' found, using new tag: ' + $packTarget)
+        }
         Write-Information ('  Target: ' + $packTarget)
 
         $packTargetPath = 'genes\' + $packTarget.Replace('/', '\\')
@@ -90,7 +101,7 @@ $keys | ForEach-Object {
         $genesetJsonPath = Join-Path $geneSetPath "geneset.json"
         if((Test-Path $genesetJsonPath -PathType Leaf) -ne $true){
             Write-Information ('  Creating geneset: ' + $packTarget)
-            & eryph-packer geneset init $packTarget --public --workdir genes
+            & eryph-packer geneset init $packTarget --public --workdir genes | Out-Host
             Write-Host '  OK Geneset created' -ForegroundColor Green
         } else {
             Write-Host '  OK Geneset already exists (geneset.json found)' -ForegroundColor Green
@@ -100,14 +111,14 @@ $keys | ForEach-Object {
         $genesetTagJsonPath = Join-Path $packTargetPath "geneset-tag.json"
         if((Test-Path $genesetTagJsonPath -PathType Leaf) -ne $true){
             Write-Information ('  Creating geneset tag: ' + $packTarget)
-            & eryph-packer geneset-tag init $packTarget  --workdir genes
+            & eryph-packer geneset-tag init $packTarget  --workdir genes | Out-Host
             Write-Host '  OK Geneset tag created' -ForegroundColor Green
         } else {
             Write-Host '  OK Geneset tag already exists (geneset-tag.json found)' -ForegroundColor Green
         }
 
         Write-Information 'Step 4: Adding VM to geneset...'
-        & eryph-packer geneset-tag add-vm $packTarget $buildGeneset  --workdir genes
+        & eryph-packer geneset-tag add-vm $packTarget $buildGeneset  --workdir genes | Out-Host
         Write-Host '  OK VM added to geneset' -ForegroundColor Green
 
         # Add rearm-eval fodder for Windows VMs
@@ -122,7 +133,7 @@ $keys | ForEach-Object {
         }
         
         Write-Information 'Step 6: Packing geneset...'
-        & eryph-packer geneset-tag pack $packTarget --workdir genes
+        & eryph-packer geneset-tag pack $packTarget --workdir genes | Out-Host
         Write-Host '  OK Geneset packed successfully' -ForegroundColor Green
         
         Write-Information 'Step 7: Staging for git...'
@@ -138,7 +149,7 @@ $keys | ForEach-Object {
         $updatePath = "genes\"+ $updateTarget.Replace('/', '\\')
         if((Test-Path $updatePath) -ne $true){
             Write-Information ('  Creating update target: ' + $updateTarget)
-            & eryph-packer geneset-tag init $updateTarget --workdir genes
+            & eryph-packer geneset-tag init $updateTarget --workdir genes | Out-Host
         }
         Write-Information ('  Updating reference from ' + $packTarget + ' to ' + $updateTarget)
         & eryph-packer geneset-tag ref $updateTarget $packTarget  --workdir genes | Out-Null

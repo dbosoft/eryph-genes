@@ -36,7 +36,10 @@ if((Test-Path $resolvedBuildPath -PathType Container) -eq $false)
 Write-Information ('Build path: ' + $resolvedBuildPath)
 
 Write-Information 'Resolving genepool path...'
-$GenepoolPath = .\.\Resolve-GenepoolPath.ps1
+# Run in a child process so that powershell-yaml's YamlDotNet 13 (loaded by ConvertFrom-Yaml
+# in Resolve-GenepoolPath.ps1) does not pin the parent AppDomain and conflict with
+# YamlDotNet 16 required later by Eryph cmdlets (New-Catlet).
+$GenepoolPath = powershell -NoProfile -File .\Resolve-GenepoolPath.ps1
 Write-Information ('Genepool path: ' + $GenepoolPath)
 
 Write-Information 'Locating build script...'
@@ -92,12 +95,12 @@ $keys | ForEach-Object {
         Set-Location $PSScriptRoot
         Write-Information 'Step 2: Packing build output...'
         $packed = .\.\pack_build.ps1 $TemplateName -BuildPath $resolvedBuildPath -RemoveBuild
-        Write-Host ('  OK Packed to: ' + $packed) -ForegroundColor Green
-        
-        # Construct geneset name directly instead of parsing from output
-        $day = Get-Date -Format 'yyyyMMdd'
-        $importSpec = $importSpecs.$TemplateName
-        $genesetName = $importSpec.pack.replace('{date}', $day)
+        # pack_build.ps1 may emit progress before the final tag; the resolved tag is always the last item
+        $genesetName = @($packed) | Select-Object -Last 1
+        if([string]::IsNullOrWhiteSpace($genesetName)){
+            throw "pack_build.ps1 did not return a resolved pack target"
+        }
+        Write-Host ('  OK Packed to: ' + $genesetName) -ForegroundColor Green
         
         Set-Location $PSScriptRoot
         Write-Information 'Step 3: Running validation tests...'
