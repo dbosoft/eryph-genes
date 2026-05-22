@@ -1,19 +1,9 @@
 # Validate-BaseOS.Tests.ps1
-# Pester tests that run INSIDE Windows base catlets to validate the base OS image
-# These tests verify sysprep, cloudbase-init, and general OS configuration
+# Pester tests that run INSIDE Windows base catlets to validate the base OS image.
+# Verify sysprep, eryph guest services (egs-service — the cloudbase-init
+# replacement, see eryph/guest-services), and general OS configuration.
 
 Describe "Windows Base Catlet Validation" {
-    
-    BeforeAll {
-        # Import CloudInit analyzer module if available
-        $analyzerPath = Join-Path $PSScriptRoot "CloudInit.Analyzers.psm1"
-        if (Test-Path $analyzerPath) {
-            Import-Module $analyzerPath -Force
-            Write-Host "CloudInit analyzer module loaded" -ForegroundColor Green
-        } else {
-            Write-Host "CloudInit analyzer module not found at: $analyzerPath" -ForegroundColor Yellow
-        }
-    }
     
     Context "Sysprep Validation" {
         It "Should have sysprep log file" {
@@ -44,74 +34,49 @@ Describe "Windows Base Catlet Validation" {
         }
     }
     
-    Context "Cloudbase-Init Validation" {
-        It "Should have cloudbase-init installed" {
-            $cloudbasePath = "C:\Program Files\Cloudbase Solutions\Cloudbase-Init"
-            Test-Path $cloudbasePath | Should -Be $true -Because "Cloudbase-init should be installed"
+    Context "Eryph Guest Services Validation" {
+        # eryph/guest-services ships egs-service as the cloudbase-init
+        # replacement on Windows catlets. Provisioning runs at first boot;
+        # state.json + per-script logs only appear on a deployed catlet
+        # (those checks belong in Test-PackedBaseCatlet.Tests.ps1).
+        # At base-OS validation time we verify the install, the service,
+        # and that the Application event log is clean.
+
+        It "Should have egs-service installed" {
+            Test-Path "C:\Program Files\eryph\guest-services\bin\egs-service.exe" |
+                Should -Be $true -Because "egs-service is the base-catlet provisioning agent"
         }
-        
-        It "Should have cloudbase-init log file" {
-            $logPaths = @(
-                "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log",
-                "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init-unattend.log"
-            )
-            $foundLog = $false
-            foreach ($logPath in $logPaths) {
-                if (Test-Path $logPath) {
-                    $foundLog = $true
-                    break
-                }
-            }
-            $foundLog | Should -Be $true -Because "Cloudbase-init should create log files"
+
+        It "Should have eryph-guest-services Windows service" {
+            $svc = Get-Service -Name eryph-guest-services -ErrorAction SilentlyContinue
+            $svc | Should -Not -BeNullOrEmpty
+            $svc.StartType | Should -Be 'Automatic'
+            # Status can be Running OR Stopped at base-catlet time — sysprep'd
+            # images typically capture the service before it has anything to do.
+            $svc.Status | Should -BeIn @('Running', 'Stopped')
         }
-        
-        It "Should have cloudbase-init service (stopped after completion is OK)" {
-            $service = Get-Service -Name cloudbase-init -ErrorAction SilentlyContinue
-            $service | Should -Not -BeNullOrEmpty
-            # Service typically stops after successful completion - this is expected
-            $service.Status | Should -BeIn @("Running", "Stopped") -Because "Cloudbase-init can be running or stopped (normal after completion)"
+
+        It "Should have written entries to the Application event log under source 'egs-service'" {
+            # Packer's chef run starts the service (sc.exe start), so an
+            # initial startup entry is present even on a base image with no
+            # user-data.
+            $events = Get-WinEvent -LogName Application -ProviderName 'egs-service' `
+                                    -MaxEvents 50 -ErrorAction SilentlyContinue
+            $events | Should -Not -BeNullOrEmpty -Because "egs-service emits a startup entry on first run"
         }
-        
-        It "Should have completed cloudbase-init execution without errors" {
-            $service = Get-Service -Name cloudbase-init -ErrorAction SilentlyContinue
-            
-            # Wait for cloudbase-init to complete if it's still running
-            if ($service -and $service.Status -eq "Running") {
-                Write-Host "Cloudbase-init is still running, waiting for completion..."
-                $timeout = 300  # 5 minutes
-                $waited = 0
-                while ($service.Status -eq "Running" -and $waited -lt $timeout) {
-                    Start-Sleep -Seconds 10
-                    $waited += 10
-                    $service.Refresh()
-                    Write-Host "Waited $waited seconds for cloudbase-init to complete..."
-                }
-                
-                if ($service.Status -eq "Running") {
-                    Write-Warning "Cloudbase-init still running after $timeout seconds, proceeding with log check"
-                } else {
-                    Write-Host "Cloudbase-init completed after $waited seconds"
-                }
-            }
-            
-            # Always check logs regardless of service status
-            $logPath = "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log"
-            if (Test-Path $logPath) {
-                $log = Get-Content $logPath -Raw
-                
-                # Check for errors using the analyzer
-                $analyzerPath = Join-Path $PSScriptRoot "CloudInit.Analyzers.psm1"
-                if (Test-Path $analyzerPath) {
-                    Import-Module $analyzerPath -Force
-                    $errors = $log | Get-CloudbaseInitUserDataError
-                    $errors | Should -BeNullOrEmpty -Because "Should not have user data errors"
-                }
-                
-                # Check for critical errors
-                $log | Should -Not -Match "CRITICAL|ERROR.*Failed" -Because "Should not have critical errors"
-            } else {
-                Set-ItResult -Skipped -Because "Cloudbase-init log not found (may have been cleaned up)"
-            }
+
+        It "Should have no Error-level events from egs-service" {
+            $errors = Get-WinEvent -LogName Application -ProviderName 'egs-service' `
+                                    -ErrorAction SilentlyContinue |
+                      Where-Object { $_.LevelDisplayName -eq 'Error' }
+            $errors | Should -BeNullOrEmpty -Because "base catlet must have no egs errors"
+        }
+
+        It "Should NOT have cloudbase-init installed (replaced by egs-service)" {
+            Test-Path "C:\Program Files\Cloudbase Solutions\Cloudbase-Init" |
+                Should -Be $false -Because "the eryph-genes Windows pipeline no longer installs cbi"
+            Get-Service -Name cloudbase-init -ErrorAction SilentlyContinue |
+                Should -BeNullOrEmpty
         }
     }
     

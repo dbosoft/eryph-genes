@@ -106,29 +106,54 @@ function Invoke-EGSCommand {
     }
 }
 
+function Get-EgsServiceLog {
+    <#
+    .SYNOPSIS
+    Retrieves egs-service Application event log entries from a Windows VM.
+
+    .DESCRIPTION
+    eryph-guest-services (the cloudbase-init replacement) logs to the Windows
+    Application event log under source 'egs-service' — there is no equivalent
+    of cbi's text log file. This helper runs Get-WinEvent inside the VM via
+    egs-tool and returns the entries as a single string (TimeCreated, Level,
+    Message per line) for compatibility with callers that expect a log blob.
+
+    .PARAMETER VmId
+    The VM ID to get logs from
+
+    .PARAMETER MaxEvents
+    Maximum number of events to return. Default 200.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$VmId,
+
+        [int]$MaxEvents = 200
+    )
+
+    $remote = @"
+Get-WinEvent -LogName Application -ProviderName 'egs-service' -MaxEvents $MaxEvents -ErrorAction SilentlyContinue |
+    Sort-Object TimeCreated |
+    ForEach-Object { '{0:s} {1,-12} {2}' -f `$_.TimeCreated, `$_.LevelDisplayName, (`$_.Message -replace '\s+', ' ') }
+"@
+    return Invoke-EGSCommand -VmId $VmId `
+        -Command "powershell -NoProfile -NonInteractive -Command `"$remote`""
+}
+
 function Get-CloudbaseInitLog {
     <#
     .SYNOPSIS
-    Retrieves the cloudbase-init log from a Windows VM
-    
-    .PARAMETER VmId
-    The VM ID to get logs from
+    Deprecated: cloudbase-init has been replaced by egs-service on Windows
+    catlets built by hyperv-boxes. Forwards to Get-EgsServiceLog so existing
+    callers keep working; new code should call Get-EgsServiceLog directly.
     #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$VmId
     )
-    
-    $logPath = "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log"
-    $log = Invoke-EGSCommand -VmId $VmId -Command "type `"$logPath`" 2>nul"
-    
-    if (-not $log) {
-        # Try alternative location
-        $altPath = "C:\ProgramData\cloudbase-init\log\cloudbase-init.log"
-        $log = Invoke-EGSCommand -VmId $VmId -Command "type `"$altPath`" 2>nul"
-    }
-    
-    return $log
+
+    Write-Warning "Get-CloudbaseInitLog is deprecated — Windows catlets no longer ship cbi. Returning egs-service event log instead."
+    return Get-EgsServiceLog -VmId $VmId
 }
 
 function Get-CloudInitLog {
@@ -151,25 +176,30 @@ function Get-CloudInitLog {
 function Get-CloudInitLogs {
     <#
     .SYNOPSIS
-    Retrieves cloud-init/cloudbase-init logs based on OS type
-    
+    Retrieves provisioning-agent logs based on OS type.
+
+    Windows → Get-EgsServiceLog (Application event log, source 'egs-service').
+    Linux   → Get-CloudInitLog (/var/log/cloud-init.log — cloud-init is still
+              the Linux provisioning agent; eryph-guest-services on Linux runs
+              alongside it, not as a replacement).
+
     .PARAMETER VmId
     The VM ID to get logs from
-    
+
     .PARAMETER OsType
     The OS type (windows or linux)
     #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$VmId,
-        
+
         [Parameter(Mandatory=$true)]
         [ValidateSet("windows", "linux")]
         [string]$OsType
     )
-    
+
     if ($OsType -eq "windows") {
-        return Get-CloudbaseInitLog -VmId $VmId
+        return Get-EgsServiceLog -VmId $VmId
     }
     else {
         return Get-CloudInitLog -VmId $VmId

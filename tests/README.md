@@ -34,11 +34,10 @@ eryph-genes/
 │   ├── Test-PackedBaseCatlet.Tests.ps1   # Host-side Pester tests
 │   └── tests/base-catlet/
 │       ├── windows/
-│       │   ├── Validate-BaseOS.Tests.ps1  # In-VM validation (Windows)
-│       │   ├── CloudInit.Analyzers.psm1   # Cloudbase-init log parser
+│       │   ├── Validate-BaseOS.Tests.ps1  # In-VM validation (Windows; egs-service)
 │       │   └── runner.ps1                 # Test runner script
 │       └── linux/
-│           ├── Validate-BaseOS.Tests.ps1  # In-VM validation (Linux)
+│           ├── Validate-BaseOS.Tests.ps1  # In-VM validation (Linux; cloud-init)
 │           └── runner.ps1                 # Test runner script
 │
 ├── FODDER GENE TESTING
@@ -169,9 +168,10 @@ Describe "My Gene Validation" {
 - `Copy-PesterToVM`: Deploy Pester module
 
 ### Log Retrieval
-- `Get-CloudbaseInitLog`: Windows cloud-init logs
-- `Get-CloudInitLog`: Linux cloud-init logs
-- `Get-CloudInitLogs`: OS-agnostic log retrieval
+- `Get-EgsServiceLog`: Windows — eryph-guest-services event log (`Application` / source `egs-service`)
+- `Get-CloudInitLog`: Linux — `/var/log/cloud-init.log`
+- `Get-CloudInitLogs`: OS-agnostic dispatcher (Windows → egs-service event log; Linux → cloud-init)
+- `Get-CloudbaseInitLog`: **Deprecated** — Windows catlets no longer ship cbi. Forwards to `Get-EgsServiceLog` with a warning.
 
 ## Test Execution Flow
 
@@ -222,9 +222,8 @@ This is **normal** - the service stops after successful completion.
 
 1. **Always run as Administrator** - Required for egs-tool
 2. **Use -KeepVM for debugging** - Preserves VM for investigation
-3. **Check logs on failure** - Cloud-init logs contain valuable info
+3. **Check logs on failure** - On Windows, use `Get-EgsServiceLog` (Application event log); on Linux, `Get-CloudInitLog` (cloud-init.log)
 4. **Test incrementally** - Start with simple validations
-5. **Use CloudInit analyzer** - For parsing cloudbase-init errors
 
 ## Performance Tips
 
