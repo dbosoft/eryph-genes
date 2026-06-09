@@ -74,7 +74,7 @@ When a Dev Drive is detected (automatically or via `dev_drive_letter`), the gene
 
 ## Usage Examples
 
-> EGS ships in every base catlet and SSH keys are auto-exchanged via `egs-tool update-ssh-config`, so the examples below do not include `gene:dbosoft/guest-services:win-install`.
+> EGS ships in every base catlet and SSH keys are auto-exchanged when you run `egs-tool add-ssh-config <vmid>`, so the examples below do not include `gene:dbosoft/guest-services:win-install`.
 
 ### Basic Installation
 

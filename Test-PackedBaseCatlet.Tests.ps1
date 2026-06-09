@@ -74,6 +74,79 @@ Describe "Packed Base Catlet: $Geneset" -Tag "BaseCatlet" {
         }
     }
     
+    Context "Provisioning State (egs-service)" -Skip:($OsType -ne 'windows') {
+        # egs-service writes C:\ProgramData\eryph\provisioning\state.json at the
+        # end of first-boot provisioning. This is the authoritative signal that
+        # the embedded provisioning agent ran successfully and replaced
+        # cloudbase-init. Each completed handler also drops a semaphore under
+        # provisioning\instance\<id>\sem\.
+        BeforeAll {
+            # EGS SSH does not run commands through a cmd.exe wrapper, so shell
+            # builtins like `type` fail silently. Invoke powershell.exe directly
+            # and avoid inner quotes - PowerShell forwards bare tokens cleanly
+            # through `& ssh.exe -C $Command`.
+            # Poll: EGS reports "available" as soon as the SSH server is up,
+            # which can be before egs-service finishes the Final stage. Wait
+            # until state.json shows Final completed, with a hard timeout.
+            $readCmd = 'powershell -NoProfile -Command Get-Content -LiteralPath C:\ProgramData\eryph\provisioning\state.json -Raw'
+            $deadline = (Get-Date).AddSeconds(120)
+            $script:provisioningState = $null
+            $script:provisioningStateRaw = $null
+            while ((Get-Date) -lt $deadline) {
+                $stateRaw = Invoke-EGSCommand -VmId $vmId -Command $readCmd
+                $script:provisioningStateRaw = ($stateRaw -join "`n").Trim()
+                if ($provisioningStateRaw) {
+                    try {
+                        $script:provisioningState = $provisioningStateRaw | ConvertFrom-Json
+                    } catch {
+                        $script:provisioningState = $null
+                    }
+                    if ($provisioningState -and (@($provisioningState.completedStages) -contains 'Final')) {
+                        break
+                    }
+                }
+                Start-Sleep -Seconds 2
+            }
+        }
+
+        It "Should have provisioning state.json on disk" {
+            $provisioningStateRaw | Should -Not -BeNullOrEmpty -Because "egs-service writes state.json at end of provisioning"
+        }
+
+        It "Should have completed all four provisioning stages" {
+            # Force array shape — ConvertFrom-Json yields a string when a JSON
+            # array has a single element, and `Should -Contain` unrolls the
+            # pipeline in ways that break across both cases. The -contains
+            # operator on a forced array is consistent.
+            $stages = @($provisioningState.completedStages)
+            ($stages -contains 'Local')   | Should -BeTrue -Because "Local stage must complete"
+            ($stages -contains 'Network') | Should -BeTrue -Because "Network stage must complete"
+            ($stages -contains 'Config')  | Should -BeTrue -Because "Config stage must complete"
+            ($stages -contains 'Final')   | Should -BeTrue -Because "Final stage must complete"
+        }
+
+        It "Should have completed at least one provisioning handler" {
+            $provisioningState.completedHandlers.Count | Should -BeGreaterThan 0
+        }
+
+        It "Should report no failed handlers / errors in state.json" {
+            # state.json is success-only on a clean run. Any property whose name
+            # starts with failed/error/failure appearing means egs-service began
+            # reporting failures.
+            $failureProps = $provisioningState.PSObject.Properties.Name |
+                Where-Object { $_ -match '^(failed|errors?|failures?)' }
+            $failureProps | Should -BeNullOrEmpty
+        }
+
+        It "Should have eryph-guest-services in Running state" {
+            # The EGS interactive shell is PowerShell, where `sc` is an alias for Set-Content
+            # (so `sc query …` silently produces no output). Query the service as a cmdlet via
+            # powershell.exe instead, following the bare-token convention used above.
+            $svcOutput = Invoke-EGSCommand -VmId $vmId -Command 'powershell -NoProfile -Command Get-Service eryph-guest-services'
+            ($svcOutput -join "`n") | Should -Match 'Running'
+        }
+    }
+
     Context "In-VM Validation Tests" {
         BeforeAll {
             # Check if validation tests exist for this OS

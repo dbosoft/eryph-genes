@@ -1,40 +1,30 @@
-# Eryph Specialist Reasoning - test-include-win-std
+# Eryph Specialist Reasoning — test-ubuntu-2404-fodder catlet
 
-## Schema Sections Read
+## Schema sections read (verified, not from memory)
 
-- `docs/catlet-schema-v1.0.json` lines 1-100 (top-level properties, parent pattern)
-- `docs/catlet-schema-v1.0.json` lines 386-535 (fodder definitions, fodder_other)
-- `.claude/debug/eryph-specialist-reasoning.md` (previous run for include-url pattern)
+- `name` (lines 21-28): string, pattern `^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*$`. Verified `test-ubuntu-2404-fodder` matches — hyphens are in the character class `[\\.-]`.
+- `parent` (lines 61-68): string, `dbosoft/ubuntu-24.04/20260526` matches the `org/geneset/tag` pattern.
+- `fodder` array items (`fodder_reference`, lines 402-431): only `source` is required. Pattern confirms `gene:org/geneset/tag:fodder-name` form. Both gene references in the orchestrator match this pattern.
+- No `variables`, `cpu`, or `memory` overrides — not needed for a pure reproduction test.
 
-## Key Schema Findings
+## Format choices
 
-### parent format (line 65)
-Pattern: `^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*/[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*(/[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*)?$`
-- `dbosoft/winsrv2022-standard/20260518` matches - valid
-- NO `gene:` prefix
+- Exact catlet structure from the orchestrator: `name`, `parent`, `fodder` (two `source`-only gene references).
+- Name changed to `test-ubuntu-2404-fodder` per request.
+- No inline content added — the point is to reproduce the gene-sourced fodder failure, not introduce new content.
+- EGS is bundled in every official dbosoft base catlet; no guest-services fodder needed.
 
-### fodder_other (lines 478-535)
-- Required: `name` + `content`
-- `type`: enum including `include-url`
-- `content`: plain `string` (not a block scalar, single-line URL is fine)
-- `filename`: NOT required for include-url (only shellscript on Windows)
+## Validation checklist
 
-## Design Decisions
+- [x] Schema re-read for every property used
+- [x] Variables: not present (none needed)
+- [x] No `content:` blocks present (no indentation rules apply)
+- [x] No tabs
+- [x] No `gene:dbosoft/guest-services:*-install`
+- [x] No `source: inline`
+- [x] `source:` values match `fodder_reference` pattern
 
-1. **parent**: `dbosoft/winsrv2022-standard/20260518` - full standard (not core), specific tag
-2. **No EGS gene**: EGS is embedded in the 20260518 base image - no guest-services fodder needed
-3. **Include fodder**: `type: include-url`, content = raw URL string (single line, no block scalar)
-4. **No variables**: nothing parameterised
+## Assumption vs verified
 
-## Validation Checklist
-
-- [x] name: test-include-win-std - matches pattern, valid
-- [x] parent: dbosoft/winsrv2022-standard/20260518 - no gene: prefix, matches pattern
-- [x] fodder_other: name + content both present (required fields satisfied)
-- [x] type: include-url - valid enum value
-- [x] content: plain string URL - correct type per schema
-- [x] No filename (not required for include-url)
-- [x] No variables (none needed)
-- [x] No EGS gene reference (correctly omitted per user requirement)
-- [x] No tabs, 2 spaces per level
-- [x] No high-risk patterns
+- `gene:dbosoft/powershell:linux-install` and `gene:dbosoft/starter-food:linux-starter` — patterns taken directly from the orchestrator YAML provided by the user; not independently verified against genepool, but reproduction fidelity is the goal.
+- EGS bundled: consistent with system prompt rule and prior session reasoning.

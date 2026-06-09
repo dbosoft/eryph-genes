@@ -238,7 +238,7 @@ fodder:
 - source: dbosoft/winget                                  # WRONG: missing gene: prefix (only for parent!)
 ```
 
-Note: `gene:dbosoft/guest-services:*-install` is NOT a valid fodder reference for test catlets — EGS ships in every base catlet and SSH keys are auto-exchanged via `egs-tool update-ssh-config`.
+Note: `gene:dbosoft/guest-services:*-install` is NOT a valid fodder reference for test catlets — EGS ships in every base catlet and SSH keys are auto-exchanged when you run `egs-tool add-ssh-config <vmid>`.
 
 Example usage:
 ```yaml
@@ -342,7 +342,7 @@ Get-Content test.yaml | New-Catlet -Variables @{sshkey = "ssh-rsa..."} -SkipVari
 name: test-windows-feature
 parent: dbosoft/winsrv2022-standard/starter
 
-# EGS ships in the base catlet; SSH keys are auto-exchanged via `egs-tool update-ssh-config`.
+# EGS ships in the base catlet; SSH keys are auto-exchanged when you run `egs-tool add-ssh-config <vmid>`.
 fodder:
 # Install Windows feature (example: IIS)
 - name: feature-install
@@ -366,7 +366,7 @@ fodder:
 name: test-linux-package
 parent: dbosoft/ubuntu-22.04/starter
 
-# EGS ships in the base catlet; SSH keys are auto-exchanged via `egs-tool update-ssh-config`.
+# EGS ships in the base catlet; SSH keys are auto-exchanged when you run `egs-tool add-ssh-config <vmid>`.
 fodder:
 # Install and configure packages
 - name: package-setup

@@ -6,7 +6,13 @@ param (
     
     [Parameter(Mandatory=$true)]
     [string]
-    $BuildPath
+    $BuildPath,
+
+    # Number of times to automatically retry the Packer/VM build step (Step 1)
+    # if it fails. 0 (default) preserves the previous behavior (no retry).
+    [Parameter(Mandatory=$False)]
+    [int]
+    $VmBuildRetries = 0
 )
 $InformationPreference= 'Continue'
 $ErrorActionPreference = 'Stop'
@@ -89,7 +95,20 @@ $keys | ForEach-Object {
 
     try{
         Write-Information 'Step 1: Building template with Packer...'
-        & $BuildScript -Filter $TemplateName
+        $vmBuildAttempt = 0
+        while ($true) {
+            try {
+                & $BuildScript -Filter $TemplateName
+                break
+            } catch {
+                if ($vmBuildAttempt -ge $VmBuildRetries) {
+                    throw
+                }
+                $vmBuildAttempt++
+                Write-Host ('  ! Packer build failed (attempt ' + $vmBuildAttempt + ' of ' + ($VmBuildRetries + 1) + '): ' + $_) -ForegroundColor Yellow
+                Write-Host ('  Retrying Packer build (' + $vmBuildAttempt + '/' + $VmBuildRetries + ')...') -ForegroundColor Yellow
+            }
+        }
         Write-Host '  OK Packer build completed' -ForegroundColor Green
         
         Set-Location $PSScriptRoot

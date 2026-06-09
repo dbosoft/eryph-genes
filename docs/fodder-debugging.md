@@ -186,8 +186,8 @@ When using the eryph multi-agent system, this debugging methodology applies:
 - Should recognize SSH timeout as likely cloud-init failure, not network issue
 - Should return to creation agent when content errors occur, not try IP-based debugging
 
-### Execution Agents
-- PowerShell/EGS executors should provide raw output for proper interpretation
+### Execution Agent
+- The eryph-powershell-executor (PowerShell + EGS/SSH) should provide raw output for proper interpretation
 - Should not attempt to interpret cloud-init related failures
 - Should escalate systematic connectivity failures to Main Claude
 

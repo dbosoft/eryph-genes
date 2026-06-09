@@ -58,15 +58,26 @@ $keys | ForEach-Object {
     Write-Host "----------------------------------------" -ForegroundColor Magenta
     
     Write-Information 'Step 1: Locating build output...'
-    $buildGeneset = Join-Path $resolvedBuildPath -ChildPath ($TemplateName + '-stage1\' + $TemplateName)
+    # Two possible layouts under <template>-stage1, both consumed by
+    # `eryph-packer geneset-tag add-vm` (>= v0.6.0):
+    #   * cloud-image flow (new): catlet.yaml + metadata.json + <hypervisor>/<arch>/<disk>
+    #     directly in the stage1 dir. add-vm reads catlet.yaml as the source of
+    #     truth and scans the arch sub-dirs for volumes (vhdx -> hyperv, qcow2 -> kvm).
+    #   * Packer flow (legacy): an exported Hyper-V VM in a <template> sub-folder.
+    $stage1Path   = Join-Path $resolvedBuildPath -ChildPath ($TemplateName + '-stage1')
+    $nestedExport = Join-Path $stage1Path $TemplateName
 
-    if((Test-Path $buildGeneset -PathType Container) -eq $false)
-    {        
+    if(Test-Path (Join-Path $stage1Path 'catlet.yaml') -PathType Leaf){
+        $buildGeneset = $stage1Path
+    }elseif(Test-Path $nestedExport -PathType Container){
+        $buildGeneset = $nestedExport
+    }else{
+        $msg = 'Could not find build output: no catlet.yaml in ' + $stage1Path + ' and no VM export at ' + $nestedExport
         if($IgnoreMissing){
-            Write-Warning ('Could not find build VM in path: ' + $buildGeneset)
+            Write-Warning $msg
             return
         }else{
-            Write-Error ('Could not find build VM in path: ' + $buildGeneset)
+            Write-Error $msg
             exit
         }
     }
@@ -120,6 +131,30 @@ $keys | ForEach-Object {
         Write-Information 'Step 4: Adding VM to geneset...'
         & eryph-packer geneset-tag add-vm $packTarget $buildGeneset  --workdir genes | Out-Host
         Write-Host '  OK VM added to geneset' -ForegroundColor Green
+
+        # TEMP: drop unsupported-architecture volumes (e.g. kvm/amd64 qcow2) before packing.
+        # The cloud-image build emits volumes for every architecture, but eryph-zero
+        # rejects a geneset whose (content-hashed, immutable) manifest references an
+        # unsupported architecture. We filter the working .pack/packable.json that
+        # `pack` consumes, so the qcow2 is never packed and the manifest only lists
+        # supported (hyperv/* and "any") architectures. The build output keeps the
+        # qcow2 for future use; this is only about what gets packed for now.
+        $packableJsonPath = Join-Path $packTargetPath '.pack\packable.json'
+        if (Test-Path $packableJsonPath -PathType Leaf) {
+            $packable = @(Get-Content $packableJsonPath -Raw | ConvertFrom-Json)
+            $supported = @($packable | Where-Object {
+                ($null -eq $_.architecture) -or
+                ($_.architecture -eq 'any') -or
+                ($_.architecture -like 'hyperv/*')
+            })
+            $dropped = @($packable | Where-Object { $supported -notcontains $_ })
+            if ($dropped.Count -gt 0) {
+                Write-Information ('  Excluding unsupported-architecture volumes from pack: ' +
+                    (($dropped | ForEach-Object { "$($_.geneName) ($($_.architecture))" }) -join ', ')) -InformationAction Continue
+                $supported | ConvertTo-Json -Depth 10 -AsArray | Set-Content -Path $packableJsonPath -NoNewline
+                Write-Host '  OK Filtered packable volumes to supported architectures' -ForegroundColor Green
+            }
+        }
 
         # Add rearm-eval fodder for Windows VMs
         if ($importSpec.osType -eq "windows") {

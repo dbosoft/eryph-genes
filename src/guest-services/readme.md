@@ -2,7 +2,7 @@
 
 This geneset contains fodder for installing the eryph guest services.
 
-> **You usually do not need this gene.** EGS is pre-installed in every official `dbosoft` base catlet (Windows and Linux), and SSH keys are auto-exchanged via `egs-tool update-ssh-config`. Only add this fodder when building a custom base catlet that does not already include EGS.
+> **You usually do not need this gene.** EGS is pre-installed in every official `dbosoft` base catlet (Windows and Linux), and SSH keys are auto-exchanged when you run `egs-tool add-ssh-config <vmid>`. Only add this fodder when building a custom base catlet that does not already include EGS.
 
 ## Usage
 
@@ -41,8 +41,8 @@ The Windows and the Linux gene support the same variables. The following variabl
   will be injected into the catlet. The public key for the eryph guest services is configured independently
   of the authorized keys for the normal SSH server.
 
-  This variable is optional. SSH keys are normally auto-exchanged via `egs-tool update-ssh-config` after
-  the catlet has been created, so you only need to set this when you want to inject a specific key at build time.
+  This variable is optional. SSH keys are normally auto-exchanged when you run `egs-tool add-ssh-config <vmid>`
+  after the catlet has been created, so you only need to set this when you want to inject a specific key at build time.
 
 
 ---

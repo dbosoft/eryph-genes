@@ -204,15 +204,14 @@ Describe "My Gene Validation" {
 # Manually check EGS status
 egs-tool get-status <VmId>
 
-# Re-register VM
+# Re-register VM (writes the .hyper-v.alt alias + exchanges keys; no separate update step)
 egs-tool add-ssh-config <VmId>
-egs-tool update-ssh-config
 ```
 
 #### Tests Not Found in VM
 ```powershell
 # Check files were copied
-C:/Windows/System32/OpenSSH/ssh.exe <VmId>.hyper-v.alt -C "ls C:\Tests"
+ssh <VmId>.hyper-v.alt -C "ls C:\Tests"
 ```
 
 #### Cloudbase-init Service Stopped

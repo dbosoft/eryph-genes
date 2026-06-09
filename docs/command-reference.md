@@ -51,17 +51,17 @@ powershell -Command "Get-Service eryph-zero"
 
 ## EGS (Eryph Guest Services) Commands
 
-### Setup Sequence (EXACT ORDER)
+### Setup Sequence
 ```bash
-# 1. Register VM (use VmId from New-Catlet output)
+# 1. Register VM (use VmId from New-Catlet output). This writes the .hyper-v.alt SSH
+#    alias and exchanges keys via Hyper-V KVP — there is NO separate update step.
 egs-tool add-ssh-config <VmId>
 
-# 2. Update SSH configuration for all VMs
-egs-tool update-ssh-config
-
-# 3. Check if guest services ready
+# 2. Check if guest services ready
 egs-tool get-status <VmId>
 ```
+
+`egs-tool` is self-documenting — run `egs-tool --help` (or `egs-tool catlet --help`) for the full command set.
 
 ### File Operations
 ```bash
@@ -74,41 +74,45 @@ egs-tool download-file <VmId> <remote-path> <local-path>
 
 ## SSH Commands
 
-### CRITICAL: Always Use Full Path
-```bash
-# CORRECT - Windows OpenSSH
-C:/Windows/System32/OpenSSH/ssh.exe <VmId>.hyper-v.alt -C "command"
-C:/Windows/System32/OpenSSH/ssh.exe <catlet-id>.eryph.alt -C "command"
+Use a plain `ssh` — the egs-tool config routes the `.hyper-v.alt` alias through a ProxyCommand, so
+no full OpenSSH path is needed.
 
-# WRONG - Never use bare ssh
-ssh <catlet-id>  # DON'T DO THIS!
+```bash
+ssh <VmId>.hyper-v.alt -C "command"
 ```
 
 ### Windows VM Testing
 ```bash
-# Check cloudbase-init logs
-C:/Windows/System32/OpenSSH/ssh.exe <VmId>.hyper-v.alt -C "powershell Get-Content 'C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log' -Tail 20"
+# Read a provisioning/service log
+ssh <VmId>.hyper-v.alt -C "powershell Get-Content 'C:\path\to\log' -Tail 20"
 
 # Check Windows features
-C:/Windows/System32/OpenSSH/ssh.exe <VmId>.hyper-v.alt -C "powershell Get-WindowsFeature Web-Server"
+ssh <VmId>.hyper-v.alt -C "powershell Get-WindowsFeature Web-Server"
 
 # Test port connectivity
-C:/Windows/System32/OpenSSH/ssh.exe <VmId>.hyper-v.alt -C "powershell Test-NetConnection localhost -Port 8080"
+ssh <VmId>.hyper-v.alt -C "powershell Test-NetConnection localhost -Port 8080"
 ```
 
 ### Linux VM Testing
 ```bash
 # Check cloud-init status
-C:/Windows/System32/OpenSSH/ssh.exe <VmId>.hyper-v.alt -C "sudo cloud-init status"
+ssh <VmId>.hyper-v.alt -C "sudo cloud-init status"
 
 # View cloud-init logs
-C:/Windows/System32/OpenSSH/ssh.exe <VmId>.hyper-v.alt -C "sudo tail -50 /var/log/cloud-init-output.log"
+ssh <VmId>.hyper-v.alt -C "sudo tail -50 /var/log/cloud-init-output.log"
 
 # Check installed packages
-C:/Windows/System32/OpenSSH/ssh.exe <VmId>.hyper-v.alt -C "dpkg -l | grep nginx"
+ssh <VmId>.hyper-v.alt -C "dpkg -l | grep nginx"
 
 # Test service
-C:/Windows/System32/OpenSSH/ssh.exe <VmId>.hyper-v.alt -C "curl -s http://localhost"
+ssh <VmId>.hyper-v.alt -C "curl -s http://localhost"
+```
+
+### Off-host access (over eryph)
+From a machine that is **not** the Hyper-V host, use the catlet tunnel (catlet ID, not VmId):
+```bash
+egs-tool catlet add-ssh-config <catlet-id> --add-key
+ssh <catlet-id>.eryph.alt -C "command"
 ```
 
 ## Build Commands
@@ -150,8 +154,8 @@ pnpm publish-genesets
 **Fix:** Add `-SkipVariablesPrompt` to New-Catlet/Test-Catlet
 
 ### SSH Connection Failed
-**Cause:** Wrong SSH path
-**Fix:** Use `C:/Windows/System32/OpenSSH/ssh.exe`
+**Cause:** EGS not configured yet, or the guest agent isn't ready
+**Fix:** Run `egs-tool add-ssh-config <VmId>`, confirm `egs-tool get-status <VmId>` returns "available", then `ssh <VmId>.hyper-v.alt`
 
 ### Gene Not Found
 **Cause:** Not in local genepool

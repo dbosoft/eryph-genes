@@ -68,5 +68,5 @@ Get-Content 'C:\OrchestrationTest\verification.txt'
 ## Multi-Agent Testing Flow
 1. **eryph-specialist**: Creates test catlet YAML
 2. **eryph-powershell-executor**: Deploys catlet with variables
-3. **egs-executor**: Sets up SSH access and runs verification commands
+3. **eryph-powershell-executor**: Sets up SSH access (`setup-egs`) and runs verification commands (`run-ssh`)
 4. **gene-maintainer**: Interprets any errors and suggests fixes

@@ -88,14 +88,11 @@ function Invoke-EGSCommand {
         [int]$TimeoutSeconds = 120
     )
     
-    $sshPath = "C:/Windows/System32/OpenSSH/ssh.exe"
-    if (-not (Test-Path $sshPath)) {
-        throw "Windows OpenSSH not found at: $sshPath"
-    }
-    
     try {
-        # Use timeout to prevent hanging (host key verification already disabled by EGS)
-        $result = & $sshPath -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 `
+        # Use timeout to prevent hanging (host key verification already disabled by EGS).
+        # The egs-tool SSH config routes the .hyper-v.alt alias through a ProxyCommand,
+        # so a plain `ssh` works regardless of which OpenSSH build is first on PATH.
+        $result = & ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 `
             "$VmId.hyper-v.alt" -C $Command 2>$null
         
         return $result
@@ -352,8 +349,10 @@ function Initialize-EGSConnection {
     
     try {
         Write-Information ('Setting up EGS connection for VM: ' + $VmId) -InformationAction Continue
-        
-        # Step 1: Add SSH config for this specific VM
+
+        # Register the SSH config for this VM. egs-tool writes the .hyper-v.alt
+        # alias (ProxyCommand over the Hyper-V socket) and exchanges keys via KVP;
+        # the former separate `update-ssh-config` step is no longer required.
         Write-Verbose "Running: egs-tool add-ssh-config $VmId"
         $addResult = & egs-tool add-ssh-config $VmId 2>&1
         if ($LASTEXITCODE -ne 0) {
@@ -362,17 +361,7 @@ function Initialize-EGSConnection {
             return $false
         }
         Write-Verbose "SSH config added: $addResult"
-        
-        # Step 2: Update SSH config for all VMs
-        Write-Verbose "Running: egs-tool update-ssh-config"
-        $updateResult = & egs-tool update-ssh-config 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "egs-tool update-ssh-config failed with exit code: $LASTEXITCODE"
-            Write-Warning "Output: $updateResult"
-            return $false
-        }
-        Write-Verbose "SSH config updated: $updateResult"
-        
+
         return $true
     }
     catch {

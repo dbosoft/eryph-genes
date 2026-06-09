@@ -17,3 +17,4 @@ dist
 
 # Claude settings
 .claude/
+diagnostics/

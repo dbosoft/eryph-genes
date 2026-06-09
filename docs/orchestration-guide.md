@@ -22,14 +22,11 @@ You orchestrate but NEVER execute or generate eryph commands. Only identify oper
 ### Execution Agents
 
 #### eryph-powershell-executor
-- **Does:** Executes eryph PowerShell commands with -Verbose
-- **Returns:** Raw output, operation IDs for polling
-- **Use for:** Catlet operations (New-Catlet, Test-Catlet, Start-Catlet, etc.)
+- **Does:** Executes eryph PowerShell commands (with -Verbose) **and** all EGS/SSH commands
+- **Returns:** Raw output, operation IDs for polling, raw output from VMs
+- **Use for:** Catlet operations (New-Catlet, Test-Catlet, Start-Catlet, etc.); SSH access, file operations, VM testing
 
-#### egs-executor
-- **Does:** Executes EGS and SSH commands
-- **Returns:** Raw output from VMs
-- **Use for:** SSH access, file operations, VM testing
+> There is no separate egs-executor — EGS/SSH operations run through this same executor.
 
 ## Recognition Patterns
 
@@ -40,8 +37,8 @@ You orchestrate but NEVER execute or generate eryph commands. Only identify oper
 | "deploy the catlet" | `deploy-catlet` | eryph-powershell | yaml_path, variables (optional) |
 | "test the config" | `test-catlet` | eryph-powershell | yaml_path, variables (optional) |
 | "start it" | `start-catlet` | eryph-powershell | name |
-| "SSH into it" | `setup-egs` then `run-ssh` | egs | vmid, command |
-| "check logs" | `run-ssh` | egs | vmid, "powershell Get-Content 'path\to\log'" |
+| "SSH into it" | `setup-egs` then `run-ssh` | eryph-powershell | vmid, command |
+| "check logs" | `run-ssh` | eryph-powershell | vmid, "powershell Get-Content 'path\to\log'" |
 | "build the gene" | `build-gene` | build | genename |
 | "copy to genepool" | `copy-to-genepool` | build | genename, path |
 | "poll operation" | `poll-operation` | eryph-powershell | operation_id |
@@ -102,10 +99,10 @@ When YAML contains variables, you can:
 - `check-service` - Check eryph-zero service
 - `resolve-genepool-path` - Get genepool path
 
-### EGS Executor Operations
-- `setup-egs` - Configure SSH access
-- `test-egs` - Check if ready
-- `run-ssh` - Execute ANY command in VM (you compose the command)
+### EGS / SSH Operations (also eryph-powershell-executor)
+- `setup-egs` - Configure SSH access (`egs-tool add-ssh-config <vmid>`; no separate update step)
+- `test-egs` - Check if ready (`egs-tool get-status <vmid>`)
+- `run-ssh` - Execute ANY command in VM via `ssh <vmid>.hyper-v.alt` (you compose the command)
 - `upload-file` - Copy file to VM
 - `download-file` - Copy file from VM
 
@@ -160,8 +157,8 @@ When user requests complex functionality, **NEVER** create elaborate fodder on f
 
 2. **Deploy and verify SSH access works:**
    - Request `deploy-catlet` → eryph-powershell-executor
-   - Request `setup-egs` → egs-executor  
-   - Request `run-ssh` with simple command → egs-executor
+   - Request `setup-egs` → eryph-powershell-executor
+   - Request `run-ssh` with simple command → eryph-powershell-executor
    - **MUST succeed before proceeding**
 
 #### Phase 2: Incremental Addition
@@ -283,7 +280,7 @@ After gene-maintainer creates gene:
 2. Request `copy-to-genepool` operation (build-executor)
 3. Use specialist for test catlet
 4. Request `deploy-catlet` operation (eryph-powershell-executor)
-5. Request `setup-egs` then `run-ssh` with your test commands (egs-executor)
+5. Request `setup-egs` then `run-ssh` with your test commands (eryph-powershell-executor)
 
 ## Critical Don'ts
 
@@ -300,12 +297,12 @@ After gene-maintainer creates gene:
 ### Eryph Task? → Four Steps
 1. Recognize task type
 2. Call creation agent for artifact
-3. Choose correct executor (PowerShell vs EGS)
+3. Choose correct executor (eryph-powershell-executor for catlet + EGS/SSH; build-executor for builds)
 4. Call executor with operation type
 
 ### Choosing Executor
 - **Catlet operations** (New, Test, Start, Stop) → eryph-powershell-executor
-- **VM access** (SSH with ANY command, file transfer) → egs-executor
+- **VM access** (SSH with ANY command, file transfer) → eryph-powershell-executor
 - **Build operations** (pnpm, turbo, xcopy) → build-executor
 - **Operation polling** → eryph-powershell-executor
 
