@@ -40,9 +40,7 @@ Create minimal test catlet:
 ```yaml
 name: debug-connectivity-test
 parent: dbosoft/ubuntu-24.04/starter  # or appropriate base
-
-fodder:
-  - source: gene:dbosoft/guest-services:linux-install  # or win-install
+# EGS ships in the base catlet; no fodder required for SSH connectivity.
 ```
 
 **Test Requirements:**
@@ -59,7 +57,7 @@ name: debug-increment-test
 parent: dbosoft/ubuntu-24.04/starter
 
 fodder:
-  - source: gene:dbosoft/guest-services:linux-install
+  # EGS ships in the base catlet; SSH keys are auto-exchanged via egs-tool.
   # Add your next fodder item here - only ONE at a time
   - name: test-item-1
     type: cloud-config
@@ -188,8 +186,8 @@ When using the eryph multi-agent system, this debugging methodology applies:
 - Should recognize SSH timeout as likely cloud-init failure, not network issue
 - Should return to creation agent when content errors occur, not try IP-based debugging
 
-### Execution Agents
-- PowerShell/EGS executors should provide raw output for proper interpretation
+### Execution Agent
+- The eryph-powershell-executor (PowerShell + EGS/SSH) should provide raw output for proper interpretation
 - Should not attempt to interpret cloud-init related failures
 - Should escalate systematic connectivity failures to Main Claude
 

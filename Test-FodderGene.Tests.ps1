@@ -92,19 +92,14 @@ Describe "Fodder Gene: $Gene" -Tag "FodderGene" {
                 $timestamp = Get-Date -Format "HHmmss"
                 $script:catletName = "test-$($geneName)-$($fullBaseOS -replace '/', '-')-$timestamp" -replace '[^a-zA-Z0-9\-]', ''
                 
-                # Determine EGS fodder
-                $egsFodder = if ($osType -eq "windows") { "win-install" } else { "linux-install" }
-                
-                # Build fodder configuration
-                $fodderLines = @(
-                    "  - source: gene:dbosoft/guest-services:$egsFodder"
-                )
-                
+                # EGS ships in the base catlet; SSH keys are auto-exchanged via egs-tool
+                $fodderLines = @()
+
                 # Add PowerShell Core for Linux if needed
                 if ($osType -eq "linux") {
                     $fodderLines += "  - source: gene:dbosoft/powershell:linux-install"
                 }
-                
+
                 # Add the gene being tested
                 $fodderLines += "  - source: gene:$fullGene"
                 

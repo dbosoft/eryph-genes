@@ -117,20 +117,43 @@ else {
     New-Item -ItemType Directory -Path $gensetTargetPath -Force | Out-Null
 }
 
-# Copy ONLY the contents of .packed folder to genepool
+# Copy the contents of .packed to the genepool, skipping gene folders for
+# unsupported architectures.
+#
+# A packed geneset contains volume genes for every built architecture (e.g.
+# hyperv/amd64 AND kvm/amd64). eryph-zero (the local genepool used for these
+# tests) only supports the host's Hyper-V architecture and rejects the whole
+# genepool as invalid when an unsupported-architecture gene is materialized.
+# In the normal download flow this never happens: the geneset-tag.json manifest
+# lists all architectures, but the client only fetches genes for supported
+# architectures. We mirror that here — geneset-tag.json is content-hashed and
+# is copied verbatim (never modified); we just omit the gene folders whose
+# architecture is neither "any" nor a hyperv variant.
 Write-Information "Copying .packed contents from: $GenesetPackagedPath" -InformationAction Continue
 Write-Information "Copying to: $gensetTargetPath" -InformationAction Continue
 
-# List what we're copying
-$packedFiles = Get-ChildItem "$GenesetPackagedPath\*"
-Write-Information "Found $($packedFiles.Count) files in .packed: $($packedFiles.Name -join ', ')" -InformationAction Continue
+function Test-LocalGenepoolArch([string]$arch) {
+    return ($arch -eq 'any') -or ($arch -like 'hyperv/*')
+}
 
-# Copy ONLY the .packed folder contents
-Copy-Item "$GenesetPackagedPath\*" -Destination $gensetTargetPath -Force -Recurse
+# Gene folders are named by content hash. Identify those belonging to
+# unsupported architectures so they can be excluded from the copy.
+$manifest = Get-Content (Join-Path $GenesetPackagedPath 'geneset-tag.json') -Raw | ConvertFrom-Json
+$skippedVolumes = @($manifest.volumes | Where-Object { -not (Test-LocalGenepoolArch $_.arch) })
+$skippedHashes  = @($skippedVolumes | ForEach-Object { $_.hash -replace '^sha256:', '' })
+if ($skippedVolumes.Count -gt 0) {
+    Write-Information ("Skipping unsupported-architecture genes: " +
+        (($skippedVolumes | ForEach-Object { "$($_.name) ($($_.arch))" }) -join ', ')) -InformationAction Continue
+}
+
+# Copy every .packed entry except the unsupported-architecture gene folders.
+Get-ChildItem $GenesetPackagedPath -Force |
+    Where-Object { $skippedHashes -notcontains $_.Name } |
+    ForEach-Object { Copy-Item $_.FullName -Destination $gensetTargetPath -Recurse -Force }
 
 # Verify copy worked
 $copiedFiles = Get-ChildItem $gensetTargetPath
-Write-Information "Copied $($copiedFiles.Count) files to genepool: $($copiedFiles.Name -join ', ')" -InformationAction Continue
+Write-Information "Copied $($copiedFiles.Count) entries to genepool: $($copiedFiles.Name -join ', ')" -InformationAction Continue
 
 if ($copiedFiles.Count -eq 0) {
     Write-Error "Failed to copy .packed contents to genepool"
@@ -160,7 +183,7 @@ if ($OsType -eq "windows") {
     # Add PowerShell Core for Linux
     $catletYaml += @"
 
-  - source: gene:dbosoft/powershell/next:linux-install
+  - source: gene:dbosoft/powershell:linux-install
   - source: gene:dbosoft/starter-food:linux-starter
 "@
 }

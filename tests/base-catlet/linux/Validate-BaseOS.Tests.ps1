@@ -81,37 +81,114 @@ Describe "Linux Base Catlet Validation" {
             # Should be using NoCloud or similar for Hyper-V
             $datasource | Should -Match "nocloud|none" -Because "Should use appropriate datasource for Hyper-V"
         }
+
+        It "Should have eryph datasource_list with NoCloud and Azure enabled" {
+            # eryph base catlets deploy the hyper-v image; its 91-eryph.cfg pins
+            # datasource_list to [ NoCloud, Azure, None ] - NoCloud for eryph
+            # provisioning and Azure because these images are also published to
+            # Azure. Same drop-in for Ubuntu and RHEL (target = hyper-v).
+            # Join before matching: a multi-line array piped to Should -Match
+            # only tests the first element.
+            $cfg = (Invoke-LinuxCommand "cat /etc/cloud/cloud.cfg.d/91-eryph.cfg 2>/dev/null") -join "`n"
+            $cfg | Should -Match "datasource_list" -Because "eryph ships a datasource_list drop-in"
+            $cfg | Should -Match "NoCloud" -Because "NoCloud is the eryph provisioning datasource"
+            $cfg | Should -Match "Azure" -Because "Azure datasource must be enabled (images are Azure-published)"
+        }
+
+        It "Should have Azure Linux Agent installed (Ubuntu)" -Skip:$script:isRHEL {
+            # walinuxagent enables the Azure platform target (images are published
+            # to Azure as well as eryph/Hyper-V).
+            $waAgent = (Invoke-LinuxCommand "dpkg-query -s walinuxagent 2>/dev/null") -join "`n"
+            $waAgent | Should -Match "install ok installed" -Because "walinuxagent provides Azure platform support"
+        }
+
+        It "Should have Azure Linux Agent installed (RHEL)" -Skip:$script:isUbuntu {
+            # WALinuxAgent (RPM) enables the Azure platform target.
+            $waAgent = (Invoke-LinuxCommand "rpm -q WALinuxAgent 2>/dev/null") -join "`n"
+            $waAgent | Should -Match "WALinuxAgent-\d" -Because "WALinuxAgent provides Azure platform support"
+        }
     }
-    
+
+    Context "Azure Linux Agent (waagent) configuration and gating" {
+        # eryph base catlets ship walinuxagent so the same image also works when
+        # published to Azure. On eryph/Hyper-V the agent must NOT run - cloud-init
+        # (NoCloud) does all provisioning - so a systemd ExecCondition drop-in
+        # keys startup on the Azure DMI chassis asset tag. These checks mirror the
+        # best-practice checks in Microsoft's vmassist tool (Extensions.Enabled,
+        # AutoUpdate.Enabled) and add the eryph-specific gating that vmassist,
+        # being Azure-only, does not cover.
+        BeforeAll {
+            $script:waConf      = (Invoke-LinuxCommand "cat /etc/waagent.conf 2>/dev/null") -join "`n"
+            # Re-derive the agent unit at run time. $script:isUbuntu is set during
+            # Pester discovery and is NOT reliably available inside run-phase
+            # blocks (BeforeAll/It), so reading it here would silently fall through
+            # to the wrong branch. Detect from /etc/os-release instead.
+            $osr = (Invoke-LinuxCommand "cat /etc/os-release 2>/dev/null") -join "`n"
+            $script:waService   = if ($osr -imatch 'debian|ubuntu') { "walinuxagent.service" } else { "waagent.service" }
+            $script:dropIn      = "/etc/systemd/system/$($script:waService).d/10-azure-only.conf"
+            $script:azureTag    = "7783-7084-3265-9085-8269-3286-77"
+            # ExecCondition requires systemd >= 243 (Ubuntu all, AlmaLinux 9/10).
+            # On older systemd (AlmaLinux 8 = 239) the directive is ignored.
+            $verLine = @(Invoke-LinuxCommand "systemctl --version 2>/dev/null") | Select-Object -First 1
+            $script:systemdMajor = if ($verLine -match 'systemd\s+(\d+)') { [int]$Matches[1] } else { 0 }
+        }
+
+        It "Should set Extensions.Enabled=y (vmassist best practice)" {
+            $script:waConf | Should -Match "(?m)^\s*Extensions\.Enabled\s*=\s*y\b" -Because "extensions must stay enabled for the Azure platform"
+        }
+
+        It "Should set AutoUpdate.Enabled=y so the agent self-updates (vmassist best practice)" {
+            $script:waConf | Should -Match "(?m)^\s*AutoUpdate\.Enabled\s*=\s*y\b" -Because "agent auto-update must be on"
+        }
+
+        It "Should let cloud-init own provisioning (Provisioning.Agent=auto)" {
+            $script:waConf | Should -Match "(?m)^\s*Provisioning\.Agent\s*=\s*auto\b" -Because "cloud-init handles provisioning side-by-side with the agent"
+        }
+
+        It "Should silence agent console logging off-Azure (Logs.Console=n)" {
+            $script:waConf | Should -Match "(?m)^\s*Logs\.Console\s*=\s*n\b" -Because "off-Azure the agent would otherwise spam the serial console with wireserver retries"
+        }
+
+        It "Should install the Azure-only startup gate drop-in" {
+            ((Invoke-LinuxCommand "test -f $script:dropIn && echo OK") -join "").Trim() | Should -Be "OK" -Because "the agent must be gated to Azure-only"
+            $content = (Invoke-LinuxCommand "cat $script:dropIn 2>/dev/null") -join "`n"
+            $content | Should -Match "ExecCondition" -Because "the gate uses ExecCondition"
+            $content | Should -Match ([regex]::Escape($script:azureTag)) -Because "the gate keys on the Azure chassis asset tag"
+        }
+
+        It "Should be enabled so it autostarts when on Azure" {
+            (Invoke-LinuxCommand "systemctl is-enabled $script:waService 2>/dev/null") -join "`n" |
+                Should -Match "enabled" -Because "the agent must autostart on the Azure platform (the gate handles non-Azure)"
+        }
+
+        It "Should NOT be running on eryph/Hyper-V (gate active)" {
+            if ($script:systemdMajor -lt 243) {
+                Set-ItResult -Skipped -Because "systemd $($script:systemdMajor) ignores ExecCondition; Logs.Console=n keeps this case quiet"
+                return
+            }
+            # The test host is eryph/Hyper-V, not Azure: the asset tag must differ
+            # and the ExecCondition gate must keep the unit inactive.
+            (Invoke-LinuxCommand "cat /sys/class/dmi/id/chassis_asset_tag 2>/dev/null").Trim() |
+                Should -Not -Be $script:azureTag -Because "the test host is eryph/Hyper-V, not Azure"
+            (Invoke-LinuxCommand "systemctl is-active $script:waService 2>/dev/null") -join "`n" |
+                Should -Not -Match "^active" -Because "ExecCondition must keep the agent stopped off-Azure"
+        }
+    }
+
     Context "User Configuration" {
         It "Should not have packer user" {
             $passwdContent = Get-Content /etc/passwd -Raw
             $passwdContent | Should -Not -Match "^packer:" -Because "Packer user should be removed"
         }
         
-        It "Should have packer user disabled" -Skip:$script:isUbuntu {
-            # Ubuntu builds with ubuntu user, so packer user doesn't exist - skip this test
-            # RHEL-based systems use packer user that should be disabled/locked
-            $packerUserInfo = Invoke-LinuxCommand "getent passwd packer"
-            $packerUserInfo | Should -Not -BeNullOrEmpty -Because "Packer user should exist but be disabled"
+        # Note: the cloud-image-customize build (used for all current Linux base
+        # catlets, Ubuntu and RHEL alike) never creates a 'packer' build user -
+        # that only existed in the old packer/kickstart flow. "Should not have
+        # packer user" above is the correct expectation; the former
+        # "Should have packer user disabled" / "packer home directory" checks
+        # assumed a packer user exists and have been removed.
 
-            # Check if account is locked
-            $packerStatus = Invoke-LinuxCommand "passwd -S packer 2>/dev/null || chage -l packer"
-            $packerStatus | Should -Match "locked|disabled|NP" -Because "Packer user should be locked/disabled"
-        }
 
-        It "Should not have packer home directory" -Skip:$script:isUbuntu {
-            # Ubuntu uses ubuntu user for building, so no packer home directory
-            # RHEL-based systems may have packer home but it should be clean
-            if (Test-Path "/home/packer") {
-                $packerContents = Get-ChildItem -Path "/home/packer" -Force -ErrorAction SilentlyContinue
-                $packagingFiles = @($packerContents | Where-Object { $_.Name -match "install|setup|build" })
-                $packagingFiles.Count | Should -BeLessOrEqual 2 -Because "Packer home should not have build artifacts"
-            } else {
-                $true | Should -Be $true -Because "No packer home directory (acceptable)"
-            }
-        }
-        
         It "Should have admin user configured" {
             $passwdContent = Get-Content /etc/passwd -Raw
             $passwdContent | Should -Match "admin:" -Because "Admin user should exist"
@@ -130,11 +207,15 @@ Describe "Linux Base Catlet Validation" {
     
     Context "SSH Configuration" {
         It "Should have SSH server installed (Ubuntu)" -Skip:$script:isRHEL {
-            # Ubuntu/Debian: Check for openssh-server package and ssh service
-            $sshPackage = Invoke-LinuxCommand "dpkg -l openssh-server"
+            # Ubuntu/Debian: Check for openssh-server package and ssh service.
+            # Join the command output into one string before matching - piping a
+            # multi-line array straight to `Should -Match` only tests the first
+            # element (the `dpkg -l` header), so the package row is never seen.
+            # Same idiom already used for the network/swap checks below.
+            $sshPackage = (Invoke-LinuxCommand "dpkg -l openssh-server") -join "`n"
             $sshPackage | Should -Match "openssh-server" -Because "OpenSSH server package should be installed"
 
-            $sshStatus = Invoke-LinuxCommand "systemctl status ssh"
+            $sshStatus = (Invoke-LinuxCommand "systemctl status ssh") -join "`n"
             $sshStatus | Should -Not -Match "not found" -Because "SSH service should exist"
         }
 

@@ -135,6 +135,19 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/build-geneset
 
+  src/oraclelinux-9:
+    dependencies:
+      '@dbosoft/linux-starter-catlet':
+        specifier: workspace:*
+        version: link:../linux-starter-catlet
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
   src/powershell:
     dependencies:
       '@dbosoft/powershell-default':

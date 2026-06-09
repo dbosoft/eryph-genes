@@ -9,8 +9,6 @@ drives:
   mutation: merge
 
 variables:
-- name: egskey
-  secret: true
 - name: vs_edition
   required: false
   value: "Community"
@@ -37,12 +35,6 @@ variables:
   value: false
 
 fodder:
-  # Add guest services for SSH access
-  - source: gene:dbosoft/guest-services:win-install
-    variables:
-      - name: sshPublicKey
-        value: '{{ egskey }}'
-  
   # Install Visual Studio Community
   - name: install-vs-community
     type: shellscript

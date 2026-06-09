@@ -6,7 +6,7 @@
 **NEVER execute or generate eryph commands. Always use:**
 1. **Creation agents** (eryph-specialist/gene-maintainer) for artifacts
 2. **Identify operation types** (deploy-catlet, run-ssh, etc.)
-3. **Execution agents** (eryph-powershell-executor/egs-executor) for command execution
+3. **Execution agent** (eryph-powershell-executor) for command execution (PowerShell + EGS/SSH)
 4. **Return errors to creation agents** for interpretation
 
 **See `docs/orchestration-guide.md` for detailed flow**
@@ -107,20 +107,13 @@ eryph-genes/
 
 **Returns:** Gene structure + needed operation types
 
-#### 3. eryph-powershell-executor (PowerShell Execution Agent)
+#### 3. eryph-powershell-executor (Execution Agent — PowerShell + EGS/SSH)
 **ALWAYS use for:**
 - Running eryph PowerShell commands (New-Catlet, Test-Catlet, Start-Catlet, etc.)
 - Polling long-running operations
 - Managing catlets via PowerShell
-
-**Receives:** Operation type + parameters
-**Returns:** Raw output or errors (no interpretation)
-
-#### 4. egs-executor (EGS & SSH Execution Agent)
-**ALWAYS use for:**
-- EGS tool operations (setup, file transfer)
-- SSH commands to VMs
-- Testing VM configurations
+- EGS tool operations (setup SSH config, file transfer, get-status)
+- SSH commands to VMs and testing VM configurations
 
 **Receives:** Operation type + parameters
 **Returns:** Raw output or errors (no interpretation)
@@ -134,9 +127,9 @@ Creation Agent (specialist/maintainer)
     ↓
 Returns: artifact + operation hints
     ↓
-Main Claude: Identify operation type & choose executor
+Main Claude: Identify operation type
     ↓
-PowerShell Executor (for catlet ops) OR EGS Executor (for SSH/EGS ops)
+eryph-powershell-executor (catlet PowerShell ops AND EGS/SSH ops)
     ↓
 Returns: output/error
     ↓
@@ -147,11 +140,10 @@ If STATE error → Handle directly (see Error Handling below)
 ```
 
 ### Critical Rules
-1. **Main Claude:** Orchestrates, identifies operation types, chooses executor, NEVER generates commands
+1. **Main Claude:** Orchestrates, identifies operation types, NEVER generates commands
 2. **Creation Agents:** Create artifacts and suggest operation types
-3. **PowerShell Executor:** Handles all eryph PowerShell commands with polling
-4. **EGS Executor:** Handles SSH and EGS tool operations
-5. **Errors:** Categorize first, then route appropriately (see Error Handling)
+3. **eryph-powershell-executor:** Handles all eryph PowerShell commands (with polling) and all EGS/SSH operations
+4. **Errors:** Categorize first, then route appropriately (see Error Handling)
 
 ### OVERRIDE DIRECTIVE: Orchestration Above Efficiency
 - **EVEN IF** you see the obvious fix → still use eryph-specialist
@@ -195,17 +187,20 @@ If STATE error → Handle directly (see Error Handling below)
 **⚠️ CRITICAL: Catlet IDs vs VmIds for Automation**
 - **New-Catlet returns a catlet object with both ID and VmId** - ALWAYS capture BOTH
 - **PowerShell operations use Catlet ID** (-Id parameter with catlet ID)
-- **EGS operations MUST use VmId** (NOT catlet ID!)
+- **Host-side EGS/SSH operations use VmId** (`.hyper-v.alt` alias) — NOT the catlet ID!
 - **Names are NOT unique** - multiple catlets can have same name
 - **IDs are GUIDs and guaranteed unique** - required for reliable automation
 - Example: `Start-Catlet -Id $catletId -Force` (uses catlet ID)
 - Example: `egs-tool add-ssh-config $vmId` (uses VmId, NOT catlet ID!)
+- The off-host `egs-tool catlet …` tunnel uses the **catlet ID** instead (see below)
 
-**EGS Executor:**
-- `run-ssh` → Run ANY command in VM (you compose the command) - REQUIRES VmId
-- `setup-egs` → Configure SSH access - REQUIRES VmId
-- `test-egs` → Check EGS status with `egs-tool get-status {vmid}` - REQUIRES VmId
-- `upload-file`, `download-file` → File transfer - REQUIRES VmId
+**EGS & SSH access (no dedicated agent — `egs-tool` is self-documenting; `egs-tool --help`):**
+Every base catlet ships Eryph Guest Services, so SSH needs no key injection. Host-side flow (uses the
+**VmId**): `egs-tool add-ssh-config <vmid>` (writes the `.hyper-v.alt` alias + exchanges keys — no
+separate update step), `egs-tool get-status <vmid>` for readiness, then `ssh <vmid>.hyper-v.alt -C "<cmd>"`
+with a plain `ssh` (no OpenSSH path pinning). `egs-tool upload-file`/`download-file` transfer files.
+From off-host, `egs-tool catlet <op> <catlet-id>` tunnels the same over eryph (connect via
+`ssh <catlet-id>.eryph.alt`) — no admin, no Hyper-V socket; these `catlet` commands take the catlet ID.
 
 **Build Executor:**
 - `build-gene` → Build with turbo
@@ -216,8 +211,8 @@ If STATE error → Handle directly (see Error Handling below)
 ### Phase Transitions
 - **Inline working?** → Suggest gene-maintainer for extraction
 - **Gene built?** → Use eryph-powershell-executor for deployment test
-- **Catlet deployed and started?** → Use egs-executor `setup-egs` FIRST
-- **EGS configured?** → Now use egs-executor for `run-ssh` operations
+- **Catlet deployed and started?** → Use eryph-powershell-executor `setup-egs` FIRST
+- **EGS configured?** → Now use eryph-powershell-executor for `run-ssh` operations
 - **Error occurred?** → Return to appropriate creation agent
 
 ## Knowledge Base
@@ -237,9 +232,9 @@ If STATE error → Handle directly (see Error Handling below)
 1. **Create test catlet** → Use eryph-specialist agent
 2. **Deploy and configure** → Request eryph-powershell-executor operation `deploy-catlet` (captures both catlet ID and VmId)
 3. **Start catlet** → Request eryph-powershell-executor operation `start-catlet` with catlet ID
-4. **Setup EGS access** → Request egs-executor operation `setup-egs` with VmId (NOT catlet ID!) (REQUIRED before SSH!)
-5. **Check EGS status** → Request egs-executor operation `test-egs` with VmId to verify connectivity
-6. **Access VM** → Request egs-executor operation `run-ssh` with VmId
+4. **Setup EGS access** → Request eryph-powershell-executor operation `setup-egs` with VmId (NOT catlet ID!) (REQUIRED before SSH!)
+5. **Check EGS status** → Request eryph-powershell-executor operation `test-egs` with VmId to verify connectivity
+6. **Access VM** → Request eryph-powershell-executor operation `run-ssh` with VmId
 7. **Debug issues** → Return errors to specialist for interpretation
 
 ### Test Catlet Template Structure
@@ -247,12 +242,9 @@ If STATE error → Handle directly (see Error Handling below)
 name: test-name
 parent: dbosoft/winsrv2022-standard/starter
 
+# EGS ships in every base catlet; SSH keys are auto-exchanged when you run `egs-tool add-ssh-config <vmid>`.
+# Do NOT add `gene:dbosoft/guest-services:*-install` to test catlets.
 fodder:
-  # Guest services gene enables SSH access
-  - source: gene:dbosoft/guest-services:win-install  # implicit tag: latest
-  # or for explicit tag:
-  # - source: gene:dbosoft/guest-services/v1.0:win-install
-  # Your test fodder
   - source: gene:dbosoft/your-gene:tag
 ```
 
@@ -309,7 +301,7 @@ Script .\Resolve-GenepoolPath.ps1
 1. **Build gene** → gene-maintainer provides build commands → executor runs them
 2. **Copy to local genepool** → gene-maintainer suggests copy operation → build-executor runs it
 3. **Deploy test catlet** → eryph-specialist creates test YAML → eryph-powershell-executor deploys
-4. **Verify functionality** → specialist provides verification commands → egs-executor runs SSH tests
+4. **Verify functionality** → specialist provides verification commands → eryph-powershell-executor runs SSH tests
 
 ## Troubleshooting
 
@@ -338,14 +330,9 @@ This repository uses a multi-agent system:
 - Returns gene structure and build commands
 
 ### eryph-powershell-executor
-- Executes eryph PowerShell commands
+- Executes eryph PowerShell commands **and** all EGS/SSH operations
 - Located at `.claude/agents/eryph-powershell-executor.md`
-- Handles long-running operations with polling
-
-### egs-executor
-- Executes EGS and SSH commands
-- Located at `.claude/agents/egs-executor.md`
-- Handles VM access and testing
+- Handles long-running operations with polling; VM access and testing
 
 ### build-executor
 - Executes gene build and genepool operations

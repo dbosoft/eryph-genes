@@ -16,4 +16,5 @@ dist
 /genes/*/*/*-next
 
 # Claude settings
-.claude/settings.local.json
+.claude/
+diagnostics/

@@ -88,14 +88,11 @@ function Invoke-EGSCommand {
         [int]$TimeoutSeconds = 120
     )
     
-    $sshPath = "C:/Windows/System32/OpenSSH/ssh.exe"
-    if (-not (Test-Path $sshPath)) {
-        throw "Windows OpenSSH not found at: $sshPath"
-    }
-    
     try {
-        # Use timeout to prevent hanging (host key verification already disabled by EGS)
-        $result = & $sshPath -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 `
+        # Use timeout to prevent hanging (host key verification already disabled by EGS).
+        # The egs-tool SSH config routes the .hyper-v.alt alias through a ProxyCommand,
+        # so a plain `ssh` works regardless of which OpenSSH build is first on PATH.
+        $result = & ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 `
             "$VmId.hyper-v.alt" -C $Command 2>$null
         
         return $result
@@ -106,29 +103,54 @@ function Invoke-EGSCommand {
     }
 }
 
+function Get-EgsServiceLog {
+    <#
+    .SYNOPSIS
+    Retrieves egs-service Application event log entries from a Windows VM.
+
+    .DESCRIPTION
+    eryph-guest-services (the cloudbase-init replacement) logs to the Windows
+    Application event log under source 'egs-service' — there is no equivalent
+    of cbi's text log file. This helper runs Get-WinEvent inside the VM via
+    egs-tool and returns the entries as a single string (TimeCreated, Level,
+    Message per line) for compatibility with callers that expect a log blob.
+
+    .PARAMETER VmId
+    The VM ID to get logs from
+
+    .PARAMETER MaxEvents
+    Maximum number of events to return. Default 200.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$VmId,
+
+        [int]$MaxEvents = 200
+    )
+
+    $remote = @"
+Get-WinEvent -LogName Application -ProviderName 'egs-service' -MaxEvents $MaxEvents -ErrorAction SilentlyContinue |
+    Sort-Object TimeCreated |
+    ForEach-Object { '{0:s} {1,-12} {2}' -f `$_.TimeCreated, `$_.LevelDisplayName, (`$_.Message -replace '\s+', ' ') }
+"@
+    return Invoke-EGSCommand -VmId $VmId `
+        -Command "powershell -NoProfile -NonInteractive -Command `"$remote`""
+}
+
 function Get-CloudbaseInitLog {
     <#
     .SYNOPSIS
-    Retrieves the cloudbase-init log from a Windows VM
-    
-    .PARAMETER VmId
-    The VM ID to get logs from
+    Deprecated: cloudbase-init has been replaced by egs-service on Windows
+    catlets built by hyperv-boxes. Forwards to Get-EgsServiceLog so existing
+    callers keep working; new code should call Get-EgsServiceLog directly.
     #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$VmId
     )
-    
-    $logPath = "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log"
-    $log = Invoke-EGSCommand -VmId $VmId -Command "type `"$logPath`" 2>nul"
-    
-    if (-not $log) {
-        # Try alternative location
-        $altPath = "C:\ProgramData\cloudbase-init\log\cloudbase-init.log"
-        $log = Invoke-EGSCommand -VmId $VmId -Command "type `"$altPath`" 2>nul"
-    }
-    
-    return $log
+
+    Write-Warning "Get-CloudbaseInitLog is deprecated — Windows catlets no longer ship cbi. Returning egs-service event log instead."
+    return Get-EgsServiceLog -VmId $VmId
 }
 
 function Get-CloudInitLog {
@@ -151,25 +173,30 @@ function Get-CloudInitLog {
 function Get-CloudInitLogs {
     <#
     .SYNOPSIS
-    Retrieves cloud-init/cloudbase-init logs based on OS type
-    
+    Retrieves provisioning-agent logs based on OS type.
+
+    Windows → Get-EgsServiceLog (Application event log, source 'egs-service').
+    Linux   → Get-CloudInitLog (/var/log/cloud-init.log — cloud-init is still
+              the Linux provisioning agent; eryph-guest-services on Linux runs
+              alongside it, not as a replacement).
+
     .PARAMETER VmId
     The VM ID to get logs from
-    
+
     .PARAMETER OsType
     The OS type (windows or linux)
     #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$VmId,
-        
+
         [Parameter(Mandatory=$true)]
         [ValidateSet("windows", "linux")]
         [string]$OsType
     )
-    
+
     if ($OsType -eq "windows") {
-        return Get-CloudbaseInitLog -VmId $VmId
+        return Get-EgsServiceLog -VmId $VmId
     }
     else {
         return Get-CloudInitLog -VmId $VmId
@@ -322,8 +349,10 @@ function Initialize-EGSConnection {
     
     try {
         Write-Information ('Setting up EGS connection for VM: ' + $VmId) -InformationAction Continue
-        
-        # Step 1: Add SSH config for this specific VM
+
+        # Register the SSH config for this VM. egs-tool writes the .hyper-v.alt
+        # alias (ProxyCommand over the Hyper-V socket) and exchanges keys via KVP;
+        # the former separate `update-ssh-config` step is no longer required.
         Write-Verbose "Running: egs-tool add-ssh-config $VmId"
         $addResult = & egs-tool add-ssh-config $VmId 2>&1
         if ($LASTEXITCODE -ne 0) {
@@ -332,17 +361,7 @@ function Initialize-EGSConnection {
             return $false
         }
         Write-Verbose "SSH config added: $addResult"
-        
-        # Step 2: Update SSH config for all VMs
-        Write-Verbose "Running: egs-tool update-ssh-config"
-        $updateResult = & egs-tool update-ssh-config 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "egs-tool update-ssh-config failed with exit code: $LASTEXITCODE"
-            Write-Warning "Output: $updateResult"
-            return $false
-        }
-        Write-Verbose "SSH config updated: $updateResult"
-        
+
         return $true
     }
     catch {

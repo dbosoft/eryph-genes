@@ -6,7 +6,13 @@ param (
     
     [Parameter(Mandatory=$true)]
     [string]
-    $BuildPath
+    $BuildPath,
+
+    # Number of times to automatically retry the Packer/VM build step (Step 1)
+    # if it fails. 0 (default) preserves the previous behavior (no retry).
+    [Parameter(Mandatory=$False)]
+    [int]
+    $VmBuildRetries = 0
 )
 $InformationPreference= 'Continue'
 $ErrorActionPreference = 'Stop'
@@ -36,7 +42,10 @@ if((Test-Path $resolvedBuildPath -PathType Container) -eq $false)
 Write-Information ('Build path: ' + $resolvedBuildPath)
 
 Write-Information 'Resolving genepool path...'
-$GenepoolPath = .\.\Resolve-GenepoolPath.ps1
+# Run in a child process so that powershell-yaml's YamlDotNet 13 (loaded by ConvertFrom-Yaml
+# in Resolve-GenepoolPath.ps1) does not pin the parent AppDomain and conflict with
+# YamlDotNet 16 required later by Eryph cmdlets (New-Catlet).
+$GenepoolPath = powershell -NoProfile -File .\Resolve-GenepoolPath.ps1
 Write-Information ('Genepool path: ' + $GenepoolPath)
 
 Write-Information 'Locating build script...'
@@ -86,18 +95,31 @@ $keys | ForEach-Object {
 
     try{
         Write-Information 'Step 1: Building template with Packer...'
-        & $BuildScript -Filter $TemplateName
+        $vmBuildAttempt = 0
+        while ($true) {
+            try {
+                & $BuildScript -Filter $TemplateName
+                break
+            } catch {
+                if ($vmBuildAttempt -ge $VmBuildRetries) {
+                    throw
+                }
+                $vmBuildAttempt++
+                Write-Host ('  ! Packer build failed (attempt ' + $vmBuildAttempt + ' of ' + ($VmBuildRetries + 1) + '): ' + $_) -ForegroundColor Yellow
+                Write-Host ('  Retrying Packer build (' + $vmBuildAttempt + '/' + $VmBuildRetries + ')...') -ForegroundColor Yellow
+            }
+        }
         Write-Host '  OK Packer build completed' -ForegroundColor Green
         
         Set-Location $PSScriptRoot
         Write-Information 'Step 2: Packing build output...'
         $packed = .\.\pack_build.ps1 $TemplateName -BuildPath $resolvedBuildPath -RemoveBuild
-        Write-Host ('  OK Packed to: ' + $packed) -ForegroundColor Green
-        
-        # Construct geneset name directly instead of parsing from output
-        $day = Get-Date -Format 'yyyyMMdd'
-        $importSpec = $importSpecs.$TemplateName
-        $genesetName = $importSpec.pack.replace('{date}', $day)
+        # pack_build.ps1 may emit progress before the final tag; the resolved tag is always the last item
+        $genesetName = @($packed) | Select-Object -Last 1
+        if([string]::IsNullOrWhiteSpace($genesetName)){
+            throw "pack_build.ps1 did not return a resolved pack target"
+        }
+        Write-Host ('  OK Packed to: ' + $genesetName) -ForegroundColor Green
         
         Set-Location $PSScriptRoot
         Write-Information 'Step 3: Running validation tests...'

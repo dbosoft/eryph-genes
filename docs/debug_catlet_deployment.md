@@ -14,7 +14,7 @@ Returns: Catlet details including Id, VmId, Name, Status
 ```
 
 ### Step 2: Establish SSH Access
-**Use egs-executor agent:**
+**Use eryph-powershell-executor agent:**
 ```
 Operation: setup-egs
 Parameters: vmid (use VmId from Step 1, NOT catlet ID!)
@@ -29,7 +29,7 @@ Returns: "available" if successful
 
 #### Windows Catlets
 1. **Verify expected directories/files exist:**
-**Use egs-executor agent:**
+**Use eryph-powershell-executor agent:**
 ```
 Operation: run-ssh
 Parameters: 
@@ -39,7 +39,7 @@ Returns: True/False
 ```
 
 2. **If missing, check cloudbase-init service status:**
-**Use egs-executor agent:**
+**Use eryph-powershell-executor agent:**
 ```
 Operation: run-ssh
 Parameters:
@@ -52,7 +52,7 @@ Returns: Service status
 - Service not found = cloudbase-init not installed
 
 3. **Locate and examine cloudbase-init logs:**
-**Use egs-executor agent:**
+**Use eryph-powershell-executor agent:**
 ```
 # Check if log exists
 Operation: run-ssh
@@ -69,7 +69,7 @@ Parameters:
 
 #### Linux Catlets
 1. **Check cloud-init status:**
-**Use egs-executor agent:**
+**Use eryph-powershell-executor agent:**
 ```
 Operation: run-ssh
 Parameters:
@@ -78,7 +78,7 @@ Parameters:
 ```
 
 2. **Examine cloud-init logs:**
-**Use egs-executor agent:**
+**Use eryph-powershell-executor agent:**
 ```
 Operation: run-ssh
 Parameters:
@@ -113,7 +113,7 @@ Located at: `tests\base-catlet\windows\CloudInit.Analyzers.psm1`
 **Usage via agent orchestration:**
 
 1. **Upload the module to VM:**
-**Use egs-executor agent:**
+**Use eryph-powershell-executor agent:**
 ```
 Operation: upload-file
 Parameters:
@@ -123,7 +123,7 @@ Parameters:
 ```
 
 2. **Run the analyzer:**
-**Use egs-executor agent:**
+**Use eryph-powershell-executor agent:**
 ```
 Operation: run-ssh
 Parameters:

@@ -74,6 +74,8 @@ When a Dev Drive is detected (automatically or via `dev_drive_letter`), the gene
 
 ## Usage Examples
 
+> EGS ships in every base catlet and SSH keys are auto-exchanged when you run `egs-tool add-ssh-config <vmid>`, so the examples below do not include `gene:dbosoft/guest-services:win-install`.
+
 ### Basic Installation
 
 ```yaml
@@ -81,11 +83,6 @@ name: my-dev-machine
 parent: dbosoft/winsrv2022-standard/starter
 
 fodder:
-  - source: gene:dbosoft/guest-services:win-install
-    variables:
-      - name: sshPublicKey
-        value: '\{{ egskey }}'
-  
   - source: gene:dbosoft/vscode:win-vscode
 ```
 
@@ -95,16 +92,7 @@ fodder:
 name: python-dev-machine
 parent: dbosoft/winsrv2022-standard/starter
 
-variables:
-  - name: egskey
-    secret: true
-
 fodder:
-  - source: gene:dbosoft/guest-services:win-install
-    variables:
-      - name: sshPublicKey
-        value: '\{{ egskey }}'
-  
   - source: gene:dbosoft/vscode:win-vscode
     variables:
       - name: vscode_extensions
@@ -117,20 +105,11 @@ fodder:
 name: devdrive-vscode-machine
 parent: dbosoft/winsrv2022-standard/starter
 
-variables:
-  - name: egskey
-    secret: true
-
 drives:
   - name: devdrive
     size: 100 GB
 
 fodder:
-  - source: gene:dbosoft/guest-services:win-install
-    variables:
-      - name: sshPublicKey
-        value: '\{{ egskey }}'
-  
   - source: gene:dbosoft/windevdrive:configure
     variables:
       - name: devdrive_name
@@ -153,8 +132,6 @@ name: custom-vscode-machine
 parent: dbosoft/winsrv2022-standard/starter
 
 variables:
-  - name: egskey
-    secret: true
   - name: my_vscode_settings
     value: |
       {
@@ -165,11 +142,6 @@ variables:
       }
 
 fodder:
-  - source: gene:dbosoft/guest-services:win-install
-    variables:
-      - name: sshPublicKey
-        value: '\{{ egskey }}'
-  
   - source: gene:dbosoft/vscode:win-vscode
     variables:
       - name: vscode_settings_json

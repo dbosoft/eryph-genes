@@ -1,47 +1,30 @@
-# Eryph Specialist Reasoning - SAProuter Build Working Catlet
+# Eryph Specialist Reasoning — test-ubuntu-2404-fodder catlet
 
-## STEP 1: Schema Reading (MANDATORY)
-✓ Read catlet-schema-v1.0.json lines 1-618
-✓ Verified variables format: Array-of-objects (lines 140-147, 565-616)
-✓ Confirmed fodder structure: name + content for inline (lines 478-535)
-✓ No `source: inline` needed for inline fodder
+## Schema sections read (verified, not from memory)
 
-## STEP 2: Property Verification
-✓ Variables: Array format with name/value objects (NOT key-value pairs)
-✓ Fodder: Inline fodder needs name + type + content
-✓ Parent: Uses format without `gene:` prefix
-✓ Memory/CPU: Simple number format allowed
+- `name` (lines 21-28): string, pattern `^[a-zA-Z0-9]+([\\.-]?[a-zA-Z0-9]+)*$`. Verified `test-ubuntu-2404-fodder` matches — hyphens are in the character class `[\\.-]`.
+- `parent` (lines 61-68): string, `dbosoft/ubuntu-24.04/20260526` matches the `org/geneset/tag` pattern.
+- `fodder` array items (`fodder_reference`, lines 402-431): only `source` is required. Pattern confirms `gene:org/geneset/tag:fodder-name` form. Both gene references in the orchestrator match this pattern.
+- No `variables`, `cpu`, or `memory` overrides — not needed for a pure reproduction test.
 
-## STEP 3: SAProuter Requirements Analysis
-- User requested "working SAProuter build scripts incrementally"
-- Reference: T:\saprouter\saprouter-build\saprouter-build\ scripts (6 scripts)
-- PSE relative path corrections needed (SECUDIR relative paths)
-- Memory: 4GB, CPU: 2 (SAProuter needs more resources)
-- No Unicode characters - ASCII only
-- Keep EGS gene for SSH access
+## Format choices
 
-## STEP 4: SAProuter Build Scripts Design
-Based on typical SAP requirements and build processes:
+- Exact catlet structure from the orchestrator: `name`, `parent`, `fodder` (two `source`-only gene references).
+- Name changed to `test-ubuntu-2404-fodder` per request.
+- No inline content added — the point is to reproduce the gene-sourced fodder failure, not introduce new content.
+- EGS is bundled in every official dbosoft base catlet; no guest-services fodder needed.
 
-1. **Install-SAProuter.ps1** - Downloads and installs SAProuter binary
-2. **Configure-SAProuter.ps1** - Sets up configuration files and directories
-3. **Setup-PSE.ps1** - Creates PSE (Personal Security Environment) with relative paths
-4. **Configure-Routes.ps1** - Sets up routing table
-5. **Install-Service.ps1** - Installs as Windows service
-6. **Test-SAProuter.ps1** - Validates installation and connectivity
+## Validation checklist
 
-## STEP 5: YAML Generation Strategy
-- Parent: dbosoft/winsrv2022-standard/starter (Windows base)
-- EGS: gene:dbosoft/guest-services:win-install (automatic key mode)
-- Memory: 4096 (4GB), CPU: 2
-- All scripts as write_files in cloud-config
-- PSE corrections: Use relative paths with SECUDIR environment variable
-- ASCII only content (no Unicode characters)
+- [x] Schema re-read for every property used
+- [x] Variables: not present (none needed)
+- [x] No `content:` blocks present (no indentation rules apply)
+- [x] No tabs
+- [x] No `gene:dbosoft/guest-services:*-install`
+- [x] No `source: inline`
+- [x] `source:` values match `fodder_reference` pattern
 
-## STEP 6: Validation Checklist
-✓ Variables in array-of-objects format
-✓ Content after | properly indented (minimum 2 spaces from content:)
-✓ PowerShell here-strings maintain indentation
-✓ No tabs, only spaces
-✓ All fodder items have required name + type + content
-✓ No Unicode characters used
+## Assumption vs verified
+
+- `gene:dbosoft/powershell:linux-install` and `gene:dbosoft/starter-food:linux-starter` — patterns taken directly from the orchestrator YAML provided by the user; not independently verified against genepool, but reproduction fidelity is the goal.
+- EGS bundled: consistent with system prompt rule and prior session reasoning.
