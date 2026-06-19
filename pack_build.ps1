@@ -63,14 +63,20 @@ $keys | ForEach-Object {
     #   * cloud-image flow (new): catlet.yaml + metadata.json + <hypervisor>/<arch>/<disk>
     #     directly in the stage1 dir. add-vm reads catlet.yaml as the source of
     #     truth and scans the arch sub-dirs for volumes (vhdx -> hyperv, qcow2 -> kvm).
-    #   * Packer flow (legacy): an exported Hyper-V VM in a <template> sub-folder.
+    #   * Packer flow (legacy): an exported Hyper-V VM in a <template> sub-folder,
+    #     alongside vm.json + metadata.json written to the stage1 root by
+    #     catletlify.ps1. add-vm must be pointed at the stage1 root (not the
+    #     nested export folder): since eryph-packer >= v0.6.0 (#32) dropped the
+    #     parent-directory walk, it only searches downward, so vm.json/metadata.json
+    #     at the root are missed when targeting the sub-folder (yields an empty
+    #     catlet.yaml). Either layout therefore packs from $stage1Path.
     $stage1Path   = Join-Path $resolvedBuildPath -ChildPath ($TemplateName + '-stage1')
     $nestedExport = Join-Path $stage1Path $TemplateName
 
     if(Test-Path (Join-Path $stage1Path 'catlet.yaml') -PathType Leaf){
         $buildGeneset = $stage1Path
     }elseif(Test-Path $nestedExport -PathType Container){
-        $buildGeneset = $nestedExport
+        $buildGeneset = $stage1Path
     }else{
         $msg = 'Could not find build output: no catlet.yaml in ' + $stage1Path + ' and no VM export at ' + $nestedExport
         if($IgnoreMissing){
@@ -131,6 +137,25 @@ $keys | ForEach-Object {
         Write-Information 'Step 4: Adding VM to geneset...'
         & eryph-packer geneset-tag add-vm $packTarget $buildGeneset  --workdir genes | Out-Host
         Write-Host '  OK VM added to geneset' -ForegroundColor Green
+
+        # Sanity check: add-vm must have produced a catlet.yaml with real hardware
+        # config. If cpu/memory are missing, add-vm failed to read vm.json (or
+        # catlet.yaml) from $buildGeneset and emitted a near-empty config with only
+        # volume-scanned drives - the gene would be unusable. This guards against
+        # build-output/eryph-packer layout regressions (see #32 parent-walk removal).
+        $generatedCatlet = Join-Path $packTargetPath 'catlet.yaml'
+        if(Test-Path $generatedCatlet -PathType Leaf){
+            $catletText = Get-Content -Raw -Path $generatedCatlet
+            if($catletText -notmatch '(?m)^\s*cpu:' -or $catletText -notmatch '(?m)^\s*memory:'){
+                Write-Error ("Generated catlet.yaml is missing cpu/memory - add-vm did not pick up the VM config from '" +
+                    $buildGeneset + "'. Refusing to pack an empty gene. Generated file: " + $generatedCatlet)
+                exit 1
+            }
+            Write-Host '  OK catlet.yaml contains cpu/memory config' -ForegroundColor Green
+        }else{
+            Write-Error ('Expected generated catlet.yaml not found at: ' + $generatedCatlet)
+            exit 1
+        }
 
         # TEMP: drop unsupported-architecture volumes (e.g. kvm/amd64 qcow2) before packing.
         # The cloud-image build emits volumes for every architecture, but eryph-zero
