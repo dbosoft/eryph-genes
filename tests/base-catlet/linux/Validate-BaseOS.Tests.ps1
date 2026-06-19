@@ -258,6 +258,15 @@ Describe "Linux Base Catlet Validation" {
                 Set-ItResult -Skipped -Because "SSH config not found"
             }
         }
+
+        It "Should allow password login via SSH" {
+            # Gather effective config from all drop-in files as well as the main config.
+            # `sshd -T` prints the full resolved configuration, so a PasswordAuthentication
+            # directive in any /etc/ssh/sshd_config.d/*.conf file is included.
+            $effectiveConfig = Invoke-LinuxCommand "sshd -T 2>/dev/null || cat /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null"
+            $effectiveConfigText = $effectiveConfig -join "`n"
+            $effectiveConfigText | Should -Match "(?i)passwordauthentication\s+yes" -Because "Password login via SSH must be enabled for base catlet access"
+        }
     }
     
     Context "System Configuration" {
