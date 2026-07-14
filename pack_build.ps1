@@ -180,17 +180,6 @@ $keys | ForEach-Object {
                 Write-Host '  OK Filtered packable volumes to supported architectures' -ForegroundColor Green
             }
         }
-
-        # Add rearm-eval fodder for Windows VMs
-        if ($importSpec.osType -eq "windows") {
-            Write-Information 'Step 5: Adding Windows-specific configuration...'
-            $catletPath = Join-Path 'genes' ($packTarget.Replace('/', '\') + '\catlet.yaml')
-            
-            # Append fodder section with rearm-eval
-            $fodderContent = [System.Environment]::NewLine + [System.Environment]::NewLine + 'fodder:' + [System.Environment]::NewLine + '  - source: gene:dbosoft/winconfig:rearm-eval'
-            Add-Content -Path $catletPath -Value $fodderContent
-            Write-Host '  OK Added rearm-eval fodder for Windows evaluation period' -ForegroundColor Green
-        }
         
         Write-Information 'Step 6: Packing geneset...'
         & eryph-packer geneset-tag pack $packTarget --workdir genes | Out-Host
