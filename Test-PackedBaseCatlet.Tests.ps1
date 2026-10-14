@@ -191,7 +191,8 @@ Describe "Packed Base Catlet: $Geneset" -Tag "BaseCatlet" {
             $outputText = $output -join "`n"
             
             # Check for Pester execution
-            $outputText | Should -Match "Starting discovery" -Because "Pester should start test discovery"
+            # Pester 5 prints "Starting discovery", Pester 6 prints "Running tests from N files"
+            $outputText | Should -Match "Starting discovery|Running tests from" -Because "Pester should start test discovery"
             $outputText | Should -Match "Tests completed in" -Because "Pester should complete execution"
             
             # Check for test summary in output
@@ -200,7 +201,7 @@ Describe "Packed Base Catlet: $Geneset" -Tag "BaseCatlet" {
             Write-Host "========================================" -ForegroundColor Magenta
             
             # Parse and validate test results for assertions
-            if ($outputText -match "Tests Passed: (\d+), Failed: (\d+)") {
+            if ($outputText -match "Tests Passed: (\d+),\s*Failed: (\d+)") {
                 $passed = [int]$Matches[1]
                 $failed = [int]$Matches[2]
                 
