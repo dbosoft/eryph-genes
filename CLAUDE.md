@@ -276,7 +276,7 @@ fodder:
 
 ### Repository Scripts (What They Do)
 - `Resolve-GenepoolPath.ps1` - Resolves local genepool path (requires admin)
-- `build.ps1` - Builds base catlets from hyperv-boxes
+- `build.ps1` - Builds base catlets from hyperv-boxes. For multi-catlet build/publish runs use the `/build-base-catlets` skill, which drives `build.ps1` **directly** (background + monitoring, transient-error retry, staging hygiene) and intentionally does **not** route through build-executor — a one-shot executor can't monitor a multi-hour build.
 - `test_packed.ps1` - Tests packed genes
 - `Test-PackedBaseCatlet.ps1` - Orchestrates base catlet testing
 - `Test-FodderGene.ps1` - Orchestrates fodder gene testing
