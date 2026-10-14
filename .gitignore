@@ -18,3 +18,4 @@ dist
 # Claude settings
 .claude/
 diagnostics/
+*.log
