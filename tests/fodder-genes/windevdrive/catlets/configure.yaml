@@ -8,5 +8,5 @@ drives:
 fodder:
   - source: gene:{{GENE}}:configure
     variables:
-      - name: devdrive_name
+      - name: devdrive_disk
         value: sdb

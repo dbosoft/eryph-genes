@@ -103,14 +103,14 @@ name: devdrive-vscode-machine
 parent: dbosoft/winsrv2022-standard/starter
 
 drives:
-  - name: devdrive
-    size: 100 GB
+  - name: sdb
+    size: 100
 
 fodder:
   - source: gene:dbosoft/windevdrive:configure
     variables:
-      - name: devdrive_name
-        value: devdrive
+      - name: devdrive_disk
+        value: sdb
       - name: devdrive_letter
         value: E
       - name: devdrive_label

@@ -289,8 +289,19 @@ fodder:
               exit 1
           }
           
+          # A cache on a drive that doesn't exist (e.g. a dev drive that failed)
+          # would fail the whole installation; use the default cache instead
+          $cachePath = "{{ vs_cache_path }}".Trim()
+          if ($cachePath) {
+              $cacheRoot = [System.IO.Path]::GetPathRoot($cachePath)
+              if (-not $cacheRoot -or -not (Test-Path $cacheRoot)) {
+                  Write-Host "WARNING: drive of vs_cache_path '$cachePath' not found, using the default package cache"
+                  $cachePath = ""
+              }
+          }
+
           # Build installation arguments
-          $installArgs = Build-InstallArguments -InstallPath $installPath -Workloads $workloads -Components $components -Languages $languages -IncludeRecommended $includeRecommended -IncludeOptional $includeOptional -CachePath "{{ vs_cache_path }}"
+          $installArgs = Build-InstallArguments -InstallPath $installPath -Workloads $workloads -Components $components -Languages $languages -IncludeRecommended $includeRecommended -IncludeOptional $includeOptional -CachePath $cachePath
           
           Write-Host "Starting Visual Studio installation..."
           Write-Host "Installer: $installerPath"

@@ -20,19 +20,19 @@ The configure fodder sets up the development drive with optimal settings and dir
 
 | Setting | Dev drive on |
 |---|---|
-| `devdrive_name: sdb` | a dedicated, empty eryph drive of the catlet |
+| `devdrive_disk: sdb` | a dedicated, empty eryph drive of the catlet |
 | `devdrive_location: C` (`devdrive_type: vhd`, default) | a dynamically expanding VHDX in `C:\DevDrives\`; a startup task attaches it again after reboots |
 | `devdrive_location: C`, `devdrive_type: resize` | space shrunk off the C: volume |
 
 **Variables:**
-- devdrive_name: eryph drive name (e.g. sdb) - must match a drive defined in your catlet
+- devdrive_disk: eryph drive name (e.g. sdb) - must match an empty drive defined in your catlet (`devdrive_name` is the former name and still accepted)
 - devdrive_location: existing volume letter (e.g. C) for the vhd and resize types
 - devdrive_type (default: "vhd"): vhd or resize, used with devdrive_location
 - devdrive_size (default: "50"): size in GB for devdrive_location; Microsoft's minimum for a dev drive is 50 GB
 - devdrive_letter (default: "E"): Windows drive letter to assign
 - devdrive_label (default: "DevDrive"): volume label (also the VHDX file name)
 
-Set either devdrive_name or devdrive_location. Running the fodder again keeps an existing dev drive.
+Set devdrive_disk or devdrive_location. With both set, devdrive_location is the fallback: if the drive in devdrive_disk is missing or not empty, the fodder logs a warning and creates the dev drive on devdrive_location instead. Running the fodder again keeps an existing dev drive.
 The fodder automatically:
 - Initializes and partitions the drive, VHDX or freed space
 - Formats as Dev Drive (Windows 11) or ReFS (older versions)
@@ -55,7 +55,7 @@ drives:
 fodder:
   - source: gene:dbosoft/windevdrive:configure
     variables:
-      - name: devdrive_name
+      - name: devdrive_disk
         value: sdb
 ```
 
@@ -78,7 +78,7 @@ fodder:
   # Configure Dev Drive first
   - source: gene:dbosoft/windevdrive:configure
     variables:
-      - name: devdrive_name
+      - name: devdrive_disk
         value: sdb
   
   # Then install Visual Studio
@@ -131,7 +131,7 @@ Dev Drives provide:
 
 - Windows 11 Build 22621+ for full Dev Drive support
 - Windows 10 1709+ or Windows Server 2016+ for ReFS support
-- An additional drive configured in your catlet (devdrive_name), or an existing volume with enough space (devdrive_location)
+- An additional drive configured in your catlet (devdrive_disk), or an existing volume with enough space (devdrive_location)
 
 ---
 

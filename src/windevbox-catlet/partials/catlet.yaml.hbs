@@ -28,8 +28,8 @@ variables:
     value: "ms-vscode.powershell,ms-azuretools.vscode-docker,eamodio.gitlens,ms-dotnettools.csharp"
     required: false
   # Dev drive: by default a VHDX on C:. To use a dedicated disk instead, add a
-  # drive (e.g. sdb) to the catlet and set devdrive_name to it.
-  - name: devdrive_name
+  # drive (e.g. sdb) to the catlet and set devdrive_disk to it.
+  - name: devdrive_disk
     value: ""
     required: false
   - name: devdrive_size
@@ -56,8 +56,8 @@ fodder:
   # Dev Drive (ReFS, trusted) with package caches and the \source workspace
   - source: gene:dbosoft/windevdrive:configure
     variables:
-      - name: devdrive_name
-        value: '\{{ devdrive_name }}'
+      - name: devdrive_disk
+        value: '\{{ devdrive_disk }}'
       - name: devdrive_location
         value: C
       - name: devdrive_type

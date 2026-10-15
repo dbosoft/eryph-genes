@@ -27,6 +27,17 @@
             )
         }
         @{
+            # Former variable devdrive_name with no eryph drive name: falls back to the VHDX on C:
+            Name = "DevDriveFallback"
+            OSMatrix = @("win11-24h2-enterprise")
+            CatletSpec = "catlets/fallback.yaml"
+            HostTests = @(
+                @{ Name = "VHDX exists on C:"; Command = "Test-Path C:\DevDrives\DevDrive.vhdx"; Expect = 'True' }
+                @{ Name = "E: is ReFS"; Command = "(Get-Volume -DriveLetter E).FileSystem"; Expect = 'ReFS' }
+                @{ Name = "fallback is logged"; Command = "Get-Content C:\ProgramData\eryph\provisioning\logs\*configure-devdrive*.log -Raw"; Expect = 'WARNING: .name. is not an eryph drive name' }
+            )
+        }
+        @{
             # Space shrunk off C:
             Name = "DevDriveResize"
             OSMatrix = @("win11-24h2-enterprise")
