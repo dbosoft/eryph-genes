@@ -4,7 +4,7 @@ This geneset provides automated installation and configuration of Visual Studio 
 
 ## Features
 
-- **Automated Installation**: VS Code installation via Chocolatey package manager
+- **Automated Installation**: VS Code system installer from Microsoft, installed for all users
 - **System-Wide Configuration**: Settings and keybindings applied to all users
 - **Extension Bootstrap**: Automatic extension installation on first launch
 - **Dev Drive Integration**: Automatic detection and configuration of Dev Drives for optimal development performance
@@ -184,8 +184,6 @@ fsutil devdrv query E:
 
 ### Installation Issues
 
-- **Reboot Required**: The gene handles reboots automatically (exit code 1003)
-- **Chocolatey Issues**: The gene will install Chocolatey if not present
 - **Path Issues**: VS Code is automatically added to system PATH
 
 ### Dev Drive Issues
@@ -211,4 +209,3 @@ fsutil devdrv query E:
 
 - `dbosoft/windevdrive:configure` - Create and configure Dev Drives
 - `dbosoft/guest-services:win-install` - SSH access via Eryph Guest Services
-- `dbosoft/chocolatey` - Chocolatey package manager setup

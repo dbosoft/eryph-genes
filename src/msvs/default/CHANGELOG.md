@@ -1,5 +1,11 @@
 # @dbosoft/msvs-default
 
+## 1.3.0
+
+### Minor Changes
+
+- be95bee: vs2022: fail when devenv.exe is missing after the installer returned 0 and print the installer logs; look for layout ISOs on optical drives only.
+
 ## 1.2.0
 
 ### Minor Changes

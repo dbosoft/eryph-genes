@@ -1,0 +1,47 @@
+name: install
+fodder:
+- name: install-hyperv
+  type: shellscript
+  filename: hyperv.ps1
+  content: |
+    $ErrorActionPreference = 'Stop'
+    $ProgressPreference = 'SilentlyContinue'
+
+    # Exit 1003 reboots and runs this script again; then the features are
+    # installed and it exits 0.
+    if (Get-Command Get-WindowsFeature -ErrorAction SilentlyContinue) {
+        # Windows Server
+        $restartRequired = $false
+        foreach ($name in 'Hyper-V-PowerShell', 'Hyper-V-Tools', 'Hyper-V') {
+            $feature = Get-WindowsFeature -Name $name
+            if (-not $feature.Installed) {
+                Write-Host "Installing Windows feature $name..."
+                $result = $feature | Install-WindowsFeature
+                if (-not $result.Success) {
+                    Write-Host "ERROR: installing $name failed (exit code $($result.ExitCode))"
+                    exit 1
+                }
+                # RestartNeeded is an enum (No, Yes, Maybe), not a bool
+                $restartRequired = $restartRequired -or ($result.RestartNeeded -ne 'No')
+            }
+        }
+
+        if ($restartRequired) {
+            Write-Host "A restart is required to complete the installation of Hyper-V features."
+            exit 1003
+        }
+    } else {
+        # Windows client
+        $feature = Get-WindowsOptionalFeature -FeatureName Microsoft-Hyper-V-All -Online
+        if ($feature.State -ne 'Enabled') {
+            Write-Host "Enabling Microsoft-Hyper-V-All..."
+            # -NoRestart: the provisioning agent reboots on exit 1003
+            $result = Enable-WindowsOptionalFeature -FeatureName Microsoft-Hyper-V-All -Online -All -NoRestart
+            if ($result.RestartNeeded) {
+                Write-Host "A restart is required to complete the installation of Hyper-V features."
+                exit 1003
+            }
+        }
+    }
+
+    Write-Host "Hyper-V is installed"
