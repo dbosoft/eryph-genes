@@ -174,7 +174,7 @@ fodder:
  # Configure Dev Drive first
  - source: gene:dbosoft/windevdrive:configure
    variables:
-     - name: devdrive_name
+     - name: devdrive_disk
        value: sdb
      - name: devdrive_letter
        value: E

@@ -41,7 +41,7 @@ fodder:
 | `vscode_extensions` | SAP set (see above) | VS Code extensions installed for each user |
 | `dev_tools` | `Git.Git,OpenJS.NodeJS.LTS,GitHub.cli` | winget packages installed machine-wide |
 | `git_user_name`, `git_user_email` | empty | Git identity set for each user at first logon |
-| `devdrive_size`, `devdrive_letter`, `devdrive_name` | `100`, `E`, empty | Dev Drive size, letter, or a dedicated eryph drive instead of the VHDX |
+| `devdrive_size`, `devdrive_letter`, `devdrive_disk` | `100`, `E`, empty | Dev Drive size, letter, or a dedicated eryph drive instead of the VHDX |
 
 ### Without Eclipse ADT
 
