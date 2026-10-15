@@ -1,7 +1,7 @@
 {
   "name": "@dbosoft/sapadt-default",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "scripts": {
     "build": "build-geneset-tag",
     "publish": "build-geneset-tag publish"

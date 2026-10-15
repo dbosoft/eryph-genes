@@ -43,7 +43,16 @@ try {
         Group-Object Name | Where-Object Count -gt 1 |
         ForEach-Object { $problems.Add("package name $($_.Name) is used by: $($_.Group.Path -join ', ')") }
 
-    # 4. Fodder gene test matrices load and reference existing catlet specs
+    # 4. The genepool rejects geneset descriptions over 200 characters (the
+    #    markdown readme is for longer text).
+    foreach ($manifest in Get-ChildItem src -Filter geneset.json -Depth 1) {
+        $description = (Get-Content $manifest.FullName -Raw | ConvertFrom-Json).description
+        if ($description -and $description.Length -gt 200) {
+            $problems.Add("$($manifest.FullName): description has $($description.Length) characters, max. 200")
+        }
+    }
+
+    # 5. Fodder gene test matrices load and reference existing catlet specs
     #    with a fodder name in the gene reference.
     foreach ($matrixFile in Get-ChildItem tests\fodder-genes -Recurse -Filter test-matrix.psd1) {
         $dir = $matrixFile.DirectoryName

@@ -1,0 +1,36 @@
+name: sapdevbox
+# Everything of the Windows developer box (winget, Dev Drive, Hyper-V, PowerShell 7,
+# VS Code, Git) except Visual Studio
+parent: dbosoft/windevbox/win11
+
+drives:
+  # Without Visual Studio the system disk can be smaller than the devbox's 250 GB
+  - name: sda
+    size: 127
+
+variables:
+  - name: vscode_extensions
+    value: "ms-vscode.powershell,eamodio.gitlens,SAPSE.sap-ux-fiori-tools-extension-pack,SAPSE.vscode-cds,SAPOSS.vscode-ui5-language-assistant,humao.rest-client"
+    required: false
+  # The SAP BTP CLI is licensed under the SAP Developer License
+  # (https://tools.hana.ondemand.com/developer-license-3_2.txt); set to true to install it
+  - name: accept_sap_developer_license
+    type: boolean
+    value: false
+    required: false
+
+
+fodder:
+  - source: gene:dbosoft/msvs:vs2026
+    remove: true
+
+  # CAP, UI5 and MTA tooling, Cloud Foundry CLI with MultiApps, BTP CLI
+  - source: gene:dbosoft/sapdev:nodejs-tools
+  - source: gene:dbosoft/sapdev:cf-cli
+  - source: gene:dbosoft/sapdev:btp-cli
+    variables:
+      - name: accept_sap_developer_license
+        value: '{{ accept_sap_developer_license }}'
+
+  # Eclipse with ABAP Development Tools
+  - source: gene:dbosoft/sapadt:install

@@ -1,0 +1,57 @@
+name: cf-cli
+
+variables:
+  # cf CLI plugins from the CF-Community repository, comma separated
+  - name: cf_plugins
+    value: 'multiapps'
+
+fodder:
+- name: install-cf-cli
+  type: shellscript
+  filename: install-cf-cli.ps1
+  content: |
+    #ps1_sysnative
+    # Installs the Cloud Foundry CLI v8 and its plugins for all users.
+    # Plugins normally go to the installing user's profile; CF_PLUGIN_HOME
+    # moves them to C:\ProgramData\cf for everyone.
+    $ErrorActionPreference = 'Stop'
+    $ProgressPreference = 'SilentlyContinue'
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+
+    $installDir = Join-Path $env:ProgramFiles 'CloudFoundry'
+    $cf = Join-Path $installDir 'cf.exe'
+    if (-not (Test-Path $cf)) {
+        $tempDir = Join-Path $env:TEMP 'cf-cli'
+        New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+        try {
+            $zip = Join-Path $tempDir 'cf.zip'
+            Write-Host 'Downloading the Cloud Foundry CLI v8...'
+            Invoke-WebRequest -Uri 'https://packages.cloudfoundry.org/stable?release=windows64-exe&version=v8&source=github' -OutFile $zip -UseBasicParsing
+            Expand-Archive -Path $zip -DestinationPath (Join-Path $tempDir 'extract') -Force
+            New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+            Copy-Item -Path (Join-Path $tempDir 'extract\*') -Destination $installDir -Force
+        }
+        finally {
+            Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        if (-not (Test-Path $cf)) { throw "cf.exe not found in $installDir after extracting" }
+    }
+    Write-Host "cf: $(& $cf --version)"
+
+    $machinePath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+    if (($machinePath -split ';') -notcontains $installDir) {
+        [System.Environment]::SetEnvironmentVariable('Path', "$machinePath;$installDir", 'Machine')
+        Write-Host "Added $installDir to the system PATH"
+    }
+
+    $pluginHome = Join-Path $env:ProgramData 'cf'
+    New-Item -ItemType Directory -Path $pluginHome -Force | Out-Null
+    [System.Environment]::SetEnvironmentVariable('CF_PLUGIN_HOME', $pluginHome, 'Machine')
+    $env:CF_PLUGIN_HOME = $pluginHome
+
+    foreach ($plugin in @('{{ cf_plugins }}' -split '[,\s]+' | Where-Object { $_ })) {
+        Write-Host "Installing cf plugin $plugin..."
+        & $cf install-plugin $plugin -r CF-Community -f
+        if ($LASTEXITCODE -ne 0) { throw "cf install-plugin $plugin failed with exit code $LASTEXITCODE" }
+    }
+    & $cf plugins

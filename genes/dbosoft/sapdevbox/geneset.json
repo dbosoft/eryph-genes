@@ -1,0 +1,7 @@
+{
+  "geneset": "dbosoft/sapdevbox",
+  "public": true,
+  "short_description": "Windows Developer Box for SAP",
+  "description": "Windows 11 developer box for SAP BTP and ABAP: the Windows developer box without Visual Studio, plus SAP Fiori tools, CAP, UI5, cf and btp CLIs and Eclipse ADT.",
+  "description_markdown_file": "readme.md"
+}

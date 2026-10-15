@@ -1,0 +1,57 @@
+name: btp-cli
+
+variables:
+  # The SAP BTP CLI is distributed under the SAP Developer License
+  # (https://tools.hana.ondemand.com/developer-license-3_2.txt). Set this to
+  # true to accept it; otherwise the CLI is not installed.
+  - name: accept_sap_developer_license
+    type: boolean
+    value: false
+
+fodder:
+- name: install-btp-cli
+  type: shellscript
+  filename: install-btp-cli.ps1
+  content: |
+    #ps1_sysnative
+    # Installs the SAP BTP command line interface (btp) for all users.
+    $ErrorActionPreference = 'Stop'
+    $ProgressPreference = 'SilentlyContinue'
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+
+    $license = 'https://tools.hana.ondemand.com/developer-license-3_2.txt'
+    if ('{{ accept_sap_developer_license }}' -ne 'true') {
+        Write-Host "SAP BTP CLI not installed: it is licensed under the SAP Developer License ($license)."
+        Write-Host 'Set the variable accept_sap_developer_license to true to accept it and install the CLI.'
+        exit 0
+    }
+
+    $installDir = Join-Path $env:ProgramFiles 'SAP\btp-cli'
+    $btp = Join-Path $installDir 'btp.exe'
+    if (-not (Test-Path $btp)) {
+        $tempDir = Join-Path $env:TEMP 'btp-cli'
+        New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+        try {
+            $archive = Join-Path $tempDir 'btp-cli.tar.gz'
+            Write-Host 'Downloading the SAP BTP CLI (SAP Developer License accepted)...'
+            # The download site requires the license acceptance cookie.
+            curl.exe -fsSL --retry 3 -o $archive `
+                --cookie 'eula_3_2_agreed=tools.hana.ondemand.com/developer-license-3_2.txt' `
+                'https://tools.hana.ondemand.com/additional/btp-cli-windows-amd64-latest.tar.gz'
+            if ($LASTEXITCODE -ne 0) { throw "Download of the BTP CLI failed (curl exit $LASTEXITCODE)" }
+            tar.exe -xzf $archive -C $tempDir
+            if ($LASTEXITCODE -ne 0) { throw "Extracting the BTP CLI failed (tar exit $LASTEXITCODE)" }
+            New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+            Copy-Item -Path (Join-Path $tempDir 'windows-amd64\btp.exe') -Destination $btp -Force
+        }
+        finally {
+            Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Write-Host "btp: $(& $btp --version | Select-Object -First 1)"
+
+    $machinePath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+    if (($machinePath -split ';') -notcontains $installDir) {
+        [System.Environment]::SetEnvironmentVariable('Path', "$machinePath;$installDir", 'Machine')
+        Write-Host "Added $installDir to the system PATH"
+    }

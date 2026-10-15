@@ -1,0 +1,8 @@
+{
+    "geneset": "dbosoft/sapdev",
+    "public": true,
+    "short_description": "SAP development tools (CAP, UI5, Cloud Foundry, BTP)",
+    "description": "Command line tools for SAP BTP development on Windows: CAP, UI5 and MTA tooling, Cloud Foundry CLI with MultiApps plugin and SAP BTP CLI.",
+    "description_markdown": null,
+    "description_markdown_file": "readme.md"
+}
