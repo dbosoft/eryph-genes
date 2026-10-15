@@ -1,0 +1,5 @@
+name: powershell-linux-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+fodder:
+  - source: gene:{{GENE}}:linux-install

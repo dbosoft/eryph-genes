@@ -1,9 +1,0 @@
-name: test-linux-egs
-parent: dbosoft/ubuntu-22.04/starter
-
-# Linux test catlet with EGS (Eryph Guest Services)
-# EGS ships in the base catlet; SSH keys are auto-exchanged when you run `egs-tool add-ssh-config <vmid>`
-
-fodder:
-  # Include PowerShell Core for running Pester tests
-  - source: gene:dbosoft/powershell:linux-install

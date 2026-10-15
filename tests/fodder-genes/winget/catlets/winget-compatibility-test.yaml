@@ -1,6 +1,6 @@
-name: winget-compatibility-test
+name: winget-compat-test
 parent: dbosoft/{{OS_VERSION}}/starter
 
 fodder:
-  # Install winget using the gene being tested (may fail on Server 2019)
-  - source: gene:{{GENE_TAG}}
+  # Server 2019: the gene must skip the install without failing provisioning
+  - source: gene:{{GENE}}:install

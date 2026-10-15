@@ -178,25 +178,27 @@ function Mount-VHDAndExtractLogs {
             }
         }
         
-        # Extract cloudbase-init logs
-        $cloudbaseInitPaths = @(
-            "${driveLetter}:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log",
-            "${driveLetter}:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init-unattend.log",
-            "${driveLetter}:\ProgramData\cloudbase-init\log\cloudbase-init.log",
-            "${driveLetter}:\ProgramData\cloudbase-init\log\cloudbase-init-unattend.log"
+        # Extract eryph guest services provisioning state and logs (egs-service
+        # replaced cloudbase-init on Windows base catlets)
+        $egsPaths = @(
+            "${driveLetter}:\ProgramData\eryph\provisioning\state.json",
+            "${driveLetter}:\ProgramData\eryph\guest-services\logs\agent.log"
         )
-        
-        Write-Information "Extracting cloudbase-init logs..."
-        foreach ($logPath in $cloudbaseInitPaths) {
+        $egsScriptLogs = "${driveLetter}:\ProgramData\eryph\provisioning\logs"
+        if (Test-Path $egsScriptLogs) {
+            $egsPaths += Get-ChildItem $egsScriptLogs -Filter *.log | ForEach-Object FullName
+        }
+
+        Write-Information "Extracting eryph guest services logs..."
+        foreach ($logPath in $egsPaths) {
             if (Test-Path $logPath) {
-                $fileName = "cloudbase-init_$(Split-Path $logPath -Leaf)"
+                $fileName = "egs_$(Split-Path $logPath -Leaf)"
                 $destPath = Join-Path $OutputPath $fileName
                 Copy-Item -Path $logPath -Destination $destPath -Force
                 Write-Information "Extracted: $logPath -> $destPath"
                 $logsExtracted++
             }
         }
-        
         # Extract cloud-init logs (Linux - these paths typically won't exist on Windows VHDs)
         $cloudInitPaths = @(
             "${driveLetter}:\var\log\cloud-init.log",

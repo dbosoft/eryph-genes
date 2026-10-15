@@ -1,241 +1,43 @@
-# Eryph Test Framework
+# Test infrastructure
 
-## Overview
-This test framework validates eryph genes using EGS (Eryph Guest Services) for credential-free VM access. It provides **separate testing workflows** for base catlets and fodder genes, each with their own orchestration and validation approach.
+How to write and run gene tests: [docs/gene-testing.md](../docs/gene-testing.md).
 
-## Architecture: Two Distinct Testing Paths
-
-### 🔷 **Base Catlet Testing** (after `pack_build.ps1`)
-Tests the packed base OS images to ensure they're properly prepared:
-```
-build.ps1 → pack_build.ps1 → Test-PackedBaseCatlet.ps1
-```
-
-### 🔶 **Fodder Gene Testing** (cross-OS validation)
-Tests fodder genes by deploying them on multiple base OS versions:
-```
-Test-FodderGene.ps1 → Multiple Base OS → Validation
-```
-
-## Key Features
-- **EGS Integration**: No SSH keys needed - uses Hyper-V integration for secure access
-- **Two-Phase Testing**: Host validation (deployment) + In-VM validation (deep checks)
-- **Pester Everywhere**: Consistent testing framework on host and inside VMs
-- **OS Support**: Windows and Linux catlet testing with PowerShell Core
-- **Optimized File Transfer**: Single files via `egs-tool upload-file`, directories via zip+upload
-- **Parallel Testing**: Fodder genes can be tested across multiple OS in parallel
-
-## Complete Directory Structure
 ```
 eryph-genes/
-│
-├── BASE CATLET TESTING
-│   ├── Test-PackedBaseCatlet.ps1         # Entry point (orchestrator)
-│   ├── Test-PackedBaseCatlet.Tests.ps1   # Host-side Pester tests
-│   └── tests/base-catlet/
-│       ├── windows/
-│       │   ├── Validate-BaseOS.Tests.ps1  # In-VM validation (Windows; egs-service)
-│       │   └── runner.ps1                 # Test runner script
-│       └── linux/
-│           ├── Validate-BaseOS.Tests.ps1  # In-VM validation (Linux; cloud-init)
-│           └── runner.ps1                 # Test runner script
-│
-├── FODDER GENE TESTING
-│   ├── Test-FodderGene.ps1               # Entry point (orchestrator)
-│   ├── Test-FodderGene.Tests.ps1         # Host-side Pester tests
-│   └── tests/fodder-genes/
-│       ├── winget/
-│       │   └── Validate-Winget.Tests.ps1  # In-VM validation
-│       └── {gene-name}/
-│           └── Validate-{Gene}.Tests.ps1  # In-VM validation
-│
-├── SHARED INFRASTRUCTURE
-│   ├── tests/EryphTestHelpers.psm1       # Centralized helper functions
-│   ├── tests/windows-egs.yaml            # Windows test catlet template
-│   └── tests/linux-egs.yaml              # Linux test catlet template
-│
-└── LEGACY/REMOVED FILES
-    ├── test_packed.ps1                   # Old SSH-based testing (removed)
-    ├── tests/Eryph.SSH.psm1              # Old SSH module (removed)  
-    ├── Run-FodderGeneTests.ps1           # Legacy batch runner (removed)
-    └── Test-BaseCatlet.ps1               # Auto-detecting wrapper (removed)
+├── Test-PackedBaseCatlet.ps1 / .Tests.ps1   # base catlets (OS images) after pack_build.ps1
+├── Test-FodderGene.ps1 / .Tests.ps1         # fodder genes, driven by test-matrix.psd1
+├── Test-GeneRelease.ps1                     # release gate: Test-FodderGene per tag, optionally from the local build
+├── Copy-ToLocalGenepool.ps1                 # .packed build -> local eryph-zero genepool
+└── tests/
+    ├── EryphTestHelpers.psm1                # shared helpers (EGS access, file copy, provisioning wait, diagnostics)
+    ├── vm-runner.ps1                        # runs Pester inside a catlet
+    ├── base-catlet/<os>/                    # in-VM validation of base catlets
+    └── fodder-genes/<geneset>/              # test matrix, catlet specs and in-VM tests per fodder gene
 ```
 
-## Quick Start
+All entry points run in an elevated PowerShell session (host-side `egs-tool`, VmId) and need
+Pester 5 or 6.
 
-### 🔷 Testing Base Catlets (after pack_build.ps1)
+## Helpers (EryphTestHelpers.psm1)
 
-```powershell
-# Run as Administrator (required for egs-tool)
+| Function | Purpose |
+|---|---|
+| `Initialize-EGSConnection` | `egs-tool add-ssh-config <vmid>` (alias `<vmid>.hyper-v.alt` + key exchange) |
+| `Wait-EGSReady` | Wait until `egs-tool get-status` reports `available` |
+| `Wait-ProvisioningComplete` | Wait until the fodder finished: Windows `state.json` Final stage plus per-script exit codes, Linux `cloud-init status` |
+| `Invoke-EGSCommand` / `Invoke-EGSCommandWithExitCode` | Run a command in the guest over EGS SSH |
+| `Copy-FileToVM` / `Copy-DirectoryToVM` / `Copy-PesterToVM` | Upload via `egs-tool upload-file` |
+| `Copy-TestSuiteToVM` / `Invoke-PesterInVM` | Used by the base catlet tests |
+| `Save-ProvisioningDiagnostics` | Copy provisioning state and logs from the guest into `diagnostics/` |
+| `Get-EgsServiceLog` / `Get-CloudInitLog` / `Get-CloudInitLogs` | Provisioning agent log: Windows egs `agent.log`, Linux `cloud-init.log` |
+| `Get-OsTypeForGeneset` | `windows` / `linux` from a base geneset name |
 
-# Test a Windows base catlet
-.\Test-PackedBaseCatlet.ps1 -Geneset "dbosoft/winsrv2022-standard/20241216" -GenepoolPath "C:\eryph\genepool" -OsType windows
-
-# Test a Linux base catlet  
-.\Test-PackedBaseCatlet.ps1 -Geneset "dbosoft/ubuntu-2404/20241216" -GenepoolPath "C:\eryph\genepool" -OsType linux
-
-# Keep VM for debugging
-.\Test-PackedBaseCatlet.ps1 -Geneset "dbosoft/winsrv2022-standard/20241216" -GenepoolPath "C:\eryph\genepool" -OsType windows -KeepVM
-```
-
-### 🔶 Testing Fodder Genes (cross-OS validation)
-
-```powershell
-# Test winget gene on multiple Windows versions
-.\Test-FodderGene.ps1 -Gene "dbosoft/winget" -BaseOS @("dbosoft/winsrv2022-standard", "dbosoft/win11-24h2")
-
-# Test PowerShell gene on Linux
-.\Test-FodderGene.ps1 -Gene "dbosoft/powershell" -BaseOS @("dbosoft/ubuntu-2404")
-
-# Test with specific tag and keep VMs for debugging
-.\Test-FodderGene.ps1 -Gene "dbosoft/winget" -Tag "latest" -BaseOS @("dbosoft/winsrv2022-standard") -KeepVM
-```
-
-## Adding New Tests
-
-### 🔷 Base Catlet Tests
-Add tests to `tests/base-catlet/{os}/Validate-BaseOS.Tests.ps1`:
-
-```powershell
-Context "My New Validation Category" {
-    It "Should check something important" {
-        # Your test logic - runs INSIDE the VM
-        $result = Invoke-LinuxCommand "some-command"  # Linux
-        $result = Get-Service "service-name"          # Windows
-        $result | Should -Be $expected
-    }
-}
-```
-
-### 🔶 Fodder Gene Tests
-Create test structure in `tests/fodder-genes/{gene-name}/`:
-
-```powershell
-# tests/fodder-genes/my-gene/Validate-MyGene.Tests.ps1
-Describe "My Gene Validation" {
-    Context "Installation Validation" {
-        It "Should install correctly" {
-            # This runs INSIDE the VM after the gene is deployed
-            $installed = Get-Command my-tool -ErrorAction SilentlyContinue
-            $installed | Should -Not -BeNullOrEmpty
-        }
-        
-        It "Should be functional" {
-            # Test actual functionality
-            $result = & my-tool --version
-            $result | Should -Match "\d+\.\d+\.\d+"
-        }
-    }
-}
-```
-
-**Automatic Test Discovery**: Just create the `Validate-{GeneName}.Tests.ps1` file and it will be automatically picked up!
-
-## Architecture Deep Dive
-
-### 🔷 Base Catlet Testing Flow
-1. **Setup**: Copy `.packed` folder contents to local genepool
-2. **Deploy**: Create catlet with EGS + starter-food fodder
-3. **Validate Host**: Network connectivity, EGS readiness
-4. **Copy Tests**: Transfer Pester + validation tests to VM
-5. **Run In-VM**: Execute tests inside VM via PowerShell/PowerShell Core
-6. **Cleanup**: Remove catlet (unless -KeepVM)
-
-### 🔶 Fodder Gene Testing Flow  
-1. **Setup**: For each base OS version:
-2. **Deploy**: Create catlet with EGS + PowerShell + the fodder gene
-3. **Validate Host**: Network connectivity, EGS readiness  
-4. **Copy Tests**: Transfer Pester + gene-specific validation tests
-5. **Run In-VM**: Execute gene validation tests inside VM
-6. **Aggregate**: Collect results across all base OS versions
-7. **Cleanup**: Remove all catlets (unless -KeepVM)
-
-### Two-Phase Testing Pattern
-- **Phase A: Host-Side** - Deployment, network, EGS setup (Pester on host)
-- **Phase B: In-VM** - Deep validation, functionality tests (Pester in VM)
-
-## Helper Functions (EryphTestHelpers.psm1)
-
-### Core Functions
-- `Wait-EGSReady`: Wait for EGS availability
-- `Initialize-EGSConnection`: Setup EGS for a VM
-- `Invoke-EGSCommand`: Run commands in VM
-- `Copy-TestSuiteToVM`: Deploy complete test environment
-
-### File Transfer
-- `Copy-FileToVM`: Single file upload via egs-tool
-- `Copy-DirectoryToVM`: Directory upload via zip+egs-tool
-- `Copy-PesterToVM`: Deploy Pester module
-
-### Log Retrieval
-- `Get-EgsServiceLog`: Windows — eryph-guest-services event log (`Application` / source `egs-service`)
-- `Get-CloudInitLog`: Linux — `/var/log/cloud-init.log`
-- `Get-CloudInitLogs`: OS-agnostic dispatcher (Windows → egs-service event log; Linux → cloud-init)
-- `Get-CloudbaseInitLog`: **Deprecated** — Windows catlets no longer ship cbi. Forwards to `Get-EgsServiceLog` with a warning.
-
-## Test Execution Flow
-
-1. **Setup Phase**
-   - Copy gene to local genepool
-   - Deploy catlet with EGS fodder
-   - Start VM and wait for boot
-
-2. **Host Validation**
-   - Check deployment success
-   - Verify IP assignment
-   - Confirm EGS connectivity
-
-3. **In-VM Validation**
-   - Copy Pester + tests to VM
-   - Execute validation tests
-   - Analyze cloud-init logs
-   - Return results
-
-4. **Cleanup**
-   - Remove test VM (unless -KeepVM)
-   - Clean genepool (if gene was added)
+Windows base catlets run eryph guest services (`egs-service`) as provisioning agent; there is no
+cloudbase-init anymore. Linux base catlets use cloud-init.
 
 ## Troubleshooting
 
-### Common Issues
-
-#### EGS Connection Failed
-```powershell
-# Manually check EGS status
-egs-tool get-status <VmId>
-
-# Re-register VM (writes the .hyper-v.alt alias + exchanges keys; no separate update step)
-egs-tool add-ssh-config <VmId>
-```
-
-#### Tests Not Found in VM
-```powershell
-# Check files were copied
-ssh <VmId>.hyper-v.alt -C "ls C:\Tests"
-```
-
-#### Cloudbase-init Service Stopped
-This is **normal** - the service stops after successful completion.
-
-## Best Practices
-
-1. **Always run as Administrator** - Required for egs-tool
-2. **Use -KeepVM for debugging** - Preserves VM for investigation
-3. **Check logs on failure** - On Windows, use `Get-EgsServiceLog` (Application event log); on Linux, `Get-CloudInitLog` (cloud-init.log)
-4. **Test incrementally** - Start with simple validations
-
-## Performance Tips
-
-- **Single files**: Use `egs-tool upload-file` (faster than scp)
-- **Directories**: Zip locally, upload, extract (avoids SSH overhead)
-- **Parallel operations**: Host tests can run while waiting for VM boot
-- **Reuse Pester**: Copy once, run multiple test files
-
-## Future Enhancements
-
-- [ ] Linux base catlet tests
-- [ ] Fodder gene test framework
-- [ ] Parallel VM testing
-- [ ] Test result aggregation
-- [ ] CI/CD integration
-- [ ] Performance benchmarking
+- `egs-tool get-status <vmid>` shows whether guest services are reachable.
+- `egs-tool add-ssh-config <vmid>` writes the alias again; afterwards `ssh <vmid>.hyper-v.alt -C hostname`.
+- A failed fodder run leaves its diagnostics in `diagnostics/`. Re-run with `-KeepVM` to inspect
+  the catlet; see [docs/fodder-debugging.md](../docs/fodder-debugging.md).

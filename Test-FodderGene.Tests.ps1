@@ -1,258 +1,102 @@
 # Test-FodderGene.Tests.ps1
-# Host-side Pester tests for validating fodder genes
-# These tests run on the HOST and orchestrate fodder gene testing across base OS versions
+# Host-side Pester tests for one fodder gene suite on one base OS.
+# Validates a PRE-DEPLOYED catlet; Test-FodderGene.ps1 deploys it, waits for
+# provisioning and removes it afterwards.
 
 param(
     [Parameter(Mandatory=$true)]
     [string]$Gene,
-    
+
     [Parameter(Mandatory=$true)]
-    [string]$Tag,
-    
+    [string]$SuiteName,
+
     [Parameter(Mandatory=$true)]
-    [string[]]$BaseOS,
-    
+    [string]$OsVersion,
+
     [Parameter(Mandatory=$true)]
-    [string]$GenepoolPath,
-    
-    [switch]$KeepVM
+    [ValidateSet("windows", "linux")]
+    [string]$OsType,
+
+    [Parameter(Mandatory=$true)]
+    [string]$CatletId,
+
+    [Parameter(Mandatory=$true)]
+    [string]$VmId,
+
+    # Result of Wait-ProvisioningComplete: Completed, Failed, Detail
+    [Parameter(Mandatory=$true)]
+    [hashtable]$Provisioning,
+
+    # @{ Name = '...'; Command = '...'; Expect = 'regex' (optional); ExitCode = 0 (optional) }
+    [object[]]$HostTests = @(),
+
+    # In-VM Pester files, relative to GeneTestPath
+    [string[]]$InVMTests = @(),
+
+    [Parameter(Mandatory=$true)]
+    [string]$GeneTestPath
 )
 
 BeforeAll {
-    # Import helpers
     Import-Module $PSScriptRoot\tests\EryphTestHelpers.psm1 -Force
-    
-    # Parse gene name
-    $script:geneParts = $Gene -split '/'
-    $script:geneProvider = $geneParts[0]
-    $script:geneName = $geneParts[1]
-    
-    # Determine test path
-    $script:testPath = Join-Path $PSScriptRoot "tests\fodder-genes\$geneName"
-    
-    # Check if gene tests exist
-    $script:hasGeneTests = Test-Path $testPath
-    
-    if (-not $hasGeneTests) {
-        Write-Warning "No tests found for gene: $geneName at $testPath"
-        Write-Warning "Creating placeholder test structure..."
-        
-        # Create basic test structure
-        New-Item -ItemType Directory -Path $testPath -Force | Out-Null
-        
-        # Create a basic validation test
-        $basicTest = @"
-# Validate-$geneName.Tests.ps1
-# Auto-generated placeholder test for $Gene
-
-Describe "$geneName Fodder Gene Validation" {
-    It "Should be installed" {
-        Write-Warning "No specific tests defined for $geneName"
-        Set-ItResult -Skipped -Because "Specific tests not yet implemented"
-    }
-}
-"@
-        Set-Content -Path "$testPath\Validate-$geneName.Tests.ps1" -Value $basicTest
-        $script:hasGeneTests = $true
-    }
-    
-    # Build full gene identifier
-    $script:fullGene = if ($Tag -ne 'latest') { "$Gene/$Tag" } else { $Gene }
-    
-    Write-Information "Testing fodder gene: $fullGene" -InformationAction Continue
-    Write-Information "Test path: $testPath" -InformationAction Continue
 }
 
-Describe "Fodder Gene: $Gene" -Tag "FodderGene" {
-    
-    Context "Gene Availability" {
-        It "Should have test files available" {
-            $hasGeneTests | Should -Be $true -Because "Test files should exist for the gene"
+Describe "Fodder gene $Gene / $SuiteName on $OsVersion" -Tag "FodderGene" {
+
+    Context "Provisioning" {
+        It "Should have the catlet running" {
+            (Get-Catlet -Id $CatletId).Status | Should -Be 'Running'
         }
-        
-        It "Should have validation tests" {
-            $validationTests = Get-ChildItem -Path $testPath -Filter "*.Tests.ps1" -ErrorAction SilentlyContinue
-            $validationTests | Should -Not -BeNullOrEmpty -Because "Should have at least one test file"
+
+        It "Should have finished provisioning" {
+            $Provisioning.Completed | Should -BeTrue -Because $Provisioning.Detail
+        }
+
+        It "Should report no provisioning failure" {
+            $Provisioning.Failed | Should -BeFalse -Because $Provisioning.Detail
         }
     }
-    
-    # Test on each base OS
-    foreach ($baseOSSpec in $BaseOS) {
-        # Ensure base OS has proper format
-        $fullBaseOS = if ($baseOSSpec -notmatch '/') { "$baseOSSpec/latest" } else { $baseOSSpec }
-        
-        Context "Testing on Base OS: $fullBaseOS" {
-            BeforeAll {
-                Write-Information "=== Setting up test on $fullBaseOS ===" -InformationAction Continue
-                
-                # Determine OS type from base geneset
-                $script:osType = if ($fullBaseOS -match "ubuntu|debian|rocky|almalinux|centos") { "linux" } else { "windows" }
-                
-                # Generate unique catlet name
-                $timestamp = Get-Date -Format "HHmmss"
-                $script:catletName = "test-$($geneName)-$($fullBaseOS -replace '/', '-')-$timestamp" -replace '[^a-zA-Z0-9\-]', ''
-                
-                # EGS ships in the base catlet; SSH keys are auto-exchanged via egs-tool
-                $fodderLines = @()
 
-                # Add PowerShell Core for Linux if needed
-                if ($osType -eq "linux") {
-                    $fodderLines += "  - source: gene:dbosoft/powershell:linux-install"
-                }
+    Context "Host checks" -Skip:($HostTests.Count -eq 0) {
+        It "<Name>" -ForEach $HostTests {
+            $expectedExitCode = if ($null -ne $_.ExitCode) { [int]$_.ExitCode } else { 0 }
+            $result = Invoke-EGSCommandWithExitCode -VmId $VmId -Command $_.Command
+            $text = $result.Output -join "`n"
 
-                # Add the gene being tested
-                $fodderLines += "  - source: gene:$fullGene"
-                
-                # Add starter food
-                if ($osType -eq "windows") {
-                    $fodderLines += "  - source: gene:dbosoft/starter-food:win-starter"
-                } else {
-                    $fodderLines += "  - source: gene:dbosoft/starter-food:linux-starter"
-                }
-                
-                # Create catlet YAML
-                $script:catletYaml = @"
-name: $catletName
-parent: $fullBaseOS
-
-fodder:
-$($fodderLines -join "`n")
-"@
-                
-                Write-Verbose "Catlet YAML:`n$catletYaml"
-                
-                # Track if deployment succeeded
-                $script:deploymentSucceeded = $false
-                $script:catlet = $null
-                $script:vmId = $null
-            }
-            
-            It "Should deploy catlet with fodder gene" {
-                try {
-                    Write-Information "Creating catlet: $catletName" -InformationAction Continue
-                    $script:catlet = $catletYaml | New-Catlet -SkipVariablesPrompt
-                    $script:vmId = $catlet.VmId
-                    $script:deploymentSucceeded = $true
-                    
-                    Write-Information "Created catlet - ID: $($catlet.Id), VmId: $vmId" -InformationAction Continue
-                    $catlet | Should -Not -BeNullOrEmpty
-                    $vmId | Should -Not -BeNullOrEmpty
-                }
-                catch {
-                    Write-Error "Failed to create catlet: $_"
-                    throw
-                }
-            }
-            
-            It "Should setup EGS connection" -Skip:(-not $deploymentSucceeded) {
-                Initialize-EGSConnection -VmId $vmId | Should -Be $true
-            }
-            
-            It "Should start catlet successfully" -Skip:(-not $deploymentSucceeded) {
-                $catlet | Start-Catlet -Force
-                Start-Sleep -Seconds 5
-                
-                $startedCatlet = Get-Catlet -Id $catlet.Id
-                $startedCatlet.Status | Should -BeIn @("Running", "Pending", "Converging")
-            }
-            
-            It "Should have EGS ready" -Skip:(-not $deploymentSucceeded) {
-                $egsReady = Wait-EGSReady -VmId $vmId -TimeoutMinutes 5
-                $egsReady | Should -Be $true -Because "EGS should be available for testing"
-            }
-            
-            It "Should have network connectivity" -Skip:(-not $deploymentSucceeded) {
-                # Get IP address
-                $ipInfo = Get-CatletIp -Id $catlet.Id
-                $ipInfo | Should -Not -BeNullOrEmpty
-                
-                if ($ipInfo) {
-                    Write-Information "Catlet IP: $($ipInfo.IpAddress)" -InformationAction Continue
-                }
-            }
-            
-            Context "In-VM Fodder Gene Validation" -Skip:(-not $deploymentSucceeded) {
-                BeforeAll {
-                    if ($deploymentSucceeded -and $vmId) {
-                        Write-Information "Copying test suite to VM" -InformationAction Continue
-                        $script:testSuite = Copy-TestSuiteToVM -VmId $vmId -TestSourcePath $testPath -OsType $osType
-                    }
-                }
-                
-                It "Should copy test files successfully" {
-                    $testSuite | Should -Not -BeNullOrEmpty
-                    $testSuite.TestRoot | Should -Not -BeNullOrEmpty
-                    $testSuite.PesterPath | Should -Not -BeNullOrEmpty
-                }
-                
-                It "Should pass fodder gene validation tests" {
-                    $result = Invoke-PesterInVM -VmId $vmId -TestPath "$($testSuite.TestRoot)\validation" -OsType $osType
-                    $result | Should -Match "VALIDATION_PASSED|All tests passed"
-                }
-                
-                It "Should complete without errors" {
-                    # Run the test runner and check exit code
-                    $command = if ($osType -eq "windows") {
-                        "powershell -File '$($testSuite.RunnerPath)'"
-                    } else {
-                        "pwsh '$($testSuite.RunnerPath)'"
-                    }
-                    
-                    $output = Invoke-EGSCommand -VmId $vmId -Command $command
-                    $output | Should -Not -BeNullOrEmpty
-                    
-                    # Check for test summary
-                    $output | Should -Match "Test Summary:"
-                    
-                    # Extract pass/fail counts if possible
-                    if ($output -match "Failed=(\d+)") {
-                        [int]$Matches[1] | Should -Be 0 -Because "No tests should fail"
-                    }
-                }
-                
-                It "Should have fodder properly installed" {
-                    # Gene-specific verification
-                    $verifyCommand = switch ($geneName) {
-                        "winget" {
-                            if ($osType -eq "windows") { "winget --version" } else { $null }
-                        }
-                        "powershell" {
-                            if ($osType -eq "linux") { "pwsh --version" } else { "powershell -Command '$PSVersionTable.PSVersion'" }
-                        }
-                        default { $null }
-                    }
-                    
-                    if ($verifyCommand) {
-                        $result = Invoke-EGSCommand -VmId $vmId -Command $verifyCommand
-                        $result | Should -Not -BeNullOrEmpty -Because "$geneName should be installed and functional"
-                    } else {
-                        Set-ItResult -Skipped -Because "No specific verification for $geneName"
-                    }
-                }
-            }
-            
-            AfterAll {
-                if ($catlet) {
-                    if (-not $KeepVM) {
-                        Write-Information "Removing test catlet: $catletName" -InformationAction Continue
-                        try {
-                            Remove-Catlet -Id $catlet.Id -Force -ErrorAction SilentlyContinue
-                        }
-                        catch {
-                            Write-Warning "Could not remove catlet: $_"
-                        }
-                    } else {
-                        Write-Information "Keeping VM for debugging: $catletName (ID: $($catlet.Id))" -InformationAction Continue
-                    }
-                }
+            $result.ExitCode | Should -Be $expectedExitCode -Because "'$($_.Command)' printed:`n$text"
+            if ($_.Expect) {
+                $text | Should -Match $_.Expect
             }
         }
     }
-    
-    Context "Summary" {
-        It "Should have tested on all requested base OS versions" {
-            # This is a meta-test to ensure we tested everything requested
-            $BaseOS.Count | Should -BeGreaterThan 0
+
+    Context "In-VM tests" -Skip:($InVMTests.Count -eq 0) {
+        BeforeAll {
+            $root = if ($OsType -eq 'windows') { 'C:\Tests' } else { '/tmp/tests' }
+            $sep = if ($OsType -eq 'windows') { '\' } else { '/' }
+            $script:validationPath = "$root${sep}validation"
+            $script:runnerPath = "$root${sep}vm-runner.ps1"
+
+            $script:pesterPath = Copy-PesterToVM -VmId $VmId -OsType $OsType
+            Copy-FileToVM -VmId $VmId -Source (Join-Path $PSScriptRoot 'tests\vm-runner.ps1') -Target $runnerPath -OsType $OsType | Out-Null
+            foreach ($testFile in $InVMTests) {
+                $source = Join-Path $GeneTestPath $testFile
+                Copy-FileToVM -VmId $VmId -Source $source -Target "$validationPath$sep$(Split-Path $testFile -Leaf)" -OsType $OsType | Out-Null
+            }
+        }
+
+        It "Should pass the in-VM Pester tests" {
+            $shell = if ($OsType -eq 'windows') { 'powershell -NoProfile -ExecutionPolicy Bypass' } else { 'pwsh -NoProfile' }
+            $result = Invoke-EGSCommandWithExitCode -VmId $VmId `
+                -Command "$shell -File $runnerPath -PesterPath $pesterPath -TestPath $validationPath"
+            $text = $result.Output -join "`n"
+            $result.Output | ForEach-Object { Write-Host $_ }
+
+            # Parse explicitly: Should -Match overwrites $Matches in Pester's scope.
+            $summary = [regex]::Match($text, 'Test Summary: Total=(\d+) Passed=(\d+) Failed=(\d+)')
+            $summary.Success | Should -BeTrue -Because "the runner should report a summary (pwsh missing on Linux? add gene:dbosoft/powershell:linux-install to the catlet spec)"
+            [int]$summary.Groups[3].Value | Should -Be 0 -Because $text
+            [int]$summary.Groups[2].Value | Should -BeGreaterThan 0 -Because "at least one in-VM test should run"
         }
     }
 }

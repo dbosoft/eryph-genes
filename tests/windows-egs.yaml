@@ -1,5 +1,0 @@
-name: test-windows-egs
-parent: dbosoft/winsrv2022-standard/starter
-
-# Windows test catlet with EGS (Eryph Guest Services)
-# EGS ships in the base catlet; SSH keys are auto-exchanged when you run `egs-tool add-ssh-config <vmid>`

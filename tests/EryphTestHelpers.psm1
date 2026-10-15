@@ -106,35 +106,31 @@ function Invoke-EGSCommand {
 function Get-EgsServiceLog {
     <#
     .SYNOPSIS
-    Retrieves egs-service Application event log entries from a Windows VM.
+    Retrieves the egs-service agent log from a Windows VM.
 
     .DESCRIPTION
-    eryph-guest-services (the cloudbase-init replacement) logs to the Windows
-    Application event log under source 'egs-service' — there is no equivalent
-    of cbi's text log file. This helper runs Get-WinEvent inside the VM via
-    egs-tool and returns the entries as a single string (TimeCreated, Level,
-    Message per line) for compatibility with callers that expect a log blob.
+    eryph-guest-services (the cloudbase-init replacement) writes its
+    operational log - datasource, every module, reboots, SSH events - to
+    C:\ProgramData\eryph\guest-services\logs\agent.log. Per-script output is in
+    C:\ProgramData\eryph\provisioning\logs\, the overall result in
+    C:\ProgramData\eryph\provisioning\state.json (see Save-ProvisioningDiagnostics).
 
     .PARAMETER VmId
     The VM ID to get logs from
 
-    .PARAMETER MaxEvents
-    Maximum number of events to return. Default 200.
+    .PARAMETER Tail
+    Number of lines to return from the end of the log. Default 200.
     #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$VmId,
 
-        [int]$MaxEvents = 200
+        [int]$Tail = 200
     )
 
-    $remote = @"
-Get-WinEvent -LogName Application -ProviderName 'egs-service' -MaxEvents $MaxEvents -ErrorAction SilentlyContinue |
-    Sort-Object TimeCreated |
-    ForEach-Object { '{0:s} {1,-12} {2}' -f `$_.TimeCreated, `$_.LevelDisplayName, (`$_.Message -replace '\s+', ' ') }
-"@
+    # The EGS shell on Windows is PowerShell, so the cmdlet runs directly.
     return Invoke-EGSCommand -VmId $VmId `
-        -Command "powershell -NoProfile -NonInteractive -Command `"$remote`""
+        -Command "Get-Content -LiteralPath C:\ProgramData\eryph\guest-services\logs\agent.log -Tail $Tail"
 }
 
 function Get-CloudbaseInitLog {
@@ -149,7 +145,7 @@ function Get-CloudbaseInitLog {
         [string]$VmId
     )
 
-    Write-Warning "Get-CloudbaseInitLog is deprecated — Windows catlets no longer ship cbi. Returning egs-service event log instead."
+    Write-Warning "Get-CloudbaseInitLog is deprecated — Windows catlets no longer ship cbi. Returning the egs-service agent log instead."
     return Get-EgsServiceLog -VmId $VmId
 }
 
@@ -175,7 +171,7 @@ function Get-CloudInitLogs {
     .SYNOPSIS
     Retrieves provisioning-agent logs based on OS type.
 
-    Windows → Get-EgsServiceLog (Application event log, source 'egs-service').
+    Windows → Get-EgsServiceLog (egs agent.log).
     Linux   → Get-CloudInitLog (/var/log/cloud-init.log — cloud-init is still
               the Linux provisioning agent; eryph-guest-services on Linux runs
               alongside it, not as a replacement).
@@ -816,323 +812,181 @@ exit `$result.FailedCount
     }
 }
 
-function Deploy-TestCatlet {
+function Invoke-EGSCommandWithExitCode {
     <#
     .SYNOPSIS
-    Deploys a test catlet from a specification with placeholder substitutions
-    
-    .PARAMETER CatletSpec
-    The catlet YAML specification with optional placeholders
-    
-    .PARAMETER Substitutions
-    Hashtable of placeholder replacements (e.g., @{GENE_TAG='dbosoft/winget/v1.0'})
-    
-    .PARAMETER AutoName
-    If true, generates a unique name if not specified in spec
-    
-    .OUTPUTS
-    Returns hashtable with Catlet, VmId, and Id
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$CatletSpec,
-        
-        [hashtable]$Substitutions = @{},
-        
-        [switch]$AutoName
-    )
-    
-    # Apply substitutions
-    $yaml = $CatletSpec
-    foreach ($key in $Substitutions.Keys) {
-        $yaml = $yaml -replace "{{$key}}", $Substitutions[$key]
-    }
-    
-    # Generate unique name if needed and not present
-    if ($AutoName -and $yaml -notmatch "^name:") {
-        $yaml = "name: test-$(Get-Random -Maximum 999999)`n$yaml"
-    }
-    
-    Write-Information "Deploying test catlet..." -InformationAction Continue
-    
-    # Deploy catlet
-    $catlet = $yaml | New-Catlet -SkipVariablesPrompt -Verbose
-    
-    if (-not $catlet) {
-        throw "Failed to deploy catlet"
-    }
-    
-    Write-Information ('Catlet deployed: ' + $catlet.Name + ' (ID: ' + $catlet.Id + ', VmId: ' + $catlet.VmId + ')') -InformationAction Continue
-    
-    # Start catlet
-    Write-Information "Starting catlet..." -InformationAction Continue
-    Start-Catlet -Id $catlet.Id -Force
-    
-    # Setup EGS
-    Write-Information "Setting up EGS connection..." -InformationAction Continue
-    $egsReady = Wait-EGSReady -VmId $catlet.VmId -TimeoutMinutes 5
-    
-    if ($egsReady) {
-        Initialize-EGSConnection -VmId $catlet.VmId
-    } else {
-        Write-Warning "EGS not ready after timeout, continuing anyway"
-    }
-    
-    # Return catlet info
-    return @{
-        Catlet = $catlet
-        VmId = $catlet.VmId
-        Id = $catlet.Id
-        Name = $catlet.Name
-    }
-}
+    Runs a command on a VM via EGS/SSH and returns its output and exit code
 
-function Cleanup-TestCatlet {
-    <#
-    .SYNOPSIS
-    Cleans up a test catlet unless KeepVM is specified
-    
-    .PARAMETER CatletInfo
-    The catlet info hashtable from Deploy-TestCatlet
-    
-    .PARAMETER KeepVM
-    If specified, catlet is not removed
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [hashtable]$CatletInfo,
-        
-        [switch]$KeepVM
-    )
-    
-    if ($KeepVM) {
-        Write-Information ('Keeping test catlet: ' + $CatletInfo.Name + ' (ID: ' + $CatletInfo.Id + ')') -InformationAction Continue
-    } else {
-        Write-Information ('Removing test catlet: ' + $CatletInfo.Name) -InformationAction Continue
-        try {
-            Remove-Catlet -Id $CatletInfo.Id -Force -ErrorAction SilentlyContinue
-        } catch {
-            Write-Warning "Failed to remove catlet: $_"
-        }
-    }
-}
+    .DESCRIPTION
+    Like Invoke-EGSCommand, but keeps the remote exit code (ssh returns it as
+    its own exit code). On Windows guests the command runs in PowerShell, on
+    Linux guests in the default shell as root.
 
-function Test-VMCommand {
-    <#
-    .SYNOPSIS
-    Runs a single command in VM and optionally validates output
-    
-    .PARAMETER VmId
-    The VM ID to run command in
-    
-    .PARAMETER Command
-    The command to execute
-    
-    .PARAMETER ExpectedPattern
-    Optional regex pattern to validate output
-    
     .OUTPUTS
-    Returns command output, throws if pattern doesn't match
+    Hashtable with Output (string[]) and ExitCode (int)
     #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$VmId,
-        
+
         [Parameter(Mandatory=$true)]
-        [string]$Command,
-        
-        [string]$ExpectedPattern = $null
+        [string]$Command
     )
-    
-    $output = Invoke-EGSCommand -VmId $VmId -Command $Command
-    
-    if ($ExpectedPattern) {
-        $outputString = $output -join "`n"
-        if ($outputString -notmatch $ExpectedPattern) {
-            throw "Command output did not match expected pattern. Output: $outputString"
-        }
+
+    # -n: the guest never closes a command's stdin (eryph-org/guest-services#68),
+    # so give ssh nothing to forward.
+    $output = & ssh -n -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 `
+        "$VmId.hyper-v.alt" -C $Command 2>&1
+    return @{
+        Output = @($output | ForEach-Object { "$_" })
+        ExitCode = $LASTEXITCODE
     }
-    
-    return $output
 }
 
-function Invoke-TestSuite {
+function Get-OsTypeForGeneset {
     <#
     .SYNOPSIS
-    Runs a complete test suite including deployment, testing, and cleanup
-    
-    .PARAMETER SuiteName
-    Name of the test suite
-    
-    .PARAMETER CatletSpec
-    The catlet YAML specification
-    
-    .PARAMETER OSVersion
-    OS version to substitute in spec
-    
-    .PARAMETER GeneTag
-    Gene tag to substitute in spec
-    
-    .PARAMETER InVMTests
-    Array of test file paths to run inside VM
-    
-    .PARAMETER HostTests
-    Hashtable of commands to run from host with expected patterns
-    
-    .PARAMETER KeepVM
-    If specified, VM is not removed after testing
-    
-    .PARAMETER ThrowOnFailure
-    If specified, throws an exception with details when tests fail
-    
+    Maps a base geneset (e.g. winsrv2022-standard, dbosoft/ubuntu-24.04/starter) to windows or linux
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Geneset
+    )
+
+    $name = ($Geneset -split '/') | Where-Object { $_ -match '^(win|ubuntu|debian|alma|rocky|oracle|centos|fedora|rhel)' } | Select-Object -First 1
+    if (-not $name) {
+        $name = if ($Geneset -match '/') { ($Geneset -split '/')[1] } else { $Geneset }
+    }
+
+    if ($name -match '^win') { return 'windows' }
+    if ($name -match '^(ubuntu|debian|alma|rocky|oracle|centos|fedora|rhel)') { return 'linux' }
+    throw "Cannot tell whether '$Geneset' is a Windows or Linux geneset. Add it to Get-OsTypeForGeneset."
+}
+
+function Wait-ProvisioningComplete {
+    <#
+    .SYNOPSIS
+    Waits until the guest finished provisioning (all fodder ran)
+
+    .DESCRIPTION
+    EGS reports "available" as soon as the guest's SSH server is up, which is
+    usually before the fodder has finished running.
+    Windows (egs-service): waits until C:\ProgramData\eryph\provisioning\state.json
+    lists the Final stage as completed. Linux (cloud-init): waits until
+    `cloud-init status` leaves the running state. Connection failures while
+    the guest reboots during provisioning are tolerated.
+
     .OUTPUTS
-    Returns test results with passed/failed counts
+    Hashtable with Completed (bool), Failed (bool) and Detail (string)
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [string]$SuiteName,
-        
+        [string]$VmId,
+
         [Parameter(Mandatory=$true)]
-        [string]$CatletSpec,
-        
-        [Parameter(Mandatory=$true)]
-        [string]$OSVersion,
-        
-        [Parameter(Mandatory=$true)]
-        [string]$GeneTag,
-        
-        [string[]]$InVMTests = @(),
-        
-        [hashtable]$HostTests = @{},
-        
-        [switch]$KeepVM,
-        
-        [switch]$ThrowOnFailure
+        [ValidateSet("windows", "linux")]
+        [string]$OsType,
+
+        [int]$TimeoutMinutes = 30
     )
-    
-    $results = @{
-        Suite = $SuiteName
-        OS = $OSVersion
-        Passed = 0
-        Failed = 0
-        Errors = @()
-    }
-    
-    $deployment = $null
-    
-    try {
-        # Deploy catlet with substitutions
-        Write-Information ('Deploying catlet for suite: ' + $SuiteName + ' on ' + $OSVersion) -InformationAction Continue
-        $deployment = Deploy-TestCatlet `
-            -CatletSpec $CatletSpec `
-            -Substitutions @{
-                SUITE = $SuiteName
-                OS = $OSVersion -replace '[^a-zA-Z0-9]', ''
-                OS_VERSION = $OSVersion
-                GENE_TAG = $GeneTag
-                RANDOM = Get-Random -Maximum 999999
-            } `
-            -AutoName
-        
-        # Run host-based tests if specified
-        if ($HostTests.Count -gt 0) {
-            Write-Information ('Running ' + $HostTests.Count + ' host-based tests...') -InformationAction Continue
-            foreach ($cmd in $HostTests.Keys) {
+
+    $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
+    $detail = 'no provisioning status read yet'
+
+    while ((Get-Date) -lt $deadline) {
+        if ($OsType -eq 'windows') {
+            $result = Invoke-EGSCommandWithExitCode -VmId $VmId `
+                -Command 'Get-Content -LiteralPath C:\ProgramData\eryph\provisioning\state.json -Raw'
+            $raw = ($result.Output -join "`n").Trim()
+            if ($result.ExitCode -eq 0 -and $raw) {
+                $detail = $raw
                 try {
-                    Test-VMCommand -VmId $deployment.VmId -Command $cmd -ExpectedPattern $HostTests[$cmd]
-                    $results.Passed++
-                    Write-Verbose ('Host test passed: ' + $cmd)
+                    $state = $raw | ConvertFrom-Json
+                    if (@($state.completedStages) -contains 'Final') {
+                        # state.json is success-only on a clean run; a property
+                        # named failed*/error*/failure* means a handler failed.
+                        $failureProps = $state.PSObject.Properties.Name |
+                            Where-Object { $_ -match '^(failed|errors?|failures?)' }
+
+                        # A failing script does not stop provisioning on Windows
+                        # and does not show up in state.json; its per-script log
+                        # does ("exit-code: <n>"). 1001/1003 are reboot requests.
+                        $exitCodes = Invoke-EGSCommandWithExitCode -VmId $VmId `
+                            -Command "Select-String -Path C:\ProgramData\eryph\provisioning\logs\*.log -Pattern '^exit-code: (-?\d+)' | ForEach-Object { `$_.Filename + ' ' + `$_.Matches[0].Groups[1].Value }"
+                        $failedScripts = @($exitCodes.Output | Where-Object { $_ -match '^(\S+) (-?\d+)$' -and $Matches[2] -notin '0', '1001', '1003' })
+
+                        $detail = $raw
+                        if ($failedScripts) {
+                            $detail = "Failed scripts (see C:\ProgramData\eryph\provisioning\logs): $($failedScripts -join ', ')`n$raw"
+                        }
+                        return @{ Completed = $true; Failed = ([bool]$failureProps -or [bool]$failedScripts); Detail = $detail }
+                    }
                 } catch {
-                    $results.Failed++
-                    $results.Errors += 'Host test failed: ' + $cmd + ' - ' + $_
-                    Write-Warning ('✗ Host test failed: ' + $cmd)
+                    # state.json is rewritten while provisioning runs; read again
+                }
+            }
+        } else {
+            $result = Invoke-EGSCommandWithExitCode -VmId $VmId -Command 'cloud-init status --long < /dev/null'
+            $text = ($result.Output -join "`n").Trim()
+            if ($text) {
+                $detail = $text
+                if ($text -match 'status:\s*(done|error|degraded)') {
+                    return @{ Completed = $true; Failed = ($Matches[1] -ne 'done'); Detail = $text }
                 }
             }
         }
-        
-        # Run in-VM tests if specified
-        if ($InVMTests.Count -gt 0) {
-            Write-Information ('Running ' + $InVMTests.Count + ' in-VM test files...') -InformationAction Continue
-            
-            # Copy Pester to VM
-            Copy-PesterToVM -VmId $deployment.VmId -OsType 'windows'
-            
-            # Copy test files to VM
-            foreach ($testFile in $InVMTests) {
-                $source = if ([System.IO.Path]::IsPathRooted($testFile)) { 
-                    $testFile 
-                } else { 
-                    Join-Path $PSScriptRoot $testFile 
-                }
-                
-                if (Test-Path $source) {
-                    $destPath = 'C:\Tests\' + (Split-Path $testFile -Leaf)
-                    Copy-FileToVM -VmId $deployment.VmId -Source $source -Target $destPath -OsType 'windows'
-                } else {
-                    Write-Warning ('Test file not found: ' + $source)
-                }
-            }
-            
-            # Run Pester in VM
-            $pesterResult = Invoke-PesterInVM -VmId $deployment.VmId -TestPath 'C:\Tests' -OsType 'windows'
-            $results.Passed += $pesterResult.PassedCount
-            $results.Failed += $pesterResult.FailedCount
-            
-            if ($pesterResult.FailedCount -gt 0) {
-                $results.Errors += 'In-VM tests failed: ' + $pesterResult.FailedCount + ' failures'
-            }
-        }
-        
-    } catch {
-        $results.Failed++
-        $results.Errors += 'Suite execution error: ' + $_
-        Write-Error ('Failed to execute test suite: ' + $_)
-    } finally {
-        if ($deployment) {
-            Cleanup-TestCatlet -CatletInfo $deployment -KeepVM:$KeepVM
-        }
+
+        Start-Sleep -Seconds 10
     }
-    
-    # Validate and throw if requested
-    if ($ThrowOnFailure) {
-        Assert-TestSuiteResults -Results $results
-    }
-    
-    return $results
+
+    return @{ Completed = $false; Failed = $true; Detail = "Timed out after $TimeoutMinutes minutes. Last status: $detail" }
 }
 
-function Assert-TestSuiteResults {
+function Save-ProvisioningDiagnostics {
     <#
     .SYNOPSIS
-    Validates test suite results and throws detailed error if tests failed
-    
-    .PARAMETER Results
-    The results hashtable from Invoke-TestSuite
-    
-    .PARAMETER RequireTests
-    If true, requires at least one test to have run
+    Copies the guest's provisioning state and logs into a host directory
+
+    .DESCRIPTION
+    Windows: state.json, the egs agent.log and every per-script log.
+    Linux: cloud-init status, cloud-init.log, cloud-init-output.log and the
+    rendered user scripts.
     #>
     param(
         [Parameter(Mandatory=$true)]
-        [hashtable]$Results,
-        
-        [switch]$RequireTests
+        [string]$VmId,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("windows", "linux")]
+        [string]$OsType,
+
+        [Parameter(Mandatory=$true)]
+        [string]$OutputPath
     )
-    
-    # Check if any tests failed
-    if ($Results.Failed -gt 0) {
-        $errorMessage = 'Test suite ' + $Results.Suite + ' on ' + $Results.OS + ' failed with ' + $Results.Failed + ' failures'
-        if ($Results.Errors.Count -gt 0) {
-            $errorMessage += [System.Environment]::NewLine + 'Errors:' + [System.Environment]::NewLine + ($Results.Errors | ForEach-Object { '  - ' + $_ } | Out-String)
+
+    New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
+
+    $commands = if ($OsType -eq 'windows') {
+        [ordered]@{
+            'state.json' = 'Get-Content -LiteralPath C:\ProgramData\eryph\provisioning\state.json -Raw'
+            'agent.log' = 'Get-Content -LiteralPath C:\ProgramData\eryph\guest-services\logs\agent.log -Tail 500'
+            'script-logs.txt' = 'Get-ChildItem C:\ProgramData\eryph\provisioning\logs -Filter *.log | ForEach-Object { "===== $($_.Name)"; Get-Content -LiteralPath $_.FullName }'
         }
-        throw $errorMessage
+    } else {
+        [ordered]@{
+            'cloud-init-status.txt' = 'cloud-init status --long < /dev/null'
+            'cloud-init.log' = 'tail -n 500 /var/log/cloud-init.log'
+            'cloud-init-output.log' = 'cat /var/log/cloud-init-output.log'
+            'scripts.txt' = 'for f in /var/lib/cloud/instance/scripts/*; do echo "===== $f"; cat "$f"; done'
+        }
     }
-    
-    # Verify tests actually ran if required
-    if ($RequireTests -and $Results.Passed -eq 0) {
-        Write-Warning 'No tests were executed for this suite'
-        return $null
+
+    foreach ($file in $commands.Keys) {
+        $result = Invoke-EGSCommandWithExitCode -VmId $VmId -Command $commands[$file]
+        Set-Content -Path (Join-Path $OutputPath $file) -Value $result.Output
     }
+
+    Write-Information "Provisioning diagnostics saved to: $OutputPath" -InformationAction Continue
 }
 
 # Export functions
@@ -1152,9 +1006,9 @@ Export-ModuleMember -Function @(
     'Copy-MultipleFilesToVM',
     'Invoke-PesterInVM',
     'Copy-TestSuiteToVM',
-    'Deploy-TestCatlet',
-    'Cleanup-TestCatlet',
-    'Test-VMCommand',
-    'Invoke-TestSuite',
-    'Assert-TestSuiteResults'
+    'Get-EgsServiceLog',
+    'Invoke-EGSCommandWithExitCode',
+    'Get-OsTypeForGeneset',
+    'Wait-ProvisioningComplete',
+    'Save-ProvisioningDiagnostics'
 )
