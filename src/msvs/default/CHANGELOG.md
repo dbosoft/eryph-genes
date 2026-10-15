@@ -1,5 +1,11 @@
 # @dbosoft/msvs-default
 
+## 1.4.0
+
+### Minor Changes
+
+- fc29958: new fodder vs2026 (Visual Studio 2026); variable vs_cache_path moves the installer's package cache, e.g. to a dev drive.
+
 ## 1.3.0
 
 ### Minor Changes

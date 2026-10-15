@@ -1,0 +1,301 @@
+name: win-vscode
+
+variables:
+  - name: vscode_extensions
+    value: "ms-vscode.powershell,ms-python.python,ms-azuretools.vscode-docker"
+    required: false
+  - name: vscode_settings_json
+    value: |
+      {
+        "editor.fontSize": 14,
+        "editor.tabSize": 2,
+        "editor.wordWrap": "on",
+        "terminal.integrated.fontSize": 13,
+        "files.autoSave": "afterDelay",
+        "files.autoSaveDelay": 1000,
+        "editor.formatOnSave": true,
+        "editor.minimap.enabled": false
+      }
+    required: false
+  - name: vscode_keybindings_json
+    value: |
+      [
+        {
+          "key": "ctrl+shift+d",
+          "command": "editor.action.duplicateSelection"
+        },
+        {
+          "key": "ctrl+shift+l",
+          "command": "editor.action.selectHighlights"
+        }
+      ]
+    required: false
+  - name: dev_drive_letter
+    value: ""
+    required: false
+
+fodder:
+  # Install VS Code system-wide with Microsoft's system installer
+  - name: install-vscode-systemwide
+    type: shellscript
+    filename: install-vscode-systemwide.ps1
+    content: |
+      $ErrorActionPreference = 'Stop'
+      $ProgressPreference = 'SilentlyContinue'
+      [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+
+      $codeExe = "${env:ProgramFiles}\Microsoft VS Code\Code.exe"
+      if (Test-Path $codeExe) {
+          Write-Host "VS Code is already installed at: $codeExe"
+      } else {
+          # The system installer (not the user installer) installs to Program Files
+          # for all users, which works when running as Local System.
+          $platform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'win32-arm64' } else { 'win32-x64' }
+          $installer = Join-Path $env:TEMP 'VSCodeSetup.exe'
+          Write-Host "Downloading VS Code ($platform system installer)..."
+          Invoke-WebRequest -Uri "https://update.code.visualstudio.com/latest/$platform/stable" -OutFile $installer -UseBasicParsing
+
+          Write-Host "Installing VS Code..."
+          $process = Start-Process -FilePath $installer -Wait -PassThru -ArgumentList @(
+              '/VERYSILENT', '/NORESTART', '/SUPPRESSMSGBOXES',
+              '/MERGETASKS=!runcode,addcontextmenufiles,addcontextmenufolders,associatewithfiles,addtopath')
+          Remove-Item $installer -Force -ErrorAction SilentlyContinue
+
+          if ($process.ExitCode -ne 0 -or -not (Test-Path $codeExe)) {
+              Write-Host "ERROR: VS Code installation failed (exit code $($process.ExitCode))"
+              exit 1
+          }
+          Write-Host "VS Code installed at: $codeExe"
+      }
+
+      # The installer adds the bin folder to the machine PATH; make sure it is there
+      $codePath = "${env:ProgramFiles}\Microsoft VS Code\bin"
+      $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+      if ($machinePath -notlike "*$codePath*") {
+          [System.Environment]::SetEnvironmentVariable("Path", "$machinePath;$codePath", "Machine")
+          Write-Host "Added VS Code to system PATH"
+      }
+
+  # Configure VS Code with dev drive integration
+  - name: configure-vscode-devdrive
+    type: shellscript
+    filename: configure-vscode-devdrive.ps1
+    content: |
+      Write-Host "=== Configuring VS Code with Dev Drive Integration ==="
+      
+      # Extensions list from variable
+      $extensionsList = "{{ vscode_extensions }}"
+      $settingsJson = @'
+      {{ vscode_settings_json }}
+      '@
+      $keybindingsJson = @'
+      {{ vscode_keybindings_json }}
+      '@
+      
+      # Dev Drive configuration
+      $providedDevDrive = "{{ dev_drive_letter }}"
+      $devDriveLetter = $null
+      
+      # VSCode installation path
+      $vscodePath = "${env:ProgramFiles}\Microsoft VS Code"
+      $bootstrapPath = "$vscodePath\bootstrap\extensions"
+      
+      if (-not (Test-Path $vscodePath)) {
+          Write-Host "ERROR: VSCode not installed at $vscodePath"
+          exit 1
+      }
+      
+      # Detect Dev Drive for VS Code configuration
+      Write-Host "=== Dev Drive Detection for VS Code ==="
+      
+      # Check if dev_drive_letter was explicitly provided
+      if (![string]::IsNullOrWhiteSpace($providedDevDrive)) {
+          Write-Host "Using explicitly provided Dev Drive letter: ${providedDevDrive}:"
+          
+          # Verify the drive exists and is suitable
+          $volume = Get-Volume -DriveLetter $providedDevDrive -ErrorAction SilentlyContinue
+          if ($volume) {
+              if ($volume.DriveType -eq 'Fixed') {
+                  $devDriveLetter = $providedDevDrive
+                  Write-Host "  File System: $($volume.FileSystem)"
+                  Write-Host "  Label: $($volume.FileSystemLabel)"
+                  Write-Host "  Size: $([Math]::Round($volume.Size / 1GB, 2)) GB"
+              } else {
+                  Write-Host "WARNING: Drive ${providedDevDrive}: is not a fixed drive. Skipping Dev Drive configuration."
+              }
+          } else {
+              Write-Host "WARNING: Drive ${providedDevDrive}: does not exist. Skipping Dev Drive configuration."
+          }
+      } else {
+          # Auto-detect Dev Drive
+          Write-Host "Auto-detecting Dev Drive..."
+          
+          $volumes = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter }
+          
+          foreach ($volume in $volumes) {
+              $driveLetter = $volume.DriveLetter
+              
+              # Skip system drives
+              if ($driveLetter -eq 'C' -or $driveLetter -eq 'D') {
+                  continue
+              }
+              
+              # Check if it's a Dev Drive (Windows 11)
+              $devDrvResult = cmd /c "fsutil devdrv query ${driveLetter}:" 2>&1
+              if ($devDrvResult -like "*trusted developer volume*") {
+                  Write-Host "Found Dev Drive at ${driveLetter}:"
+                  $devDriveLetter = $driveLetter
+                  break
+              }
+              # Check for ReFS drives labeled as DevDrive
+              elseif ($volume.FileSystem -eq 'ReFS' -and $volume.FileSystemLabel -like '*Dev*') {
+                  Write-Host "Found ReFS development drive at ${driveLetter}:"
+                  $devDriveLetter = $driveLetter
+                  break
+              }
+          }
+      }
+      
+      # Configure VS Code directories based on dev drive availability
+      if ($devDriveLetter) {
+          Write-Host "Configuring VS Code for Dev Drive at ${devDriveLetter}:"
+          
+          # Create VS Code project directories
+          $vscodePaths = @(
+              "${devDriveLetter}:\vscode",
+              "${devDriveLetter}:\vscode\extensions",
+              "${devDriveLetter}:\vscode\user-data",
+              "${devDriveLetter}:\vscode\workspace-storage",
+              "${devDriveLetter}:\source\repos"
+          )
+          
+          foreach ($path in $vscodePaths) {
+              if (-not (Test-Path $path)) {
+                  New-Item -ItemType Directory -Path $path -Force | Out-Null
+                  Write-Host "Created: $path"
+              }
+          }
+          
+          # Parse and update settings to include dev drive paths
+          try {
+              $settings = $settingsJson | ConvertFrom-Json
+              
+              # Add dev drive specific settings
+              $settings | Add-Member -Type NoteProperty -Name "extensions.autoCheckUpdates" -Value $false -Force
+              $settings | Add-Member -Type NoteProperty -Name "extensions.autoUpdate" -Value $false -Force
+              $settings | Add-Member -Type NoteProperty -Name "git.defaultCloneDirectory" -Value "${devDriveLetter}:\source\repos" -Force
+              $settings | Add-Member -Type NoteProperty -Name "terminal.integrated.cwd" -Value "${devDriveLetter}:\source" -Force
+              
+              # Convert back to JSON
+              $settingsJson = $settings | ConvertTo-Json -Depth 10
+              
+              Write-Host "Updated settings for Dev Drive configuration"
+          } catch {
+              Write-Host "Warning: Could not update settings JSON: $_"
+          }
+      } else {
+          Write-Host "No Dev Drive detected. Using default VS Code configuration."
+      }
+      
+      Write-Host ""
+      Write-Host "=== Setting up VS Code Extensions (Bootstrap Method) ==="
+      
+      Write-Host "Creating bootstrap extensions folder..."
+      if (-not (Test-Path $bootstrapPath)) {
+          New-Item -ItemType Directory -Path $bootstrapPath -Force | Out-Null
+          Write-Host "Created: $bootstrapPath"
+      } else {
+          Write-Host "Bootstrap folder already exists"
+      }
+      
+      # Parse extensions list
+      $extensions = $extensionsList -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
+      
+      Write-Host ""
+      Write-Host "Downloading VSIX files for extensions:"
+      $extensions | ForEach-Object { Write-Host "  - $_" }
+      
+      # Download each extension VSIX
+      foreach ($extension in $extensions) {
+          Write-Host ""
+          Write-Host "Processing: $extension"
+          
+          # Split publisher and name
+          $parts = $extension -split '\.'
+          if ($parts.Count -ne 2) {
+              Write-Host "  WARNING: Invalid extension format. Expected 'publisher.name'"
+              continue
+          }
+          
+          $publisher = $parts[0]
+          $name = $parts[1]
+          
+          # Construct marketplace URL
+          $marketplaceUrl = "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/$publisher/vsextensions/$name/latest/vspackage"
+          
+          $vsixPath = "$bootstrapPath\$extension.vsix"
+          
+          try {
+              Write-Host "  Downloading from marketplace..."
+              Invoke-WebRequest -Uri $marketplaceUrl -OutFile $vsixPath -UseBasicParsing
+              
+              if (Test-Path $vsixPath) {
+                  $size = (Get-Item $vsixPath).Length / 1MB
+                  Write-Host "  [OK] Downloaded: $([Math]::Round($size, 2)) MB"
+              } else {
+                  Write-Host "  [FAIL] Download failed"
+              }
+          } catch {
+              Write-Host "  [ERROR] Failed to download: $_"
+          }
+      }
+      
+      Write-Host ""
+      Write-Host "=== Configuring VS Code Settings (System-Wide) ==="
+      
+      # Configure Default User Profile (for all new users)
+      Write-Host "Configuring Default User Profile..."
+      $defaultUserPath = "C:\Users\Default\AppData\Roaming\Code\User"
+      
+      if (-not (Test-Path $defaultUserPath)) {
+          New-Item -ItemType Directory -Path $defaultUserPath -Force | Out-Null
+          Write-Host "Created Default user VSCode directory"
+      }
+      
+      # Write default settings
+      $settingsJson | Out-File -FilePath "$defaultUserPath\settings.json" -Encoding UTF8 -Force
+      Write-Host "[OK] Default settings.json created"
+      
+      # Write default keybindings
+      $keybindingsJson | Out-File -FilePath "$defaultUserPath\keybindings.json" -Encoding UTF8 -Force
+      Write-Host "[OK] Default keybindings.json created"
+      
+      # VS Code installs extensions per user, and fodder runs as Local System:
+      # install the downloaded extensions for every user at their first logon
+      # (Active Setup runs StubPath once per user; started detached so the
+      # logon doesn't wait for it).
+      $userSetupDir = "C:\ProgramData\eryph\vscode"
+      New-Item -ItemType Directory -Path $userSetupDir -Force | Out-Null
+      $userScript = "$userSetupDir\install-user-extensions.ps1"
+      Set-Content -Path $userScript -Encoding UTF8 -Value @'
+      # Installs the VS Code extensions prepared by gene:dbosoft/vscode for the current user.
+      $code = "$env:ProgramFiles\Microsoft VS Code\bin\code.cmd"
+      $log = "$env:LOCALAPPDATA\eryph-vscode-extensions.log"
+      Get-ChildItem "$env:ProgramFiles\Microsoft VS Code\bootstrap\extensions" -Filter *.vsix -ErrorAction SilentlyContinue |
+          ForEach-Object { & $code --install-extension $_.FullName --force 2>&1 | ForEach-Object { "$_" } | Add-Content $log }
+      '@
+      
+      $activeSetupKey = 'HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\eryph-vscode-extensions'
+      New-Item -Path $activeSetupKey -Force | Out-Null
+      Set-ItemProperty -Path $activeSetupKey -Name '(Default)' -Value 'VS Code extensions (eryph)'
+      Set-ItemProperty -Path $activeSetupKey -Name 'Version' -Value '1,0,0,0'
+      Set-ItemProperty -Path $activeSetupKey -Name 'IsInstalled' -Value 1 -Type DWord
+      Set-ItemProperty -Path $activeSetupKey -Name 'StubPath' -Value ("powershell.exe -NoProfile -WindowStyle Hidden -Command " +
+          "`"Start-Process powershell.exe -WindowStyle Hidden -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File $userScript'`"")
+      Write-Host "[OK] Extensions are installed for each user at first logon: $userScript"
+      
+      Write-Host ""
+      Write-Host "=== VS Code Configuration Complete ==="
+      if ($devDriveLetter) {
+          Write-Host "Dev Drive: ${devDriveLetter}:"
+      }
