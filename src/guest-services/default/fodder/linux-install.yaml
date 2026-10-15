@@ -60,6 +60,9 @@ fodder:
 - name: write-files
   type: cloud-config
   content:
+    merge_how:
+      - name: list
+        settings: [append]
     write_files:
       - path: /etc/systemd/system/eryph-guest-services.service
         content: |
