@@ -3,13 +3,15 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "cache": false,
-      "outputs": ["dist/**", "../../genes/**", "!**/.packed/*"]
+      "cache": false
+    },
+    "@dbosoft/build-geneset#build": {
+      "inputs": ["src/**", "package.json", "tsconfig.json"],
+      "outputs": ["dist/**"]
     },
     "publish": {
       "dependsOn": ["^publish"],
-      "cache": false,
-      "outputs": ["dist/**", "../../genes/**", "!**/.packed/*"]
+      "cache": false
     },
     "dev": {
       "persistent": true,
