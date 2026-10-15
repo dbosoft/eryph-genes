@@ -1,0 +1,8 @@
+{
+    "geneset": "dbosoft/sapadt",
+    "public": true,
+    "short_description": "Eclipse with SAP ABAP Development Tools",
+    "description": "This geneset contains fodder for installing Eclipse with the SAP ABAP Development Tools (ADT) on Windows systems.",
+    "description_markdown": null,
+    "description_markdown_file": "readme.md"
+}
