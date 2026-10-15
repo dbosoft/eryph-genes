@@ -1,0 +1,146 @@
+name: devbox
+parent: dbosoft/win11-24h2-enterprise/latest
+
+capabilities:
+  - nested_virtualization  # Enable for Hyper-V, WSL2, containers
+
+cpu:
+  count: 8
+
+memory:
+  startup: 16384
+
+drives:
+  # Visual Studio, the dev tools and the dev drive VHDX share the system disk;
+  # the 39 GB of the base catlet are far too small. The disk is dynamically
+  # expanding, and egs extends C: to the new size on first boot.
+  - name: sda
+    size: 250
+
+variables:
+  - name: vs_edition
+    value: "Community"
+    required: false
+  - name: vs_workloads
+    value: "Microsoft.VisualStudio.Workload.ManagedDesktop;Microsoft.VisualStudio.Workload.NetWeb;Microsoft.VisualStudio.Workload.Azure"
+    required: false
+  - name: dev_tools
+    value: "Git.Git,OpenJS.NodeJS.LTS,GitHub.cli"
+    required: false
+  - name: vscode_extensions
+    value: "ms-vscode.powershell,ms-azuretools.vscode-docker,eamodio.gitlens,ms-dotnettools.csharp"
+    required: false
+  # Dev drive: by default a VHDX on C:. To use a dedicated disk instead, add a
+  # drive (e.g. sdb) to the catlet and set devdrive_disk to it.
+  - name: devdrive_disk
+    value: ""
+    required: false
+  - name: devdrive_size
+    value: "100"
+    required: false
+  - name: devdrive_letter
+    value: "E"
+    required: false
+  # Optional Git identity, set for each user at first logon
+  - name: git_user_name
+    value: ""
+    required: false
+  - name: git_user_email
+    value: ""
+    required: false
+
+fodder:
+  # winget, plus the command line developer tools (machine-wide)
+  - source: gene:dbosoft/winget:install
+    variables:
+      - name: packages
+        value: '{{ dev_tools }}'
+
+  # Dev Drive (ReFS, trusted) with package caches and the \source workspace
+  - source: gene:dbosoft/windevdrive:configure
+    variables:
+      - name: devdrive_disk
+        value: '{{ devdrive_disk }}'
+      - name: devdrive_location
+        value: C
+      - name: devdrive_type
+        value: vhd
+      - name: devdrive_size
+        value: '{{ devdrive_size }}'
+      - name: devdrive_letter
+        value: '{{ devdrive_letter }}'
+      - name: devdrive_label
+        value: DevDrive
+
+  # Hyper-V for nested virtualization (WSL2, containers, etc.)
+  - source: gene:dbosoft/hyperv:install
+
+  # PowerShell 7
+  - source: gene:dbosoft/powershell:win-install
+
+  # VS Code; extensions are installed for each user at first logon
+  - source: gene:dbosoft/vscode:win-vscode
+    variables:
+      - name: vscode_extensions
+        value: '{{ vscode_extensions }}'
+      - name: dev_drive_letter
+        value: '{{ devdrive_letter }}'
+
+  # Visual Studio 2026 with its package cache on the dev drive
+  - source: gene:dbosoft/msvs:vs2026
+    variables:
+      - name: vs_edition
+        value: '{{ vs_edition }}'
+      - name: vs_workloads
+        value: '{{ vs_workloads }}'
+      - name: include_recommended
+        value: "true"
+      - name: dev_drive_letter
+        value: '{{ devdrive_letter }}'
+      - name: vs_cache_path
+        value: '{{ devdrive_letter }}:\VSCache'
+
+  # Git: system-wide defaults, and the optional identity for each user at first logon
+  - name: configure-git
+    type: shellscript
+    filename: configure-git.ps1
+    content: |
+      Write-Host "Configuring Git system-wide settings..."
+
+      # Each fodder script runs with the PATH the provisioning agent started
+      # with; pick up Git installed by an earlier step
+      $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")
+      if (!(Get-Command git -ErrorAction SilentlyContinue)) {
+          Write-Host "ERROR: git not found"
+          exit 1
+      }
+
+      git config --system init.defaultBranch main
+      git config --system core.autocrlf true
+      git config --system credential.helper manager
+      if ($LASTEXITCODE -ne 0) {
+          Write-Host "ERROR: git config failed with exit code $LASTEXITCODE"
+          exit 1
+      }
+
+      $userName = '{{ git_user_name }}'
+      $userEmail = '{{ git_user_email }}'
+      if ($userName -or $userEmail) {
+          # git --global is per user; Active Setup runs StubPath once per user at logon
+          $script = 'C:\ProgramData\eryph\devbox\configure-git-user.ps1'
+          New-Item -ItemType Directory -Path (Split-Path $script -Parent) -Force | Out-Null
+          $lines = @('$git = "$env:ProgramFiles\Git\cmd\git.exe"')
+          if ($userName) { $lines += "& `$git config --global user.name '$($userName.Replace("'", "''"))'" }
+          if ($userEmail) { $lines += "& `$git config --global user.email '$($userEmail.Replace("'", "''"))'" }
+          Set-Content -Path $script -Encoding UTF8 -Value $lines
+
+          $key = 'HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\eryph-devbox-git-user'
+          New-Item -Path $key -Force | Out-Null
+          Set-ItemProperty -Path $key -Name '(Default)' -Value 'Git identity (eryph devbox)'
+          Set-ItemProperty -Path $key -Name 'Version' -Value '1,0,0,0'
+          Set-ItemProperty -Path $key -Name 'IsInstalled' -Value 1 -Type DWord
+          Set-ItemProperty -Path $key -Name 'StubPath' -Value "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $script"
+          Write-Host "Git identity is set for each user at first logon: $script"
+      }
+
+      Write-Host "Git system-wide configuration completed"

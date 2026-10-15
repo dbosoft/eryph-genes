@@ -1,5 +1,11 @@
 # @dbosoft/windevbox-win11
 
+## 1.3.0
+
+### Minor Changes
+
+- 50897f7: variable devdrive_name renamed to devdrive_disk; an unusable disk falls back to the VHDX on C:
+
 ## 1.2.0
 
 ### Minor Changes

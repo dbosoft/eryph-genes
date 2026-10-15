@@ -1,5 +1,11 @@
 # @dbosoft/msvs-default
 
+## 1.5.0
+
+### Minor Changes
+
+- 50897f7: vs_cache_path on a drive that doesn't exist no longer fails the installation; the default package cache is used with a warning
+
 ## 1.4.0
 
 ### Minor Changes
