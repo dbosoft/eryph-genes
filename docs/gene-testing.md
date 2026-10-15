@@ -14,12 +14,12 @@ Base catlet builds and their tests normally run through the `/build-base-catlets
 
 ```powershell
 .\Test-FodderGene.ps1 -Gene dbosoft/powershell                          # all suites, OS matrix from the test matrix
-.\Test-FodderGene.ps1 -Gene dbosoft/winget/1.1 -Suite WingetBasicFunctionality -BaseOS winsrv2022-standard -KeepVM
-.\Test-GeneRelease.ps1 dbosoft/winget/1.1 -FromBuild                   # copy the .packed build to the local genepool, then test
+.\Test-FodderGene.ps1 -Gene dbosoft/winget/1.0 -Suite WingetInstall -BaseOS winsrv2022-standard -KeepVM
+.\Test-GeneRelease.ps1 dbosoft/winget -FromBuild                       # copy the local build (tag next) to the local genepool, then test
 ```
 
 The gene must be resolvable by eryph-zero: either published, or a local build copied with
-`Copy-ToLocalGenepool.ps1` (done by `Test-GeneRelease.ps1 -FromBuild`).
+`Copy-ToLocalGenepool.ps1`. A local `turbo build` always packs the tag `next`, so test a build as `dbosoft/<geneset>/next` (`Test-GeneRelease.ps1 -FromBuild` does both).
 
 For each suite and each base OS, `Test-FodderGene.ps1`:
 1. Fills the suite's catlet spec (`{{OS_VERSION}}`, `{{GENE}}`) and gives it a short unique name.

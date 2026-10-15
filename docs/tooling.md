@@ -12,7 +12,7 @@ it is on a public feed).
 
 | Tool | Purpose |
 |---|---|
-| `validate_catlet(config, variables)` | Parse, resolve genes and variables, return the expanded config. The source of truth for syntax. `config` needs a `name`. |
+| `validate_catlet(config, variables, name)` | Parse, resolve genes and variables, return the expanded config. The source of truth for syntax. Without a name, `catlet` is used. |
 | `deploy_catlet(config, variables, name, project, waitSeconds)` | Create a catlet. Returns catlet id, or an operation id if not finished in time. |
 | `get_operation(operationId, waitSeconds)` | Follow a long-running operation. |
 | `list_catlets(project)` / `get_catlet(catletId)` | Inventory and status (incl. VmId, provisioning status). |
@@ -79,10 +79,10 @@ pnpm turbo build --filter=@dbosoft/<geneset>...        # one geneset and its tag
 pnpm turbo build                                       # everything
 
 .\Resolve-GenepoolPath.ps1                             # local genepool path (admin), cached by the scripts
-.\Copy-ToLocalGenepool.ps1 -Geneset dbosoft/<geneset>/<tag>   # .packed build -> LOCAL genepool
+.\Copy-ToLocalGenepool.ps1 -Geneset dbosoft/<geneset>/next    # .packed build -> LOCAL genepool
 
 .\Test-FodderGene.ps1 -Gene dbosoft/<geneset>[/<tag>] [-Suite ...] [-BaseOS ...] [-KeepVM]
-.\Test-GeneRelease.ps1 dbosoft/<geneset>/<tag> -FromBuild
+.\Test-GeneRelease.ps1 dbosoft/<geneset> -FromBuild           # copy next + test
 .\Test-PackedBaseCatlet.ps1 -Geneset dbosoft/<os>/<date> -GenepoolPath <path> -OsType windows|linux
 ```
 

@@ -9,7 +9,7 @@
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true, Position=0, HelpMessage="Geneset tag, e.g. dbosoft/powershell/1.2")]
+    [Parameter(Mandatory=$true, Position=0, HelpMessage="Geneset tag, e.g. dbosoft/powershell/next (a local build always packs tag next)")]
     [string]$Geneset,
 
     [Parameter(HelpMessage="Local genepool path (default: cached .claude\genepool-path.txt, else Resolve-GenepoolPath.ps1)")]
@@ -48,7 +48,7 @@ if (Test-Path $targetPath) {
 }
 
 $manifest = Get-Content (Join-Path $packedPath 'geneset-tag.json') -Raw | ConvertFrom-Json
-$skipped = @($manifest.volumes | Where-Object { $_.arch -ne 'any' -and $_.arch -notlike 'hyperv/*' })
+$skipped = @($manifest.volumes | Where-Object { $_ -and $_.arch -ne 'any' -and $_.arch -notlike 'hyperv/*' })
 $skippedHashes = @($skipped | ForEach-Object { $_.hash -replace '^sha256:', '' })
 foreach ($volume in $skipped) {
     Write-Information "Skipping $($volume.name) ($($volume.arch)): not supported by the local genepool"

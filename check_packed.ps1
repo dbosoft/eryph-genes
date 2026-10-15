@@ -48,3 +48,5 @@ $changedGenesets | ForEach-Object {
     Write-Host "Can push geneset-tag $changedGeneset"
 
 }
+
+Pop-Location

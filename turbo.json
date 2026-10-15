@@ -3,10 +3,12 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "cache": false,
       "outputs": ["dist/**", "../../genes/**", "!**/.packed/*"]
     },
     "publish": {
       "dependsOn": ["^publish"],
+      "cache": false,
       "outputs": ["dist/**", "../../genes/**", "!**/.packed/*"]
     },
     "dev": {

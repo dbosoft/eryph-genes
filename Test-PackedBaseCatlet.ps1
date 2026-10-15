@@ -78,14 +78,9 @@ if (-not (Test-Path $GenesetPackagedPath)) {
 Write-Information "Geneset source: $GenesetPackagedPath" -InformationAction Continue
 Write-Information "Geneset target: $gensetTargetPath" -InformationAction Continue
 
-# Remove previous test catlet if exists
-Write-Information "Cleaning up any previous test catlets..." -InformationAction Continue
-$oldCatlets = Get-Catlet | Where-Object Name -eq catlettest
-if ($oldCatlets) {
-    Write-Information "Found $($oldCatlets.Count) existing test catlet(s), removing..." -InformationAction Continue
-    $oldCatlets | Remove-Catlet -Force -ErrorAction SilentlyContinue
-    Write-Information "Test catlets removed" -InformationAction Continue
-}
+# Unique short name: it also becomes the hostname (Windows: max. 15 characters).
+# Catlets of other runs or of the user are never touched.
+$catletName = "bt-$('{0:x6}' -f (Get-Random -Maximum 16777215))"
 
 # Check if geneset exists in genepool and handle accordingly
 $genesetExistedBefore = $false
@@ -167,7 +162,7 @@ Write-Information "=== DEPLOYING TEST CATLET ===" -InformationAction Continue
 
 # Create test catlet configuration
 $catletYaml = @"
-name: catlettest
+name: $catletName
 parent: $Geneset
 
 fodder:
@@ -394,7 +389,7 @@ Write-Host "Duration: $($result.Duration.TotalSeconds.ToString('F2'))s" -Foregro
 $resultsDir = Join-Path $PSScriptRoot "TestResults"
 if (Test-Path $resultsDir) {
     $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-    $resultsFile = Join-Path $resultsDir "PackedBaseCatlet_${Geneset.Replace('/','-')}_${timestamp}.xml"
+    $resultsFile = Join-Path $resultsDir "PackedBaseCatlet_$($Geneset.Replace('/','-'))_${timestamp}.xml"
     
     # Export results
     $result | Export-NUnitReport -Path $resultsFile

@@ -74,7 +74,7 @@ foreach ($tagFile in $latestTags) {
 }
 
 # Summary
-Write-Host "`n" + ("=" * 60) -ForegroundColor Cyan
+Write-Host ("`n" + ("=" * 60)) -ForegroundColor Cyan
 Write-Host "SUMMARY" -ForegroundColor Cyan
 Write-Host ("=" * 60) -ForegroundColor Cyan
 Write-Host "Total geneset tags processed: $($latestTags.Count)" -ForegroundColor White

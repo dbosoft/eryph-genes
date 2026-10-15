@@ -1,5 +1,5 @@
 {
-  "name": "@dbosoft/win11-21h2-enterprise",
+  "name": "@dbosoft/win11-22h2-enterprise",
   "private": true,
   "scripts": {
     "build": "build-geneset",

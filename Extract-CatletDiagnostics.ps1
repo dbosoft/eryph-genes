@@ -1,6 +1,6 @@
 # Extract-CatletDiagnostics.ps1
 # Standalone script for extracting diagnostics from a catlet when EGS fails
-# This script mounts the VM disk and extracts sysprep and cloud-init logs
+# This script mounts the VM disk and extracts sysprep, eryph guest services and cloud-init logs
 
 [CmdletBinding()]
 param (

@@ -58,7 +58,7 @@ Use the `catlet-authoring` skill. Key rules:
   or SSH keys to test catlets.
 - **Windows provisioning is egs-service, not cloudbase-init.**
   - It accepts full cloud-config. Linux-only keys such as `packages` are ignored.
-  - Scripts need a `.ps1` / `.cmd` filename.
+  - Give scripts a `.ps1` / `.cmd` filename; the extension selects the interpreter.
   - Logs: `C:\ProgramData\eryph\provisioning\` and `C:\ProgramData\eryph\guest-services\logs\agent.log`.
 - **Linux provisioning is cloud-init.**
 - **Syntax:**
@@ -74,7 +74,7 @@ writes its tests.
 ```
 src/<geneset>/            # sources: geneset package (no version) + tag packages (versioned) with fodder/
 genes/<org>/<geneset>/    # built genesets; <tag>/.packed after a build
-packages/                 # build tooling (build-geneset, build-geneset-tag)
+packages/                 # build tooling: build-geneset (bins build-geneset, build-geneset-tag), templates
 tests/                    # test helpers, base catlet and fodder gene tests
 docs/                     # knowledge (see below)
 ```
@@ -91,10 +91,10 @@ Use the `gene-maintainer` agent for it.
 
 ```powershell
 pnpm install
-pnpm turbo build --filter=@dbosoft/<geneset>...               # build one geneset
-.\Copy-ToLocalGenepool.ps1 -Geneset dbosoft/<geneset>/<tag>   # into the LOCAL genepool
-.\Test-FodderGene.ps1 -Gene dbosoft/<geneset>/<tag>           # elevated session
-.\Test-GeneRelease.ps1 dbosoft/<geneset>/<tag> -FromBuild     # copy + test, release gate
+pnpm turbo build --filter=@dbosoft/<package>...               # package name from src/<dir>/package.json
+.\Copy-ToLocalGenepool.ps1 -Geneset dbosoft/<geneset>/next    # a build always packs tag next; LOCAL genepool
+.\Test-FodderGene.ps1 -Gene dbosoft/<geneset>/next            # elevated session
+.\Test-GeneRelease.ps1 dbosoft/<geneset> -FromBuild          # copy next + test, release gate
 ```
 
 - **Fodder genes:** tests live in `tests/fodder-genes/<geneset>/test-matrix.psd1`; see

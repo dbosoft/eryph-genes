@@ -27,9 +27,9 @@ Pester 5 or 6.
 | `Wait-ProvisioningComplete` | Wait until the fodder finished: Windows `state.json` Final stage plus per-script exit codes, Linux `cloud-init status` |
 | `Invoke-EGSCommand` / `Invoke-EGSCommandWithExitCode` | Run a command in the guest over EGS SSH |
 | `Copy-FileToVM` / `Copy-DirectoryToVM` / `Copy-PesterToVM` | Upload via `egs-tool upload-file` |
-| `Copy-TestSuiteToVM` / `Invoke-PesterInVM` | Used by the base catlet tests |
+| `Copy-TestSuiteToVM` | Pester + validation files + runner for the base catlet tests |
 | `Save-ProvisioningDiagnostics` | Copy provisioning state and logs from the guest into `diagnostics/` |
-| `Get-EgsServiceLog` / `Get-CloudInitLog` / `Get-CloudInitLogs` | Provisioning agent log: Windows egs `agent.log`, Linux `cloud-init.log` |
+| `Get-EgsServiceLog` / `Get-CloudInitLog` / `Get-CloudInitLogs` | Provisioning agent log for manual debugging: Windows egs `agent.log`, Linux `cloud-init.log` |
 | `Get-OsTypeForGeneset` | `windows` / `linux` from a base geneset name |
 
 Windows base catlets run eryph guest services (`egs-service`) as provisioning agent; there is no

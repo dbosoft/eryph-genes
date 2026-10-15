@@ -113,7 +113,7 @@ $keys | ForEach-Object {
         
         Set-Location $PSScriptRoot
         Write-Information 'Step 2: Packing build output...'
-        $packed = .\.\pack_build.ps1 $TemplateName -BuildPath $resolvedBuildPath -RemoveBuild
+        $packed = .\pack_build.ps1 $TemplateName -BuildPath $resolvedBuildPath -RemoveBuild
         # pack_build.ps1 may emit progress before the final tag; the resolved tag is always the last item
         $genesetName = @($packed) | Select-Object -Last 1
         if([string]::IsNullOrWhiteSpace($genesetName)){
@@ -123,7 +123,11 @@ $keys | ForEach-Object {
         
         Set-Location $PSScriptRoot
         Write-Information 'Step 3: Running validation tests...'
-        .\test-PackedBaseCatlet.ps1 -Geneset $genesetName -GenepoolPath $GenepoolPath -OsType $osType
+        .\Test-PackedBaseCatlet.ps1 -Geneset $genesetName -GenepoolPath $GenepoolPath -OsType $osType
+        # The test script reports failures only through its exit code.
+        if ($LASTEXITCODE -ne 0) {
+            throw "Test-PackedBaseCatlet.ps1 failed with exit code $LASTEXITCODE"
+        }
         Write-Host '  OK Tests passed' -ForegroundColor Green
         
         $successCount++

@@ -1,16 +1,16 @@
 # Test-GeneRelease.ps1
 # Release gate for fodder genes: runs Test-FodderGene.ps1 for each geneset tag
-# before it is published. With -FromBuild the freshly built tag
-# (genes\<org>\<geneset>\<tag>\.packed) is copied into the local genepool first,
-# so the test runs against the build and not against the published version.
+# before it is published. With -FromBuild the local build is tested instead:
+# `turbo build` always packs into the tag 'next' (genes\<org>\<geneset>\next\.packed),
+# which is copied into the local genepool and tested as <org>/<geneset>/next.
 # Run as Administrator.
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true, Position=0, HelpMessage="Geneset tags, e.g. dbosoft/winget/1.1")]
+    [Parameter(Mandatory=$true, Position=0, HelpMessage="Genesets or geneset tags, e.g. dbosoft/winget or dbosoft/winget/1.1")]
     [string[]]$GenesetTag,
 
-    [Parameter(HelpMessage="Copy each tag's .packed build output into the local genepool before testing")]
+    [Parameter(HelpMessage="Test the local build (tag next) instead of the given tag")]
     [switch]$FromBuild,
 
     [string]$GenepoolPath,
@@ -36,6 +36,8 @@ foreach ($tag in $GenesetTag) {
     $started = Get-Date
     try {
         if ($FromBuild) {
+            $parts = $tag -split '/'
+            $tag = "$($parts[0])/$($parts[1])/next"
             $copyArgs = @{ Geneset = $tag }
             if ($GenepoolPath) { $copyArgs.GenepoolPath = $GenepoolPath }
             & (Join-Path $PSScriptRoot 'Copy-ToLocalGenepool.ps1') @copyArgs

@@ -37,7 +37,7 @@ src/<geneset>/
   writing package.json files from memory.
 - A fodder file has a top-level `name` (the fodder name used in `gene:<org>/<geneset>:<name>`),
   optional `variables` (list of objects) and a `fodder` list.
-- Changing an existing gene: bump the tag package version and add a changeset (`npx changeset`).
+- Changing an existing gene: add a changeset (`npx changeset` or a `.changeset/*.md` file). Don't edit the version by hand; `changeset version` bumps it at release.
 
 ## Tests
 
@@ -63,8 +63,8 @@ Return the list of files you created and the commands for the main session:
 ```powershell
 pnpm install
 pnpm turbo build --filter=@dbosoft/<geneset>...   # the geneset and its tag packages
-.\Copy-ToLocalGenepool.ps1 -Geneset dbosoft/<geneset>/<tag version>   # local genepool, NOT public
-.\Test-FodderGene.ps1 -Gene dbosoft/<geneset>/<tag version>             # as Administrator
+.\Copy-ToLocalGenepool.ps1 -Geneset dbosoft/<geneset>/next   # a build always packs tag next; local genepool, NOT public
+.\Test-FodderGene.ps1 -Gene dbosoft/<geneset>/next             # as Administrator
 ```
 
 ## Build errors

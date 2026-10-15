@@ -1,10 +1,10 @@
 # EryphTestHelpers.psm1
 # Shared helper functions for eryph testing with EGS
 #
-# File copy optimization:
-# - Single files: Uses egs-tool upload-file (faster, no SSH overhead)
-# - Directories: Uses scp (egs-tool doesn't support directory uploads)
-# - Host key verification: Disabled by default in EGS, no need for StrictHostKeyChecking
+# All helpers reach the guest from the Hyper-V host by VmId: commands over
+# `ssh <vmid>.hyper-v.alt` (alias written by `egs-tool add-ssh-config`), files
+# with `egs-tool upload-file`, one file at a time (also for directories).
+# Requires an elevated session.
 
 function Wait-EGSReady {
     <#
@@ -74,25 +74,21 @@ function Invoke-EGSCommand {
     
     .PARAMETER Command
     The command to execute
-    
-    .PARAMETER TimeoutSeconds
-    Command timeout in seconds (default: 120)
     #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$VmId,
-        
+
         [Parameter(Mandatory=$true)]
-        [string]$Command,
-        
-        [int]$TimeoutSeconds = 120
+        [string]$Command
     )
-    
+
     try {
-        # Use timeout to prevent hanging (host key verification already disabled by EGS).
         # The egs-tool SSH config routes the .hyper-v.alt alias through a ProxyCommand,
         # so a plain `ssh` works regardless of which OpenSSH build is first on PATH.
-        $result = & ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 `
+        # -n: the guest never closes a command's stdin (eryph-org/guest-services#68),
+        # so give ssh nothing to forward.
+        $result = & ssh -n -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 `
             "$VmId.hyper-v.alt" -C $Command 2>$null
         
         return $result
@@ -131,22 +127,6 @@ function Get-EgsServiceLog {
     # The EGS shell on Windows is PowerShell, so the cmdlet runs directly.
     return Invoke-EGSCommand -VmId $VmId `
         -Command "Get-Content -LiteralPath C:\ProgramData\eryph\guest-services\logs\agent.log -Tail $Tail"
-}
-
-function Get-CloudbaseInitLog {
-    <#
-    .SYNOPSIS
-    Deprecated: cloudbase-init has been replaced by egs-service on Windows
-    catlets built by hyperv-boxes. Forwards to Get-EgsServiceLog so existing
-    callers keep working; new code should call Get-EgsServiceLog directly.
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$VmId
-    )
-
-    Write-Warning "Get-CloudbaseInitLog is deprecated — Windows catlets no longer ship cbi. Returning the egs-service agent log instead."
-    return Get-EgsServiceLog -VmId $VmId
 }
 
 function Get-CloudInitLog {
@@ -268,68 +248,6 @@ function Copy-FileToVM {
     }
 }
 
-function Copy-TestsToVM {
-    <#
-    .SYNOPSIS
-    Copies test files/directories to a VM
-    
-    .PARAMETER VmId
-    The VM ID to copy to
-    
-    .PARAMETER SourcePath
-    Source directory path on host
-    
-    .PARAMETER TargetPath
-    Target directory path on VM
-    
-    .PARAMETER OsType
-    The OS type (windows or linux)
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$VmId,
-        
-        [Parameter(Mandatory=$true)]
-        [string]$SourcePath,
-        
-        [Parameter(Mandatory=$true)]
-        [string]$TargetPath,
-        
-        [Parameter(Mandatory=$true)]
-        [ValidateSet("windows", "linux")]
-        [string]$OsType
-    )
-    
-    if (-not (Test-Path $SourcePath)) {
-        Write-Warning "Source path not found: $SourcePath"
-        return $false
-    }
-    
-    # Create target directory
-    if ($OsType -eq "windows") {
-        Invoke-EGSCommand -VmId $VmId -Command "mkdir `"$TargetPath`" 2>nul"
-    }
-    else {
-        Invoke-EGSCommand -VmId $VmId -Command "mkdir -p $TargetPath"
-    }
-    
-    # Use the unified Copy-DirectoryToVM function which uses zip+egs
-    try {
-        $result = Copy-DirectoryToVM -VmId $VmId -SourcePath $SourcePath -TargetPath $TargetPath -OsType $OsType
-        
-        # Make scripts executable on Linux
-        if ($result -and $OsType -eq "linux") {
-            Invoke-EGSCommand -VmId $VmId -Command "chmod +x ${TargetPath}/*.sh 2>/dev/null || true"
-        }
-        
-        return $result
-    }
-    catch {
-        Write-Warning "Failed to copy tests to VM: $_"
-        return $false
-    }
-}
-
 function Initialize-EGSConnection {
     <#
     .SYNOPSIS
@@ -364,59 +282,6 @@ function Initialize-EGSConnection {
         Write-Warning "Failed to setup EGS connection: $_"
         return $false
     }
-}
-
-function Get-CatletIp {
-    <#
-    .SYNOPSIS
-    Gets the IP address of a catlet
-    
-    .PARAMETER Id
-    The catlet ID
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Id
-    )
-    
-    try {
-        $catlet = Get-Catlet -Id $Id
-        if ($catlet.Networks -and $catlet.Networks.Count -gt 0) {
-            $network = $catlet.Networks[0]
-            if ($network.IpV4Addresses -and $network.IpV4Addresses.Count -gt 0) {
-                return @{
-                    IpAddress = $network.IpV4Addresses[0].Address
-                    Subnet = $network.IpV4Addresses[0].Subnet
-                }
-            }
-        }
-    }
-    catch {
-        Write-Warning "Failed to get catlet IP: $_"
-    }
-    
-    return $null
-}
-
-function Wait-CatletReady {
-    <#
-    .SYNOPSIS
-    Waits for a catlet to be ready (combining network and EGS readiness)
-    
-    .PARAMETER VmId
-    The VM ID to wait for
-    
-    .PARAMETER TimeoutMinutes
-    Maximum time to wait in minutes
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$VmId,
-        
-        [int]$TimeoutMinutes = 10
-    )
-    
-    return Wait-EGSReady -VmId $VmId -TimeoutMinutes $TimeoutMinutes
 }
 
 function Copy-PesterToVM {
@@ -472,7 +337,7 @@ function Copy-PesterToVM {
 function Copy-DirectoryToVM {
     <#
     .SYNOPSIS
-    Copies entire directory to VM using zip and egs-tool upload-file
+    Copies a directory to the VM file by file with egs-tool upload-file
     
     .PARAMETER VmId
     The VM ID to copy to
@@ -558,133 +423,6 @@ function Copy-DirectoryToVM {
     }
     
     return ($failedCount -eq 0)
-}
-
-function Copy-MultipleFilesToVM {
-    <#
-    .SYNOPSIS
-    Copies multiple files to VM in batch
-    
-    .PARAMETER VmId
-    The VM ID to copy to
-    
-    .PARAMETER FileMappings
-    Array of hashtables with Source and Target keys
-    
-    .PARAMETER OsType
-    The OS type (windows or linux)
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$VmId,
-        
-        [Parameter(Mandatory=$true)]
-        [hashtable[]]$FileMappings,
-        
-        [Parameter(Mandatory=$true)]
-        [ValidateSet("windows", "linux")]
-        [string]$OsType
-    )
-    
-    foreach ($mapping in $FileMappings) {
-        if (-not $mapping.Source -or -not $mapping.Target) {
-            throw "Invalid file mapping. Must have Source and Target keys"
-        }
-        Copy-FileToVM -VmId $VmId -Source $mapping.Source -Target $mapping.Target -OsType $OsType
-    }
-}
-
-function Invoke-PesterInVM {
-    <#
-    .SYNOPSIS
-    Runs Pester tests inside VM with proper setup
-    
-    .PARAMETER VmId
-    The VM ID to run tests in
-    
-    .PARAMETER TestPath
-    Path to test files in the VM
-    
-    .PARAMETER OsType
-    The OS type (windows or linux)
-    
-    .PARAMETER PesterPath
-    Path to Pester module in VM (optional, uses default)
-    #>
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$VmId,
-        
-        [Parameter(Mandatory=$true)]
-        [string]$TestPath,
-        
-        [Parameter(Mandatory=$true)]
-        [ValidateSet("windows", "linux")]
-        [string]$OsType,
-        
-        [string]$PesterPath
-    )
-    
-    if (-not $PesterPath) {
-        $PesterPath = if ($OsType -eq "windows") { "C:\Tests\Pester" } else { "/tmp/tests/Pester" }
-    }
-    
-    $command = if ($OsType -eq "windows") {
-        @"
-`$ErrorActionPreference = 'Stop'
-try {
-    Import-Module '$PesterPath' -Force
-    `$config = New-PesterConfiguration
-    `$config.Run.Path = '$TestPath'
-    `$config.Run.PassThru = `$true
-    `$config.Output.Verbosity = 'Normal'
-    `$result = Invoke-Pester -Configuration `$config
-    
-    if (`$result.FailedCount -eq 0) {
-        Write-Host 'VALIDATION_PASSED: All tests passed'
-        exit 0
-    } else {
-        Write-Host "VALIDATION_FAILED: `$(`$result.FailedCount) tests failed"
-        `$result.Failed | ForEach-Object { 
-            Write-Host "  - `$(`$_.ExpandedPath): `$(`$_.ErrorRecord.Exception.Message)" 
-        }
-        exit `$result.FailedCount
-    }
-} catch {
-    Write-Host "VALIDATION_ERROR: `$_"
-    exit 999
-}
-"@
-    } else {
-        # Linux with PowerShell Core
-        @"
-pwsh -c "
-`$ErrorActionPreference = 'Stop'
-try {
-    Import-Module '$PesterPath' -Force
-    `$config = New-PesterConfiguration
-    `$config.Run.Path = '$TestPath'
-    `$config.Run.PassThru = `$true
-    `$config.Output.Verbosity = 'Normal'
-    `$result = Invoke-Pester -Configuration `$config
-    
-    if (`$result.FailedCount -eq 0) {
-        Write-Host 'VALIDATION_PASSED: All tests passed'
-        exit 0
-    } else {
-        Write-Host \\\"VALIDATION_FAILED: `\\$(`\\$result.FailedCount) tests failed\\\"
-        exit `\\$result.FailedCount
-    }
-} catch {
-    Write-Host \\\"VALIDATION_ERROR: `\\$_\\\"
-    exit 999
-}
-"
-"@
-    }
-    
-    $output = Invoke-EGSCommand -VmId $VmId -Command $command
-    return $output
 }
 
 function Copy-TestSuiteToVM {
@@ -993,18 +731,12 @@ function Save-ProvisioningDiagnostics {
 Export-ModuleMember -Function @(
     'Wait-EGSReady',
     'Invoke-EGSCommand',
-    'Get-CloudbaseInitLog',
     'Get-CloudInitLog',
     'Get-CloudInitLogs',
     'Copy-FileToVM',
-    'Copy-TestsToVM',
     'Initialize-EGSConnection',
-    'Get-CatletIp',
-    'Wait-CatletReady',
     'Copy-PesterToVM',
     'Copy-DirectoryToVM',
-    'Copy-MultipleFilesToVM',
-    'Invoke-PesterInVM',
     'Copy-TestSuiteToVM',
     'Get-EgsServiceLog',
     'Invoke-EGSCommandWithExitCode',

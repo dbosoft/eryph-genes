@@ -54,3 +54,5 @@ $changedGenesets | ForEach-Object {
        & eryph-packer geneset-tag push $changedGeneset --workdir genes
     }
 }
+
+Pop-Location

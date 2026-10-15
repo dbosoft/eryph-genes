@@ -109,7 +109,7 @@ $keys | ForEach-Object {
         }
         Write-Information ('  Target: ' + $packTarget)
 
-        $packTargetPath = 'genes\' + $packTarget.Replace('/', '\\')
+        $packTargetPath = 'genes\' + $packTarget.Replace('/', '\')
         $geneSetPath = split-path $packTargetPath -parent
 
         Write-Information 'Step 3: Initializing geneset structure...'
@@ -190,12 +190,11 @@ $keys | ForEach-Object {
         Write-Host '  OK Changes staged for git' -ForegroundColor Green
     }
 
-    $updateTarget = $importSpec.update
-
-    if($null -ne $updateTarget)
+    # import.json lists the tags to point at the new build (e.g. .../latest) as an array
+    foreach($updateTarget in @($importSpec.update | Where-Object { $_ }))
     {
-        Write-Information 'Step 8: Updating latest reference...'
-        $updatePath = "genes\"+ $updateTarget.Replace('/', '\\')
+        Write-Information ('Step 8: Updating reference ' + $updateTarget + '...')
+        $updatePath = 'genes\' + $updateTarget.Replace('/', '\')
         if((Test-Path $updatePath) -ne $true){
             Write-Information ('  Creating update target: ' + $updateTarget)
             & eryph-packer geneset-tag init $updateTarget --workdir genes | Out-Host
@@ -203,7 +202,7 @@ $keys | ForEach-Object {
         Write-Information ('  Updating reference from ' + $packTarget + ' to ' + $updateTarget)
         & eryph-packer geneset-tag ref $updateTarget $packTarget  --workdir genes | Out-Null
         & eryph-packer geneset-tag pack $updateTarget --workdir genes  | Out-Null
-        Write-Host '  OK Latest reference updated' -ForegroundColor Green
+        Write-Host ('  OK ' + $updateTarget + ' updated') -ForegroundColor Green
     }
 
     if($RemoveBuild){
