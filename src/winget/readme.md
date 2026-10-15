@@ -4,26 +4,67 @@ This geneset provides fodder for installing Windows Package Manager (winget) on 
 
 ## Usage
 
-To install winget in your Windows catlets, add a gene reference:
+Install winget:
 
 ```yaml
 fodder:
   - source: gene:dbosoft/winget:install
 ```
 
-## System Account Limitation
+Install winget and packages from the winget source, machine-wide:
 
-Winget is distributed as an AppX package through the Microsoft Store infrastructure. Due to Windows architecture constraints, AppX packages cannot be executed by the SYSTEM account. Since eryph fodder runs under the SYSTEM account during provisioning, winget commands will not function during VM provisioning.
+```yaml
+fodder:
+  - source: gene:dbosoft/winget:install
+    variables:
+      - name: packages
+        value: Git.Git,7zip.7zip
+```
 
-For package installation during VM provisioning, use the Chocolatey geneset instead, which is fully compatible with the SYSTEM account. Winget remains useful for scenarios where users will interactively install software after provisioning or for creating developer workstation templates where winget will be used manually.
+Use winget in your own fodder after `install`, through the wrapper it leaves on the machine:
+
+```yaml
+fodder:
+  - source: gene:dbosoft/winget:install
+  - name: install-tools
+    type: shellscript
+    filename: install-tools.ps1
+    content: |
+      & C:\ProgramData\eryph\winget\winget-system.ps1 install --id Microsoft.VisualStudioCode --exact `
+          --source winget --scope machine --silent `
+          --accept-source-agreements --accept-package-agreements --disable-interactivity
+      exit $LASTEXITCODE
+```
+
+## Variables
+
+| Name | Default | Description |
+|---|---|---|
+| `packages` | empty | winget package ids, comma separated, installed machine-wide after winget. A package that is already installed counts as success; any other failure fails the fodder. |
+
+## winget as Local System
+
+Fodder runs as Local System. The winget CLI does not run in that account out of the box: started
+outside a package context it can't find its dependency DLLs. The wrapper
+`C:\ProgramData\eryph\winget\winget-system.ps1` puts the dependency packages on the PATH and runs the
+newest `winget.exe`; the `packages` variable uses it too.
+
+As Local System, only these work:
+- the `winget` source (not `msstore`)
+- machine-scope installers (`--scope machine`); per-user packages would end up in the system profile
+
+Microsoft documents only the `Microsoft.WinGet.Client` PowerShell module for the system context,
+which requires PowerShell 7. This gene uses the CLI so that it doesn't depend on another gene.
 
 ## Supported Platforms
 
 - Windows 10 1809 (build 17763) or later
-- Windows Server 2022 and later
 - Windows 11
+- Windows Server 2022 and later (winget officially supports Windows Server from 2025 on; 2022 works)
 
 Windows Server 2019 is not supported: the current App Installer package cannot be provisioned there, and the fodder fails with a clear error.
+
+Base catlets from the older image generation that still provision with cloudbase-init (for example `dbosoft/win10-20h2-enterprise/20250914`) are not supported either: their scripts run as the `cloudbase-init` user, who is not allowed to start winget from the WindowsApps folder.
 
 ## What it does
 
@@ -33,50 +74,13 @@ Windows Server 2019 is not supported: the current App Installer package cannot b
 3. Provisions App Installer with `Add-AppxProvisionedPackage` for all users. Fodder runs as Local
    System, which `Add-AppxPackage` rejects, so winget is provisioned instead of installed for the
    current user. Every user gets winget at their next logon.
-4. Fails the provisioning step (exit code 1) when App Installer is not provisioned afterwards
+4. Writes the Local System wrapper and checks that winget runs with it
+5. Installs the packages from the `packages` variable
+6. Fails the provisioning step (exit code 1) when any step fails
 
-## Notes
+Re-running updates the provisioned package to the latest release.
 
-- Dependencies and license always match the downloaded winget release
-- Re-running updates the provisioned package to the latest release
-## Post-Provisioning Usage
-
-After winget is installed through this gene, it becomes available for users to install software interactively or through scripts running in user context. Due to the SYSTEM account limitation noted above, winget cannot be used in fodder for automated software installation during provisioning.
-
-### Alternative: Using Chocolatey for Automated Installation
-
-For automated software installation during VM provisioning, use Chocolatey:
-
-```yaml
-name: my-dev-environment
-parent: dbosoft/win11-24h2-enterprise/starter
-
-fodder:
-  # Install Chocolatey package manager
-  - source: gene:dbosoft/chocolatey:install
-  
-  # Install development tools via Chocolatey
-  - name: install-dev-tools
-    type: shellscript
-    filename: install-tools.ps1
-    content: |
-      Write-Host "Installing development tools with Chocolatey..."
-      
-      # Install Git
-      choco install git -y
-      
-      # Install Node.js LTS
-      choco install nodejs-lts -y
-      
-      # Install Python
-      choco install python3 -y
-      
-      # Install Docker Desktop
-      choco install docker-desktop -y
-      
-      Write-Host "Development tools installation completed!"
-```
-
+## Interactive use
 ### Manual winget Commands for Users
 
 Once provisioned, users can run these winget commands interactively:

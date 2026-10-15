@@ -2,4 +2,4 @@
 "@dbosoft/winget-default": minor
 ---
 
-install winget as provisioned package for all users; fodder runs as Local System, which Add-AppxPackage rejects. Dependencies and license now come from the winget release.
+install winget as provisioned package for all users (fodder runs as Local System, which Add-AppxPackage rejects); dependencies and license come from the winget release. New variable packages installs winget packages machine-wide, and a wrapper (C:\ProgramData\eryph\winget\winget-system.ps1) lets other fodder run winget as Local System.

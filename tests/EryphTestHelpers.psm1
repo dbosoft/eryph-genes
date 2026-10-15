@@ -631,6 +631,17 @@ function Wait-ProvisioningComplete {
     $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
     $detail = 'no provisioning status read yet'
 
+    if ($OsType -eq 'windows') {
+        # Older Windows images still provision with cloudbase-init and ship a
+        # guest services version that runs commands without a shell; they never
+        # write state.json. Called through powershell.exe so both versions answer.
+        $legacy = Invoke-EGSCommandWithExitCode -VmId $VmId `
+            -Command "powershell -NoProfile -Command Test-Path 'C:\Program Files\Cloudbase Solutions'"
+        if (($legacy.Output -join '') -match 'True') {
+            return @{ Completed = $false; Failed = $true; Detail = 'The base image provisions with cloudbase-init (older image generation); these tests need an image built with eryph guest services provisioning. Rebuild the base catlet.' }
+        }
+    }
+
     while ((Get-Date) -lt $deadline) {
         if ($OsType -eq 'windows') {
             $result = Invoke-EGSCommandWithExitCode -VmId $VmId `

@@ -1,0 +1,8 @@
+name: winget-packages-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+fodder:
+  - source: gene:{{GENE}}:install
+    variables:
+      - name: packages
+        value: 7zip.7zip

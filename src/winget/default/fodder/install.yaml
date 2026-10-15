@@ -1,5 +1,11 @@
 name: install
 
+variables:
+  # Optional: winget package ids installed machine-wide after winget, comma
+  # separated, e.g. Git.Git,7zip.7zip
+  - name: packages
+    value: ''
+
 fodder:
 - name: install-winget
   type: shellscript
@@ -78,3 +84,53 @@ fodder:
         exit 1
     }
     Write-Host "winget provisioned: App Installer $($provisioned.Version). Users get it at their next logon."
+
+    # The winget CLI does not run as Local System out of the box: started outside
+    # a package context it can't find its dependency DLLs (0xC0000135). This
+    # wrapper puts them on the PATH and runs the newest winget.exe, so fodder
+    # running as Local System can use winget (machine scope, winget source):
+    #   & C:\ProgramData\eryph\winget\winget-system.ps1 install --id Git.Git --exact --scope machine ...
+    $wrapperDir = Join-Path $env:ProgramData 'eryph\winget'
+    New-Item -ItemType Directory -Path $wrapperDir -Force | Out-Null
+    $wrapper = Join-Path $wrapperDir 'winget-system.ps1'
+    Set-Content -Path $wrapper -Encoding UTF8 -Value @'
+    # Runs winget as Local System. Written by gene:dbosoft/winget:install.
+    $arch = switch ($env:PROCESSOR_ARCHITECTURE) { 'AMD64' { 'x64' } 'ARM64' { 'arm64' } default { 'x86' } }
+    $apps = Join-Path $env:ProgramFiles 'WindowsApps'
+    function Get-NewestPackage([string]$name) {
+        Get-ChildItem $apps -Directory -Filter "$($name)_*_$($arch)__8wekyb3d8bbwe" -ErrorAction SilentlyContinue |
+            Sort-Object { [version](($_.Name -split '_')[1]) } | Select-Object -Last 1
+    }
+    $appInstaller = Get-NewestPackage 'Microsoft.DesktopAppInstaller'
+    if (-not $appInstaller) { Write-Error 'winget (App Installer) is not installed'; exit 1 }
+    $dependencies = @('Microsoft.VCLibs.140.00.UWPDesktop', 'Microsoft.VCLibs.140.00') + @(
+        Get-ChildItem $apps -Directory -Filter "Microsoft.WindowsAppRuntime.*_$($arch)__8wekyb3d8bbwe" -ErrorAction SilentlyContinue |
+            ForEach-Object { ($_.Name -split '_')[0] } | Sort-Object -Unique)
+    $paths = @($appInstaller.FullName) + @($dependencies | ForEach-Object { (Get-NewestPackage $_).FullName } | Where-Object { $_ })
+    $env:PATH = ($paths -join ';') + ';' + $env:PATH
+    & (Join-Path $appInstaller.FullName 'winget.exe') @args
+    exit $LASTEXITCODE
+    '@
+    Write-Host "winget wrapper for Local System: $wrapper"
+    & $wrapper --version
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: winget does not run as Local System (exit code $LASTEXITCODE)"
+        exit 1
+    }
+
+    $packages = @('{{ packages }}' -split '[,\s]+' | Where-Object { $_ })
+    $failed = @()
+    foreach ($package in $packages) {
+        Write-Host "Installing $package..."
+        & $wrapper install --id $package --exact --source winget --scope machine --silent `
+            --accept-source-agreements --accept-package-agreements --disable-interactivity
+        # 0x8A15002B: no newer version available, 0x8A150061: already installed
+        if ($LASTEXITCODE -notin 0, -1978335189, -1978335135) {
+            Write-Host "ERROR: installing $package failed with exit code $LASTEXITCODE"
+            $failed += $package
+        }
+    }
+    if ($failed) {
+        Write-Host "ERROR: failed packages: $($failed -join ', ')"
+        exit 1
+    }
