@@ -32,6 +32,10 @@ $ErrorActionPreference = 'Stop'
 $InformationPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'
 
+# `pwsh -File` passes "a,b" as one string; accept comma-separated lists too
+$Suite = @($Suite | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+$BaseOS = @($BaseOS | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+
 $parts = $Gene -split '/'
 if ($parts.Count -lt 2 -or $parts.Count -gt 3) {
     throw "-Gene must be org/geneset or org/geneset/tag, got '$Gene'"

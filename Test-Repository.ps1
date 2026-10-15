@@ -63,6 +63,12 @@ try {
             } elseif ((Get-Content $spec -Raw) -match 'gene:\{\{(GENE|GENE_TAG)\}\}(?!:)') {
                 $problems.Add("${spec}: gene reference without fodder name (use gene:{{GENE}}:<fodder>)")
             }
+            foreach ($check in @($suite.HostTests | Where-Object { $_ })) {
+                if ($check.Expect) {
+                    try { $null = [regex]::new($check.Expect) }
+                    catch { $problems.Add("$($matrixFile.FullName): host test '$($check.Name)' has an invalid Expect regex: $($check.Expect)") }
+                }
+            }
             foreach ($test in @($suite.InVMTests | Where-Object { $_ })) {
                 if (-not (Test-Path (Join-Path $dir $test))) {
                     $problems.Add("$($matrixFile.FullName): in-VM test $test not found")
