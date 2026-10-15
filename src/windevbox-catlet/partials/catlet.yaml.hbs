@@ -57,10 +57,7 @@ fodder:
   # VS Code with Dev Drive integration
   - source: gene:dbosoft/vscode:win-vscode
     variables:
-      - name: dev_tools
-    value: "Git.Git,OpenJS.NodeJS.LTS,GitHub.cli"
-    required: false
-  - name: vscode_extensions
+      - name: vscode_extensions
         value: '\{{ vscode_extensions }}'
       - name: dev_drive_letter
         value: "E"
