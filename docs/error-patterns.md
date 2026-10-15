@@ -1,195 +1,86 @@
-# Eryph Error Patterns Guide
+# Eryph Error Patterns
 
-## For eryph-specialist Agent: YAML and Fodder Error Interpretation
+How to interpret errors from the eryph MCP tools and from provisioning. Tools are described in
+[tooling.md](tooling.md); the step-by-step debugging method is in
+[fodder-debugging.md](fodder-debugging.md).
 
-This document helps the specialist interpret YAML and fodder-related errors only.
+## Error categories (MCP)
 
-## YAML Structure Errors
+Every MCP tool error starts with a category:
 
-### Invalid YAML Syntax
-**Error Signs:** Parser errors, unexpected character, mapping errors
+| Prefix | Meaning | Action |
+|---|---|---|
+| `[content error]` | The catlet/fodder definition is wrong | Fix the YAML, re-run `validate_catlet` |
+| `[state error]` | System state blocks the operation (e.g. exists, not found, running/stopped) | Change state (remove, start/stop, ...), then retry |
+| `[transient error]` | Temporary failure | Retry |
 
-**Common Causes:**
-1. **Incorrect indentation** - Not using consistent 2-space indents
-2. **Tab characters** - Mixed tabs and spaces
-3. **Missing colons** - Key without `: value`
-4. **Invalid multiline** - Content not indented after `|`
+Always run `validate_catlet` before `deploy_catlet`; it catches all content errors below. The bundled
+JSON schema (`docs/catlet-schema-v1.0.json`) is stricter than eryph and is not authoritative.
 
-**Fix:** Review YAML structure, ensure proper indentation relative to pipe character
+## Validation errors (verified, eryph-zero 0.5.1)
 
-### Variable Syntax Errors
+| Message (excerpt) | Cause | Fix |
+|---|---|---|
+| `$.name: The Name is required.` | No `name` in the catlet (PowerShell cmdlets; the MCP tools default it to `catlet`) | Add `name:` |
+| `Property 'foo' not found on type '...CatletConfig'` + "Make sure to use snake case for names, e.g. 'network_adapters'" | Unknown or misspelled property | Use a valid property name (see [eryph-knowledge.md](eryph-knowledge.md)) |
+| Same error for `file_name` | `file_name` is not a property; the snake-case hint is misleading here | Use `filename` (matching is case-insensitive, `fileName` also works) |
+| `Expected 'SequenceStart', got 'MappingStart'` (at `variables`) | `variables` written as a key/value map | Use a list: `- name: x` / `value: y` |
+| `The gene identifier is malformed. It must be gene:geneset:genename.` | Fodder `source:` without fodder name, e.g. `gene:dbosoft/starter-food` | `gene:org/geneset[/tag]:fodder-name` |
+| `Could not resolve the gene set tag 'org/geneset/tag'. The gene set ... is not available in local or remote gene pools.` | Typo, wrong tag, or a locally built gene not yet copied to the local genepool | Check name/tag against `genes/dbosoft/`; for unpublished genes build and copy to the local genepool (gene-maintainer) |
 
-#### Variable Not Substituted
-**Symptom:** `{{ variable }}` appears literally in VM logs
+Other reference rules:
+- `parent:` has no `gene:` prefix (`parent: dbosoft/ubuntu-24.04/starter`); `source:` always has it.
+- An omitted tag resolves to `latest`.
 
-**Causes:**
-1. Variable not declared in `variables:` section
-2. Typo in variable name
-3. Using `$variable` instead of `{{ variable }}`
+Things that validate but still do not work:
+- Jinja (`{% if %}`, `## template: jinja`) - not evaluated by eryph or by egs on Windows. Only
+  `{{ var }}` is substituted.
+- Linux-only cloud-config keys (`packages`, `apt`, `snap`) on Windows - accepted and ignored.
+- Random passwords on Windows - skipped by egs; set an explicit password.
 
-**Fix:** Ensure variable is declared and uses correct `{{ name }}` syntax
+## Runtime / provisioning patterns
 
-#### Invalid Variable Type
-**Error:** Type mismatch in variable usage
+### Provisioning never completes
 
-**Fix:** Check variable type matches usage (string, boolean, number)
+`wait_for_provisioning` times out, or `catlet_exec` cannot reach the guest.
 
-## Fodder Content Errors
+- Usually a fodder problem, not a network problem. Read `get_provisioning_log` first.
+- Linux: an earlier failing module or script can stop later fodder. Check `cloud-init status --long`,
+  `/var/log/cloud-init.log`, `/var/log/cloud-init-output.log`.
+- Reduce the catlet to parent only, confirm it provisions, then add fodder back one entry at a time.
 
-### Cloud-Config Parse Errors (Linux)
-**Error:** "Failed to parse cloud-config"
+### Windows: a script failed but provisioning finished
 
-**Common Issues:**
-1. Invalid YAML inside `content: |` block
-2. Unsupported cloud-init directive
-3. Incorrect list/dict structure
+On Windows, a non-zero exit code is logged and the **next script still runs**, so provisioning can
+report completion while one step failed. Check:
+1. `C:\ProgramData\eryph\provisioning\state.json` - `completedStages` should contain Local, Network,
+   Config, Final.
+2. `C:\ProgramData\eryph\provisioning\logs\<order>-<filename>.log` - per-script output and exit code.
+3. `C:\ProgramData\eryph\guest-services\logs\agent.log` - module and reboot events.
 
-**Fix:** Validate inner YAML structure, check cloud-init documentation
+Reboot exit codes: `1001` (reboot, continue), `1003` (reboot, re-run script). `1002` is not supported.
 
-### Cloudbase-Init Errors (Windows)
-**Error:** "Cloudbase-init failed to process user data"
+### Windows: script silently not run
 
-**Common Issues:**
-1. Using unsupported directives (packages, ssh_authorized_keys)
-2. Invalid PowerShell syntax in shellscript
-3. Missing `#ps1_sysnative` header
+A script that cannot be classified is skipped with a warning in `agent.log` (e.g. a `.sh` filename
+or a `#!/bin/bash` shebang). Use `filename: name.ps1` or a `#ps1_sysnative` header.
 
-**Fix:** Use only supported directives (write_files, users, runcmd, etc.) or switch to shellscript type
+### Variable not substituted
 
-### Package Not Available in runcmd
-**Symptom:** Command not found after package installation
+`{{ name }}` appears literally in the guest: the variable is not declared in the scope where it is
+used (catlet `variables`, fodder gene `variables`, or `variables` on the `source:` reference), or the
+name is misspelled. `$name` is never substituted in YAML files.
 
-**Cause:** Package installed via `packages:` not immediately available
+### catlet_exec hangs
 
-**Fix in fodder:**
-```yaml
-runcmd:
-  - sleep 5  # Wait for package installation
-  - which nginx || echo "Package not ready"
-```
+The exec channel does not close stdin (eryph-org/guest-services#68). Commands that read stdin can
+hang - redirect it (`< /dev/null` on Linux) or use non-interactive flags. On Windows the shell is
+PowerShell: `sc` and `type` are aliases, use `sc.exe` and `Get-Content`.
 
-### Service Not Ready
-**Symptom:** Connection refused when testing service
+## PowerShell test scripts
 
-**Fix in fodder:** Add readiness check:
-```yaml
-runcmd:
-  - systemctl start nginx
-  - while ! nc -z localhost 80; do sleep 1; done
-```
+The repo's test scripts (`Test-PackedBaseCatlet.ps1`, `Test-FodderGene.ps1`) use the eryph cmdlets.
 
-## Gene Reference Errors
-
-### Invalid Gene Reference Format
-**Error:** "Invalid source format"
-
-**Correct formats:**
-- `source: gene:org/geneset:fodder-name` (implicit latest)
-- `source: gene:org/geneset/tag:fodder-name` (explicit tag)
-
-**Wrong formats:**
-- `source: gene:org/geneset:tag:fodder` (tag in wrong position)
-- `source: org/geneset` (missing gene: prefix)
-
-### Gene Not Found
-**Error:** "Gene 'org/geneset:tag' not found"
-
-**Possible causes:**
-1. Gene not in local genepool yet
-2. Typo in gene name
-3. Tag doesn't exist
-
-**Fix:** Verify gene name, suggest `build-gene` and `copy-to-genepool` operations
-
-## Parent Inheritance Errors
-
-### Invalid Parent Format
-**Error:** "Parent must be in format org/geneset/tag"
-
-**Fix:** Use full three-part format for parent (no `gene:` prefix for parent!)
-
-### Parent Not Found
-**Error:** "Parent catlet gene not found"
-
-**Fix:** Check if parent gene exists in genepool, verify spelling
-
-## SSH Connection Failures
-
-### Critical Understanding: Authentication vs. Network Issues
-
-**Key Concept:** SSH connection failures are almost NEVER network issues in eryph. They indicate authentication problems or cloud-init failures.
-
-### Error Pattern Analysis
-
-| Error Message | Real Meaning | Root Cause | Correct Response |
-|---------------|-------------|-------------|------------------|
-| "Connection timeout" | No authentication mechanism exists | EGS not configured due to cloud-init failure | Check if earlier fodder failed, blocking EGS |
-| "Permission denied" | Authentication exists but wrong credentials | EGS misconfigured or manual keys wrong | Verify EGS setup process |  
-| "Connection refused" | SSH service not running | VM boot failure or SSH disabled | Check VM status, not network |
-| "No route to host" | Network connectivity issue | Actual network problem (rare) | Check VM network config |
-
-### SSH Connection Debugging Flow
-
-1. **"Connection timeout" (Most Common)**
-   - **DO NOT** attempt IP-based SSH - there's no authentication configured
-   - **DO NOT** debug network connectivity first
-   - **DO** check if cloud-init failed and prevented EGS configuration
-   - **DO** test with minimal catlet (base + EGS only) to isolate the issue
-
-2. **"Permission denied"**
-   - EGS was configured but something is wrong with credentials
-   - Check EGS setup process was successful
-   - Verify no manual SSH configuration conflicts
-
-3. **Connection Works but No Command Output**
-   - SSH connection established but commands don't execute properly
-   - May indicate partial cloud-init failure or system instability
-   - Test with simple commands first (echo, pwd)
-
-### Common Mistakes to Avoid
-
-#### Mistake: Assuming Network Issues
-**Wrong approach:** "Let me try SSH via IP address"
-**Correct understanding:** Catlets have NO SSH access by default - EGS provides the ONLY automatic authentication
-
-#### Mistake: Debugging Symptoms Not Causes
-**Wrong approach:** "Why won't SSH connect?"
-**Correct understanding:** SSH isn't broken - cloud-init probably failed, preventing EGS from being configured
-
-#### Mistake: Complex Network Debugging
-**Wrong approach:** Testing firewalls, routes, port connectivity
-**Correct understanding:** If EGS setup-egs succeeded, network is fine - problem is authentication
-
-### Integration with Multi-Agent System
-
-#### For eryph-specialist Agent
-When receiving SSH connection failures as error feedback:
-- **Interpret as cloud-init/fodder problem**, not network issue
-- **Suggest simpler fodder configuration** to isolate the failing component
-- **Recommend incremental testing** starting with base + EGS only
-
-#### For Main Claude
-When SSH timeouts occur:
-- **Return to creation agent** for fodder simplification
-- **DO NOT** attempt manual SSH debugging via IP
-- **DO NOT** suggest network configuration changes
-- **DO** recognize this as a CONTENT error requiring creation agent input
-
-### Error Prevention
-
-To prevent SSH connection failures:
-1. **Test with minimal configuration first** (base + EGS only)
-2. **Add fodder incrementally** and test each addition
-3. **Avoid high-risk patterns** in cloud-init (complex scripts, multiple repos)
-4. **Follow proven fodder patterns** from working examples
-
-## Error Response Template
-
-When main Claude reports a YAML/fodder error:
-
-```yaml
-error_analysis: "Cloud-config has unsupported 'packages' directive on Windows"
-artifact_fix: "Change to shellscript type for package installation"
-suggested_operation: "deploy-catlet after fixing YAML"
-explanation: "Windows cloudbase-init only supports 7 directives"
-```
+| Symptom | Cause | Fix |
+|---|---|---|
+| `NullReferenceException` / "Der Objektverweis wurde nicht auf eine Objektinstanz festgelegt" from `New-Catlet`/`Test-Catlet` | YAML with variables piped without `-SkipVariablesPrompt` (no console to prompt) | Add `-SkipVariablesPrompt` and pass values with `-Variables` |

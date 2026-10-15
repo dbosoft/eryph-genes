@@ -16,6 +16,8 @@ dist
 /genes/*/*/*-next
 
 # Claude settings
-.claude/
+.claude/settings.local.json
+.claude/genepool-path.txt
+.claude/debug/
 diagnostics/
 *.log

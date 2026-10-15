@@ -1,194 +1,187 @@
-# Fodder Debugging Guide
+# Fodder and Catlet Debugging Guide
 
-This guide provides systematic debugging methodology for fodder development failures, with emphasis on preventing cascade failures that break essential services like EGS.
+How to find out why a catlet did not end up configured the way its fodder says. Covers the debug
+workflow with the eryph MCP tools, the incremental fodder method, and where to look inside the guest on
+Windows and Linux.
 
-## Critical Concept: Fodder Execution Chain
+Related docs:
+- Authoring rules for catlets and fodder: `.claude/skills/catlet-authoring/SKILL.md`
+- Commands (MCP tools, `egs-tool`, PowerShell cmdlets): `docs/tooling.md`
+- Error messages and what they mean: `docs/error-patterns.md`
 
-**Fodder items execute sequentially during cloud-init as a single process chain.** A failure in any fodder item can prevent subsequent items from executing properly or cause them to run in a corrupted environment.
+## Provisioning model
 
-### Key Understanding
-- All fodder items are combined into a single cloud-init configuration
-- Items run in the order they appear in the YAML
-- If one fails, subsequent items may not execute at all
-- EGS configuration is just another fodder item - vulnerable to earlier failures
-- Complex shell scripts are high-risk failure points
+| | Linux base catlets | Windows base catlets |
+|---|---|---|
+| Provisioning agent | cloud-init | eryph guest services (`egs-service`, service `eryph-guest-services`) |
+| Remote access (`catlet_exec`, SSH) | eryph guest services (package `eryph-guest-services`) | eryph guest services |
+| cloudbase-init | not used | **not installed anymore** |
 
-## Common Failure Pattern: EGS Not Working
+Guest services ship in every dbosoft base catlet. Remote access therefore does **not** depend on fodder:
+never add guest-services install fodder to a catlet, and do not treat a failed exec as proof that fodder
+broke remote access.
 
-### Symptoms
-- SSH connection timeout when trying to access catlet
-- `egs-tool get-status` returns "unknown" 
-- Cannot access VM for debugging even though it appears "Running"
+### What a failing fodder item does
 
-### Root Cause Analysis
-**Most common cause:** Earlier fodder item failed during cloud-init, preventing EGS from being properly configured.
+- **Linux (cloud-init):** a failing module or script can stop later parts from running. A broken item
+  early in the list can leave the rest of the configuration unapplied. This is where incremental testing
+  matters most.
+- **Windows (egs-service):** a script with a non-zero exit code (other than the reboot codes `1001`/`1003`)
+  is logged, and the **next script still runs** — there is no cascade abort. However, an early config
+  module that fails or is misconfigured (users/passwords, network config, hostname) can still break
+  everything that depends on it. Modules run in a fixed order: Growpart, SetHostname, ApplyNetworkConfig,
+  NtpClient, Timezone, SetLocale, UsersGroups, SetPasswords, SshModule, WriteFiles, Runcmd, Licensing,
+  WriteFilesDeferred, ScriptsUser, PowerState.
+- **Windows silently ignores** some things, which looks like "my fodder did nothing": Linux-only keys
+  (`apt`, `packages`, `snap`, …) are logged at Info and skipped; `## template: jinja` is ignored;
+  `.sh` scripts and `#!/...` shebangs are skipped; random passwords are skipped; boothooks are not run;
+  `windows_update`, `winget`, `chocolatey`, `chef`, `dsc` modules are not implemented. Check `agent.log`
+  for the skip message.
 
-**Not the cause:** Network connectivity issues, firewall blocks, or EGS service problems
+## Workflow with the MCP tools
 
-### Solution Pattern
-1. Strip back to absolute minimum: base + EGS only
-2. Verify SSH connectivity works
-3. Add one fodder item at a time
-4. Test after each addition
-5. When failure occurs, you've identified the problematic fodder
+All tools address catlets by **catlet id** (names are not unique). Capture the id from `deploy_catlet`.
 
-## Debug Methodology
+1. `validate_catlet(config, variables)` — always first. It is the source of truth for syntax; the bundled
+   JSON schema is stricter than eryph. Fix `[content error]` results before deploying.
+2. `deploy_catlet(config, variables, name, project, waitSeconds)` → catlet id. For long deployments poll
+   with `get_operation`.
+3. `start_catlet(catletId)`.
+4. `wait_for_provisioning(catletId, timeoutSeconds)` — waits until guest services report and provisioning
+   completes or fails.
+5. `get_provisioning_log(catletId)` — eryph's provisioning log as reported by the guest. Read this before
+   going into the guest.
+6. `catlet_exec(catletId, command, timeoutSeconds)` — inspect the guest (commands below), then verify the
+   expected end state (files, services, packages).
 
-### Phase 1: Establish Baseline (ALWAYS START HERE)
+Errors returned by the tools carry a category prefix:
+- `[content error]` → the catlet/fodder definition must change.
+- `[state error]` → system state must change (catlet exists, not running, not found, …).
+- `[transient error]` → retry.
 
-Create minimal test catlet:
-```yaml
-name: debug-connectivity-test
-parent: dbosoft/ubuntu-24.04/starter  # or appropriate base
-# EGS ships in the base catlet; no fodder required for SSH connectivity.
+When the cause is fixed in the definition, deploy a **fresh** catlet. Do not keep patching a catlet whose
+provisioning already ran; results from re-runs are not comparable to a clean deployment.
+
+## Incremental fodder method
+
+Do not write the complete configuration in one go. Build it up:
+
+1. **Baseline:** a catlet with only a parent. No fodder.
+   ```yaml
+   name: debug-baseline
+   parent: dbosoft/ubuntu-24.04/starter   # or dbosoft/winsrv2022-standard/starter
+   ```
+   `/starter` parents already include starter-food; do not add it again. Deploy, start,
+   `wait_for_provisioning`, then run a trivial `catlet_exec` (`hostname`). Only continue if this works —
+   if it fails, the problem is the base catlet or the host, not your fodder.
+2. **Add one fodder item**, deploy a fresh catlet, verify its effect with `catlet_exec`.
+3. Repeat. The first item whose addition breaks provisioning or the expected state is the culprit.
+4. Fix the culprit in isolation: split it into smaller items, make scripts log what they do and fail
+   with a clear exit code, then retest.
+
+Items that deserve their own increment (they fail most often):
+- adding package repositories or downloading external content,
+- service changes (`systemctl daemon-reload`, enabling/restarting services),
+- long shell scripts — split them,
+- kernel module changes or anything that needs a reboot (on Windows use exit code `1001` / `1003`,
+  `1002` is not supported),
+- user, password and network configuration (they affect everything after them).
+
+## Inspecting the guest
+
+`catlet_exec` notes:
+- Windows: the shell is **PowerShell**. `sc` and `type` are aliases — use `sc.exe` and `Get-Content`.
+- Linux: runs as root in the default shell, no TTY, no stdin. Append `< /dev/null` to commands that might
+  read stdin, otherwise they can hang (known egs issue eryph-org/guest-services#68).
+- stdout and stderr are merged.
+
+### Windows (egs-service)
+
+Look at `state.json` first, then `agent.log`, then the per-script logs.
+
+```powershell
+# What ran; completedStages should contain Local, Network, Config, Final
+Get-Content C:\ProgramData\eryph\provisioning\state.json
+
+# Agent operational log: datasource, every module, skips, reboots, SSH events
+Get-Content C:\ProgramData\eryph\guest-services\logs\agent.log -Tail 100
+Select-String -Path C:\ProgramData\eryph\guest-services\logs\agent.log -Pattern 'error|warn|fail'
+
+# Per-script stdout/stderr + exit code (<order>-<filename>.log)
+Get-ChildItem C:\ProgramData\eryph\provisioning\logs
+Get-Content C:\ProgramData\eryph\provisioning\logs\001-<filename>.log
+
+# The scripts exactly as the agent staged and ran them
+Get-ChildItem C:\ProgramData\eryph\provisioning\scripts\per-instance
+
+# Service state
+sc.exe query eryph-guest-services
 ```
 
-**Test Requirements:**
-- Deploy and start catlet
-- Setup EGS access
-- Verify SSH connectivity works
-- **Only proceed if this succeeds**
+To hand logs over as one file, bundle them and download with
+`egs-tool catlet download-file <catlet-id> <src> <dst>`:
 
-### Phase 2: Incremental Addition
-
-Add ONE fodder item at a time to your baseline:
-```yaml
-name: debug-increment-test
-parent: dbosoft/ubuntu-24.04/starter
-
-fodder:
-  # EGS ships in the base catlet; SSH keys are auto-exchanged via egs-tool.
-  # Add your next fodder item here - only ONE at a time
-  - name: test-item-1
-    type: cloud-config
-    content:
-      # Your test configuration
+```powershell
+& 'C:\Program Files\eryph\guest-services\bin\egs-service.exe' collect-logs C:\Windows\Temp\egs-bundle.zip
 ```
 
-**After each addition:**
-1. Deploy fresh catlet
-2. Test EGS connectivity
-3. If it fails, you've found the problematic fodder
-4. If it succeeds, add the next item
+The agent also mirrors its events into the Windows Event Log, but `agent.log` is the primary source.
 
-### Phase 3: Isolation and Fix
+### Linux (cloud-init)
 
-When you identify the failing fodder:
-1. **Simplify the configuration** - Remove complex operations
-2. **Split into smaller pieces** - Break complex shell scripts into steps
-3. **Add error handling** - Include logging and validation
-4. **Test each piece separately** - Ensure each part works before combining
+```sh
+cloud-init status --long < /dev/null
+tail -n 100 /var/log/cloud-init-output.log      # script output
+grep -nE 'WARNING|ERROR|Traceback' /var/log/cloud-init.log
+ls -l /var/lib/cloud/instance/scripts/           # rendered user scripts
+cat /var/lib/cloud/instance/cloud-config.txt     # merged cloud-config parts
+zcat /var/lib/cloud/instance/user-data.txt       # raw user-data (gzip-compressed)
+tail -n 100 /var/log/eryph/guest-services/agent.log   # guest services (remote access)
+```
 
-## High-Risk Fodder Patterns
+Compare `cloud-config.txt` and the rendered scripts with what you expected; a missing key or an
+unsubstituted `{{ variable }}` shows up there.
 
-### Red Flags (High Failure Probability)
-- **Multiple package repository additions** - Each repo can fail differently
-- **Complex shell scripts (>50 lines)** - More code = more failure points  
-- **systemctl daemon-reload or service modifications** - Can break system state
-- **Downloading external content** - Network failures, missing files
-- **Kernel module modifications** - Requires reboot, can hang system
-- **Multiple runcmd items** - Each can fail independently
+## Worked examples
 
-### Safe Patterns
-- **Single package installations** - Well-tested, predictable
-- **Simple file writes** - Usually work or fail quickly
-- **Basic system configuration** - Hostname, users, etc.
-- **Proven gene references** - Tested configurations
+### Linux: later configuration is missing
 
-## SSH Connection Failure Interpretation
+A catlet adds a package repository, installs a package from it and writes a config file. After
+`wait_for_provisioning`, the config file is not there.
 
-### Error Pattern Analysis
+- Do not suspect networking or remote access — `catlet_exec` works because guest services are in the base
+  image.
+- `cloud-init status --long` reports an error; `cloud-init.log` shows the repository step failed.
+  Hypothesis: the failure stopped the later parts.
+- Action: move the repository setup into its own fodder item, test it alone on a fresh catlet, fix it,
+  then add the next item.
 
-| Error Message | Actual Meaning | Debug Action |
-|---------------|----------------|--------------|
-| "Connection timeout" | No authentication mechanism configured | Check if EGS was configured successfully |
-| "Permission denied" | Authentication exists but credentials wrong | Check EGS setup or manual key config |
-| "Connection refused" | SSH service not running | Check if VM actually booted properly |
-| "No route to host" | Network connectivity issue | Check VM status and network config |
+### Windows: script "did nothing"
 
-**Critical Understanding:** "Connection timeout" is NOT a network issue - it means there's no way to authenticate. In eryph, this usually means EGS wasn't configured.
+A Windows catlet has a `type: shellscript` fodder with a `#!/bin/bash` first line and no filename. The
+expected change is missing, and there is no per-script log for it.
 
-## Common Mistakes to Avoid
+- `agent.log` shows a skip warning for the script (`#!/...` shebangs are not run on Windows; a skip is a
+  warning, not a script failure).
+- Action: rewrite as PowerShell and set `filename: something.ps1` — the explicit, recommended way to
+  select the runner.
 
-### 1. Assuming IP-based SSH Works
-**Mistake:** Trying to SSH directly to VM IP address
-**Reality:** Catlets have NO SSH access by default - EGS provides the ONLY automatic authentication
-**Solution:** Always use EGS-based SSH access
+### Windows: one script failed, others ran
 
-### 2. Debugging Symptoms Instead of Causes  
-**Mistake:** Focusing on "why won't SSH connect"
-**Reality:** SSH isn't the problem - cloud-init failure is
-**Solution:** Check if earlier fodder items failed first
+Two scripts: the first exits with code 1, the second installs a feature. The feature is installed, the
+first script's effect is missing.
 
-### 3. Complex Initial Configurations
-**Mistake:** Creating elaborate fodder configurations on first try
-**Reality:** Complex configurations have exponential failure probability
-**Solution:** Always start minimal and add incrementally
+- Expected on Windows: a non-zero exit is logged and the next script still runs. The per-script log
+  `C:\ProgramData\eryph\provisioning\logs\001-<filename>.log` contains the exit code and stderr.
+- Action: fix the first script from its log. Do not reorder or remove the second one — it is not the
+  cause.
 
-### 4. Ignoring Cloud-Init Logs
-**Mistake:** Not checking what actually failed during initialization
-**Reality:** Cloud-init logs contain specific failure information
-**Solution:** Access logs via VM console or other catlets to debug
+## Checklist
 
-## Recovery Strategies
-
-### When EGS Fails Completely
-1. **Create new test catlet** with minimal configuration
-2. **Use VM console access** if available to check cloud-init logs
-3. **Deploy diagnostic catlet** to same network for investigation
-4. **Start over with proven baseline** rather than trying to fix
-
-### When Partial Configuration Works
-1. **Identify the last working state** - What was the last fodder item that succeeded?
-2. **Split the failing item** - Break complex operations into smaller pieces
-3. **Add logging and validation** - Make failures more visible
-4. **Test each piece separately** - Isolate the actual problem
-
-### When Everything Seems to Fail
-1. **Check base parent compatibility** - Is the base image appropriate?
-2. **Verify gene dependencies** - Are referenced genes available?  
-3. **Test with known-good configurations** - Use examples from repository
-4. **Consider resource constraints** - Is the VM adequately sized?
-
-## Best Practices for Reliable Fodder
-
-### Development Pattern
-1. **Always start with connectivity test** (base + EGS only)
-2. **Add functionality incrementally** (one fodder item at a time)
-3. **Test after each addition** (full deploy-start-EGS-SSH cycle)
-4. **Document what works** (save working configurations)
-5. **Keep successful patterns** (reuse proven approaches)
-
-### Configuration Guidelines
-- **Prefer simple over complex** - Multiple simple fodder items beat one complex one
-- **Include error handling** - Add logging and validation to custom scripts
-- **Use proven patterns** - Reference existing successful configurations
-- **Avoid bleeding edge** - Use stable, well-tested packages and approaches
-- **Plan for failure** - Design configurations that fail fast and clearly
-
-### Testing Requirements
-- **Test with fresh deployment** every time - Don't reuse VMs
-- **Verify complete functionality** - Not just "it starts"
-- **Test edge cases** - What happens when things go wrong?
-- **Document failure modes** - Keep track of what doesn't work
-
-## Integration with Multi-Agent System
-
-When using the eryph multi-agent system, this debugging methodology applies:
-
-### eryph-specialist Agent
-- Should warn when creating high-risk fodder patterns
-- Should suggest incremental testing approach for complex configurations
-- Should recommend splitting complex requirements into phases
-
-### Main Claude Orchestration
-- Should enforce incremental testing pattern for new configurations
-- Should recognize SSH timeout as likely cloud-init failure, not network issue
-- Should return to creation agent when content errors occur, not try IP-based debugging
-
-### Execution Agent
-- The eryph-powershell-executor (PowerShell + EGS/SSH) should provide raw output for proper interpretation
-- Should not attempt to interpret cloud-init related failures
-- Should escalate systematic connectivity failures to Main Claude
-
-This debugging guide prevents the cascade failure pattern that breaks essential services and provides clear methodology for developing reliable fodder configurations.
+1. `validate_catlet` passes?
+2. Baseline (parent only) provisions and `catlet_exec` works?
+3. `wait_for_provisioning` finished, and `get_provisioning_log` shows no errors?
+4. Windows: `state.json` lists all four stages; `agent.log` and per-script logs have no errors or skips?
+   Linux: `cloud-init status --long` is `done` without errors?
+5. Variables substituted (no literal `{{ ... }}` in rendered scripts/config)?
+6. Expected end state verified with `catlet_exec`?

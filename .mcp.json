@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "eryph": {
+      "type": "stdio",
+      "command": "eryph-mcp",
+      "args": []
+    }
+  }
+}

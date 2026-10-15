@@ -1,353 +1,132 @@
 # eryph-genes Repository
 
-## ⚠️ CRITICAL - ALWAYS DO THIS
+The official dbosoft eryph genes:
+- **Catlet genes:** VM specifications.
+- **Fodder genes:** cloud-config and scripts.
+- **Volume genes:** base OS disks built from `..\hyperv-boxes`.
 
-### Multi-Agent System for Eryph Tasks
-**NEVER execute or generate eryph commands. Always use:**
-1. **Creation agents** (eryph-specialist/gene-maintainer) for artifacts
-2. **Identify operation types** (deploy-catlet, run-ssh, etc.)
-3. **Execution agent** (eryph-powershell-executor) for command execution (PowerShell + EGS/SSH)
-4. **Return errors to creation agents** for interpretation
+Genes are published to the public genepool (https://genepool.eryph.io).
 
-**See `docs/orchestration-guide.md` for detailed flow**
+## ⚠️ Never publish without explicit confirmation
 
-## ⚠️ CRITICAL: Fodder Development Pattern
+`push_packed.ps1` and `pnpm publish-genesets` push to the **public** genepool. A pushed tag
+cannot be removed. Never run them for testing, and never without the user's explicit go-ahead
+for that specific push. To test a build locally, use `Copy-ToLocalGenepool.ps1`.
 
-### ALWAYS Follow This Pattern for New Fodder
+Changing gene sources under `src/` is fine; publishing them is the step that needs confirmation.
 
-When creating complex fodder configurations, **NEVER** create elaborate configurations on first attempt. Cloud-init failures cascade and break subsequent fodder (including EGS), making catlets inaccessible for debugging.
+## Working with catlets: the eryph MCP server
 
-#### Mandatory Development Pattern:
-1. **Create test catlet with ONLY base + EGS**
-2. **Verify SSH connectivity works**  
-3. **Add your new fodder incrementally**
-4. **Test after EACH addition**
+All catlet work goes through the eryph MCP server (`.mcp.json`, tools `mcp__eryph__*`). Don't
+script `New-Catlet` etc. by hand for interactive work.
 
-#### Why This Matters:
-- **Cloud-init failures cascade** and break subsequent fodder (including EGS)
-- **Complex shellscripts in cloud-init are HIGH RISK**
-- **Without EGS, there's NO SSH access** to debug
-- **"Connection timeout" = cloud-init failure**, not network issue
+| Need | Tool |
+|---|---|
+| Check YAML before deploying | `validate_catlet` (authoritative; the JSON schema in docs/ is stricter than eryph) |
+| Create / start / stop / remove | `deploy_catlet`, `start_catlet`, `stop_catlet`, `remove_catlet` |
+| Long operation still running | `get_operation` |
+| Fodder finished? | `wait_for_provisioning`, then `get_provisioning_log` |
+| Run a command in the guest | `catlet_exec`: PowerShell on Windows, root shell on Linux, no stdin/TTY |
+| Copy files, interactive ssh | `egs-tool catlet ...` (see docs/tooling.md) |
 
-#### Red Flags in Fodder (High Failure Risk):
-- Multiple package repository additions
-- systemctl daemon-reload or service modifications  
-- Complex shell scripts (>50 lines)
-- Downloading and executing external scripts
-- Kernel module modifications
-- Multiple system modifications in single fodder item
+Rules:
+- **Address catlets by catlet id.** Names are not unique. The VmId is only for host-side
+  `egs-tool <op> <vmid>` in the test scripts.
+- **Read the error category.** Each tool error starts with one:
+  - `[content error]`: fix the YAML or fodder, then redeploy a fresh catlet.
+  - `[state error]`: fix the system state (catlet stopped, missing, or already exists).
+  - `[transient error]`: retry.
+- **Clean up after yourself.** Remove the test catlets you created. Never touch catlets you
+  didn't create; the user has their own catlets on this host.
 
-#### Critical SSH Error Recognition:
-- **"Connection timeout"** → Earlier fodder failed, blocking EGS configuration
-- **NOT a network issue** → Authentication mechanism (EGS) never got configured
-- **DO NOT attempt IP-based SSH** → No authentication exists without EGS
-- **DO return to eryph-specialist** for fodder simplification
+If the MCP tools are missing, the server isn't installed or approved. Install it with
+`dotnet tool install -g Eryph.Mcp.Server` (see docs/tooling.md), then restart the session.
+Don't fall back to hand-written PowerShell.
 
-### Error Prevention Rules for Main Claude:
-1. **Enforce incremental testing** for any complex fodder request
-2. **Recognize SSH timeout as content error** requiring creation agent
-3. **Never debug network connectivity** for SSH failures
-4. **Always start with minimal configuration** (base + EGS only)
-5. **Break complex requests into phases** rather than single artifacts
+## Writing catlets and fodder
 
-**See `docs/fodder-debugging.md` for complete methodology**
+Use the `catlet-authoring` skill. Key rules:
 
-## Overview
+- **Build fodder up incrementally.**
+  1. Deploy a catlet with only a parent and check that `catlet_exec` works.
+  2. Add one fodder item at a time; deploy fresh and verify after each.
 
-This repository manages the official eryph genes maintained by dbosoft. Genes are the evolutionary units of infrastructure in eryph - reusable templates that catlets (VMs) inherit from.
+  Never write an elaborate multi-step configuration in one go. On Linux a failing cloud-init part
+  can stop everything after it. On Windows the failing script is easy to miss, because later
+  scripts still run.
+- **Guest services ship in every dbosoft base catlet.** Don't add `guest-services` install fodder
+  or SSH keys to test catlets.
+- **Windows provisioning is egs-service, not cloudbase-init.**
+  - It accepts full cloud-config. Linux-only keys such as `packages` are ignored.
+  - Scripts need a `.ps1` / `.cmd` filename.
+  - Logs: `C:\ProgramData\eryph\provisioning\` and `C:\ProgramData\eryph\guest-services\logs\agent.log`.
+- **Linux provisioning is cloud-init.**
+- **Syntax:**
+  - Variables are a list of objects; reference them as `{{ name }}`.
+  - A gene fodder reference needs the fodder name: `gene:org/geneset[/tag]:fodder`.
+  - `file_name` is invalid; use `filename`.
 
-**Repository contains:**
-- Catlet genes - VM specifications
-- Fodder genes - Configuration templates (cloud-init/cloubase-init)
-- Volume genes - Disk volumes for base OS images
+When inline fodder works, the `gene-maintainer` agent extracts it into a gene under `src/` and
+writes its tests.
 
-**Dependencies:**
-- **hyperv-boxes repository** (expected at `..\hyperv-boxes`) - Contains Packer templates for building base OS images
-- **eryph-zero** - Must be installed and running for testing
-- **eryph-packer** - Required for packaging and pushing genes to genepool
-
-## Repository Structure
-
-```
-eryph-genes/
-├── src/              # Source templates for genesets (npm packages)
-│   └── genename/     # Source for each geneset
-│       ├── package.json     # Geneset package (no version)
-│       ├── geneset.json     # Geneset metadata
-│       └── default/         # Default tag (or other version tags)
-│           ├── package.json # Tag package (has version)
-│           └── fodder/      # Fodder YAML files
-├── genes/            # Built genesets with .packed folders after build
-├── packages/         # npm tooling packages (build-geneset, build-geneset-tag)
-├── tests/            # Test catlet templates and SSH module
-└── *.ps1            # PowerShell build/test/push scripts
-```
-
-## Multi-Agent Orchestration System
-
-### ⚠️ CRITICAL: Never Execute Eryph Commands Directly!
-
-**Main Claude must NEVER attempt to run eryph commands directly.** Command syntax degrades under debugging pressure, leading to errors. Always use the multi-agent system.
-
-### The Agents
-
-#### 1. eryph-specialist (Creation Agent)
-**Use when:**
-- Creating new catlets or fodder
-- User needs inline YAML for testing
-- Prototyping new configurations
-
-**Returns:** Artifact + operation hints + error interpretation
-
-#### 2. gene-maintainer (Extraction Agent)
-**Use when:**
-- Extracting tested inline fodder to genes
-- Building/publishing genes
-- Managing repository structure
-
-**Returns:** Gene structure + needed operation types
-
-#### 3. eryph-powershell-executor (Execution Agent — PowerShell + EGS/SSH)
-**ALWAYS use for:**
-- Running eryph PowerShell commands (New-Catlet, Test-Catlet, Start-Catlet, etc.)
-- Polling long-running operations
-- Managing catlets via PowerShell
-- EGS tool operations (setup SSH config, file transfer, get-status)
-- SSH commands to VMs and testing VM configurations
-
-**Receives:** Operation type + parameters
-**Returns:** Raw output or errors (no interpretation)
-
-### Orchestration Flow
+## Repository structure
 
 ```
-User Request → Main Claude (recognize eryph task)
-    ↓
-Creation Agent (specialist/maintainer)
-    ↓
-Returns: artifact + operation hints
-    ↓
-Main Claude: Identify operation type
-    ↓
-eryph-powershell-executor (catlet PowerShell ops AND EGS/SSH ops)
-    ↓
-Returns: output/error
-    ↓
-Main Claude: Categorize error type
-    ↓
-If CONTENT error → Back to Creation Agent for interpretation
-If STATE error → Handle directly (see Error Handling below)
+src/<geneset>/            # sources: geneset package (no version) + tag packages (versioned) with fodder/
+genes/<org>/<geneset>/    # built genesets; <tag>/.packed after a build
+packages/                 # build tooling (build-geneset, build-geneset-tag)
+tests/                    # test helpers, base catlet and fodder gene tests
+docs/                     # knowledge (see below)
 ```
 
-### Critical Rules
-1. **Main Claude:** Orchestrates, identifies operation types, NEVER generates commands
-2. **Creation Agents:** Create artifacts and suggest operation types
-3. **eryph-powershell-executor:** Handles all eryph PowerShell commands (with polling) and all EGS/SSH operations
-4. **Errors:** Categorize first, then route appropriately (see Error Handling)
+Creating a geneset is more than copying files. It needs:
+- two npm packages: the geneset without a version, and tag packages with a version
+- the dependencies between them
+- matching `geneset.json` metadata
+- turbo integration
 
-### OVERRIDE DIRECTIVE: Orchestration Above Efficiency
-- **EVEN IF** you see the obvious fix → still use eryph-specialist
-- **EVEN IF** it seems inefficient → the pattern IS the test
-- **WHEN** executor returns CONTENT error → your ONLY action: return to creation agent
-- **Breaking this pattern means the test FAILS** (we're testing agents, not just deploying)
+Use the `gene-maintainer` agent for it.
 
-### Error Handling - Main Claude Decision Tree
+## Build, local test, publish
 
-**CONTENT ERRORS (Return to Creation Agent):**
-- Validation failures (missing fields, wrong schema, invalid YAML)
-- Syntax errors in YAML or fodder
-- Invalid gene references or missing genes
-- Variable format issues (e.g., key-value vs array-of-objects)
-- Incorrect cloudbase-init/cloud-init directives
-- Missing required parameters in commands
-
-**STATE ERRORS (Handle Directly):**
-- **Resource already exists** → Get existing resource ID, decide to use/remove/rename
-- **Resource not found** → Check if deleted, verify name/ID
-- **Catlet already running/stopped** → Adjust operation accordingly
-- **Operation in progress** → Poll for completion
-- **Permission denied** → Request admin rights or different credentials
-- **Network/connectivity issues** → Retry or check connectivity
-- **Prerequisites missing** → Install/configure prerequisites
-
-**Decision Logic:**
-1. If error is about YAML/fodder/gene CONTENT → Return to creation agent
-2. If error is about system STATE/resources → Handle directly with appropriate operation
-3. If unsure → Check error message for keywords:
-   - "validation", "schema", "syntax", "invalid" → CONTENT
-   - "exists", "not found", "already", "conflict", "permission" → STATE
-
-### Common Operation Types
-**PowerShell Executor:**
-- `deploy-catlet` → Deploy YAML with -Verbose and -SkipVariablesPrompt (returns catlet ID and VmId)
-- `test-catlet` → Test configuration resolution
-- `start-catlet`, `stop-catlet`, `remove-catlet` → Catlet lifecycle (ALWAYS use -Id parameter with catlet ID)
-- `poll-operation` → Check long-running operation status
-
-**⚠️ CRITICAL: Catlet IDs vs VmIds for Automation**
-- **New-Catlet returns a catlet object with both ID and VmId** - ALWAYS capture BOTH
-- **PowerShell operations use Catlet ID** (-Id parameter with catlet ID)
-- **Host-side EGS/SSH operations use VmId** (`.hyper-v.alt` alias) — NOT the catlet ID!
-- **Names are NOT unique** - multiple catlets can have same name
-- **IDs are GUIDs and guaranteed unique** - required for reliable automation
-- Example: `Start-Catlet -Id $catletId -Force` (uses catlet ID)
-- Example: `egs-tool add-ssh-config $vmId` (uses VmId, NOT catlet ID!)
-- The off-host `egs-tool catlet …` tunnel uses the **catlet ID** instead (see below)
-
-**EGS & SSH access (no dedicated agent — `egs-tool` is self-documenting; `egs-tool --help`):**
-Every base catlet ships Eryph Guest Services, so SSH needs no key injection. Host-side flow (uses the
-**VmId**): `egs-tool add-ssh-config <vmid>` (writes the `.hyper-v.alt` alias + exchanges keys — no
-separate update step), `egs-tool get-status <vmid>` for readiness, then `ssh <vmid>.hyper-v.alt -C "<cmd>"`
-with a plain `ssh` (no OpenSSH path pinning). `egs-tool upload-file`/`download-file` transfer files.
-From off-host, `egs-tool catlet <op> <catlet-id>` tunnels the same over eryph (connect via
-`ssh <catlet-id>.eryph.alt`) — no admin, no Hyper-V socket; these `catlet` commands take the catlet ID.
-
-**Build Executor:**
-- `build-gene` → Build with turbo
-- `build-all-genes` → Build entire repository
-- `copy-to-genepool` → Copy to local genepool
-- `resolve-genepool-path` → Get local genepool path (requires admin)
-
-### Phase Transitions
-- **Inline working?** → Suggest gene-maintainer for extraction
-- **Gene built?** → Use eryph-powershell-executor for deployment test
-- **Catlet deployed and started?** → Use eryph-powershell-executor `setup-egs` FIRST
-- **EGS configured?** → Now use eryph-powershell-executor for `run-ssh` operations
-- **Error occurred?** → Return to appropriate creation agent
-
-## Knowledge Base
-
-**Essential documentation in `docs/`:**
-- `orchestration-guide.md` - How to use the three-agent system
-- `command-reference.md` - All eryph commands in one place
-- `error-patterns.md` - Error interpretation for agents
-- `eryph-knowledge.md` - Core eryph concepts only
-- `debug_catlet_deployment.md` - Systematic error detection in deployed catlets
-
-## Testing with Eryph Guest Services (EGS)
-
-**EGS provides SSH access to catlets without key injection.**
-
-### Testing Process
-1. **Create test catlet** → Use eryph-specialist agent
-2. **Deploy and configure** → Request eryph-powershell-executor operation `deploy-catlet` (captures both catlet ID and VmId)
-3. **Start catlet** → Request eryph-powershell-executor operation `start-catlet` with catlet ID
-4. **Setup EGS access** → Request eryph-powershell-executor operation `setup-egs` with VmId (NOT catlet ID!) (REQUIRED before SSH!)
-5. **Check EGS status** → Request eryph-powershell-executor operation `test-egs` with VmId to verify connectivity
-6. **Access VM** → Request eryph-powershell-executor operation `run-ssh` with VmId
-7. **Debug issues** → Return errors to specialist for interpretation
-
-### Test Catlet Template Structure
-```yaml
-name: test-name
-parent: dbosoft/winsrv2022-standard/starter
-
-# EGS ships in every base catlet; SSH keys are auto-exchanged when you run `egs-tool add-ssh-config <vmid>`.
-# Do NOT add `gene:dbosoft/guest-services:*-install` to test catlets.
-fodder:
-  - source: gene:dbosoft/your-gene:tag
+```powershell
+pnpm install
+pnpm turbo build --filter=@dbosoft/<geneset>...               # build one geneset
+.\Copy-ToLocalGenepool.ps1 -Geneset dbosoft/<geneset>/<tag>   # into the LOCAL genepool
+.\Test-FodderGene.ps1 -Gene dbosoft/<geneset>/<tag>           # elevated session
+.\Test-GeneRelease.ps1 dbosoft/<geneset>/<tag> -FromBuild     # copy + test, release gate
 ```
 
-**Remember: eryph-specialist provides artifacts. Main Claude identifies operations and chooses executor. Executors execute without interpretation.**
+- **Fodder genes:** tests live in `tests/fodder-genes/<geneset>/test-matrix.psd1`; see
+  docs/gene-testing.md. A gene without a test matrix can't be tested; write one.
+- **Base catlets:**
+  - Built from hyperv-boxes with `build.ps1` and `pack_build.ps1`, tested with
+    `Test-PackedBaseCatlet.ps1`.
+  - For multi-catlet build/publish runs use the `/build-base-catlets` skill. It drives `build.ps1`
+    directly, in the background, with monitoring, retry of transient errors and staging hygiene.
+- **Versions:**
+  - Fodder genes use semantic versions with changesets (`npx changeset`).
+  - OS images use date tags (`20261014`).
+- **Scripts:**
+  - `Resolve-GenepoolPath.ps1` prints the local genepool path (admin); the test scripts cache it
+    in `.claude/genepool-path.txt`.
+  - `check_packed.ps1`, `check_ref_consistency.ps1` and `delete_packed.ps1` handle `.packed`
+    hygiene.
 
-## Build System
+## Knowledge base (docs/)
 
-### ⚠️ IMPORTANT: Creating Genesets is Complex!
-**Creating a new geneset is NOT just copying files!** It requires:
-1. **Two separate npm packages**: geneset package (no version) + tag package(s) (with versions)
-2. **Proper dependency structure**: Tag packages must depend on their parent geneset
-3. **Correct package.json setup**: Different requirements for geneset vs tag packages
-4. **geneset.json metadata**: Must match package structure
-5. **Turbo build integration**: Must work with the monorepo build system
+- `tooling.md`: MCP tools, egs-tool, PowerShell module, build and test commands
+- `eryph-knowledge.md`: concepts (genes, genesets, tags, fodder, variables, provisioning agents)
+- `fodder-debugging.md`: debugging fodder per OS, logs and their locations
+- `error-patterns.md`: error messages and what they mean
+- `gene-testing.md`: writing and running gene tests
 
-**ALWAYS use the gene-maintainer agent for creating new genesets** - it has specialized knowledge of the npm/turbo build system and package relationships.
+## Dependencies
 
-### Package Structure
-- **Geneset packages** (`src/genename/`) - Define gene family, NO version in package.json
-- **Tag packages** (`src/genename/default/`) - Define versions, HAVE version in package.json  
-- Tags are dependencies of their parent geneset
-- Each tag folder contains its own package.json and fodder/ directory
-
-### Build Process
-- **Installing dependencies** → gene-maintainer suggests operations
-- **Building genes** → gene-maintainer identifies what to build
-- **Publishing workflow** → gene-maintainer guides versioning
-- **Execution** → build-executor runs all build commands
-
-### Repository Scripts (What They Do)
-- `Resolve-GenepoolPath.ps1` - Resolves local genepool path (requires admin)
-- `build.ps1` - Builds base catlets from hyperv-boxes. For multi-catlet build/publish runs use the `/build-base-catlets` skill, which drives `build.ps1` **directly** (background + monitoring, transient-error retry, staging hygiene) and intentionally does **not** route through build-executor — a one-shot executor can't monitor a multi-hour build.
-- `test_packed.ps1` - Tests packed genes
-- `Test-PackedBaseCatlet.ps1` - Orchestrates base catlet testing
-- `Test-FodderGene.ps1` - Orchestrates fodder gene testing
-- `push_packed.ps1` - **⚠️ DANGER: Pushes to PUBLIC GENEPOOL! NEVER use for testing!**
-- `delete_packed.ps1` - Cleans up .packed folders
-
-**⚠️ CRITICAL WARNING: NEVER use push_packed.ps1 for testing!** 
-- This script pushes to the PUBLIC genepool at genepool.eryph.io
-- Once pushed, genes CANNOT be removed
-- For local testing, ALWAYS use gene-maintainer to create copy commands to local genepool
-- Only use push_packed.ps1 after FULL testing and verification
-
-**To run any of these scripts:** Use appropriate agent to get commands → appropriate executor runs them
-
-## Local Testing Requirements
-
-### Genepool Path Configuration
-Before testing genes locally, the genepool path must be detected: 
-Script .\Resolve-GenepoolPath.ps1
-
-### Testing Workflow
-1. **Build gene** → gene-maintainer provides build commands → executor runs them
-2. **Copy to local genepool** → gene-maintainer suggests copy operation → build-executor runs it
-3. **Deploy test catlet** → eryph-specialist creates test YAML → eryph-powershell-executor deploys
-4. **Verify functionality** → specialist provides verification commands → eryph-powershell-executor runs SSH tests
-
-## Troubleshooting
-
-### PowerShell NullReferenceException
-"Der Objektverweis wurde nicht auf eine Objektinstanz festgelegt"
-- Missing `-SkipVariablesPrompt` when YAML has variables
-- See `docs/error-patterns.md` for all error patterns
-
-### Gene Not Found
-- Genes only become discoverable after first deployment
-- Don't use `Get-CatletGene` before deploying
-- Check if files exist in local genepool path
-
-## Specialized Agents
-
-This repository uses a multi-agent system:
-
-### eryph-specialist
-- Phase 1: Creates inline fodder YAML
-- Located at `.claude/agents/eryph-specialist.md`
-- Returns artifacts and exact commands
-
-### gene-maintainer
-- Phase 2: Extracts fodder to genes
-- Located at `.claude/agents/gene-maintainer.md`
-- Returns gene structure and build commands
-
-### eryph-powershell-executor
-- Executes eryph PowerShell commands **and** all EGS/SSH operations
-- Located at `.claude/agents/eryph-powershell-executor.md`
-- Handles long-running operations with polling; VM access and testing
-
-### build-executor
-- Executes gene build and genepool operations
-- Located at `.claude/agents/build-executor.md`
-- Handles pnpm, turbo, and xcopy commands
-
-## Important Notes
-
-- **Variable Syntax**: Use `{{ variable }}` in YAML files, not PowerShell `$variable`
-- **Version Strategy**: Date-based for OS images (20241216), semantic for fodder (1.0, 1.1)
-- **Testing Required**: Always test genes locally before publishing
-- **Security**: Never commit secrets in fodder files
-
-## Related Resources
-
-- **Genepool**: https://genepool.eryph.io
-- **Genepool API**: https://genepool-api.eryph.io/v1/
-- **hyperv-boxes repository**: https://github.com/eryph-org/hyperv-boxes
+- **eryph-zero:** 0.5.x, installed and running.
+- **eryph MCP server:** the `eryph-mcp` dotnet tool.
+- **egs-tool:** guest services host tool.
+- **eryph PowerShell module:** used by the test scripts.
+- **eryph-packer:** for packing and pushing.
+- **pnpm + turbo:** for building genes.
+- **hyperv-boxes:** at `..\hyperv-boxes`, only for base catlet builds.
