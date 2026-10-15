@@ -43,8 +43,8 @@ explicit confirmation.
   `git add`s the geneset**), **(3)** `Test-PackedBaseCatlet.ps1` (deploys a
   catlet + runs Pester validation). On any per-template failure it prints
   `X <template> failed: …`, increments the failed count, and **continues** to
-  the next template. It does **not** set a non-zero exit code on failures —
-  you must parse the output.
+  the next template. It exits with 1 when any template failed, but only the
+  output tells you which one — parse it.
   - `-Filter` is a single `-like` wildcard, so an arbitrary subset (e.g. "linux
     + win server 202x without core") cannot be expressed in one filter. **Drive
     one `build.ps1` invocation per template** (exact name as the filter). This

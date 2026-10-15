@@ -86,7 +86,11 @@ pnpm turbo build                                       # everything
 .\Test-PackedBaseCatlet.ps1 -Geneset dbosoft/<os>/<date> -GenepoolPath <path> -OsType windows|linux
 ```
 
-Base catlet builds (`build.ps1`, hours) run through the `/build-base-catlets` skill.
+`.\Test-Repository.ps1` runs the static checks the CI runs on every PR (no Hyper-V needed).
+`.\prepare.ps1 [-BaseCatlets]` installs or checks the required tools.
+
+Base catlet builds (`build.ps1`, hours) run through the `/build-base-catlets` skill, or in CI with
+`azure-pipelines-base-catlets.yml` (manual, self-hosted pool `eryph`, no push).
 
 **Never use for testing:** `push_packed.ps1` and `pnpm publish-genesets` push to the PUBLIC
 genepool (genepool.eryph.io); a pushed tag cannot be removed.

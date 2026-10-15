@@ -110,6 +110,12 @@ pnpm turbo build --filter=@dbosoft/<package>...               # package name fro
 - **Scripts:**
   - `Resolve-GenepoolPath.ps1` prints the local genepool path (admin); the test scripts cache it
     in `.claude/genepool-path.txt`.
+  - `Test-Repository.ps1` runs the static checks of the CI: scripts parse, tag references stay in
+    their geneset, unique package names, valid test matrices. Run it before committing.
+  - `prepare.ps1` installs or checks the tools (`-BaseCatlets` for Hyper-V builds).
+  - CI (Azure Pipelines): `azure-pipelines.yml` builds, packs and checks on PR/push;
+    `azure-pipelines-base-catlets.yml` is a manually started base catlet build on the pool `eryph`,
+    without push.
   - `check_packed.ps1`, `check_ref_consistency.ps1` and `delete_packed.ps1` handle `.packed`
     hygiene.
 

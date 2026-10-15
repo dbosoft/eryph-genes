@@ -1,0 +1,51 @@
+# Manually started base catlet build: builds the VM image with basecatlets-hyperv,
+# packs it into genes/ and tests it with Test-PackedBaseCatlet.ps1. Nothing is
+# pushed to the genepool; publishing stays a manual, confirmed step.
+#
+# Runs on the self-hosted pool 'eryph'. The agent must be a Hyper-V host with
+# eryph-zero, egs-tool and the eryph PowerShell module installed, and run
+# elevated (prepare.ps1 -BaseCatlets checks this).
+
+trigger: none
+pr: none
+
+parameters:
+- name: template
+  displayName: Template (key in import.json, -like wildcard)
+  type: string
+- name: vmBuildRetries
+  displayName: Retries of the VM build step
+  type: number
+  default: 1
+
+resources:
+  repositories:
+  - repository: basecatlets
+    type: github
+    endpoint: eryph-org
+    name: eryph-org/basecatlets-hyperv
+
+pool:
+  name: eryph
+
+jobs:
+- job: build
+  displayName: Build ${{ parameters.template }}
+  timeoutInMinutes: 480
+  steps:
+  # Multi-repo checkout: s/eryph-genes and s/basecatlets-hyperv
+  - checkout: self
+  - checkout: basecatlets
+    clean: true
+
+  - pwsh: ./prepare.ps1 -BaseCatlets
+    displayName: Check prerequisites
+    workingDirectory: $(Build.SourcesDirectory)/eryph-genes
+
+  - pwsh: New-Item -ItemType Directory -Force -Path builds | Out-Null
+    displayName: Create build directory
+    workingDirectory: $(Build.SourcesDirectory)/basecatlets-hyperv
+
+  - pwsh: ./build.ps1 -Filter '${{ parameters.template }}' -BuildPath ../basecatlets-hyperv/builds -VmBuildRetries ${{ parameters.vmBuildRetries }}
+    displayName: Build, pack and test
+    workingDirectory: $(Build.SourcesDirectory)/eryph-genes

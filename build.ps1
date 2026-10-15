@@ -155,3 +155,8 @@ Write-Host '========================================' -ForegroundColor Cyan
 }finally{
     pop-Location
 }
+
+# Non-zero exit when any template failed, so callers (CI) can rely on it
+if ($failedCount -gt 0) {
+    exit 1
+}

@@ -1,62 +1,42 @@
-resources:
-  repositories:
-  - repository: basecatlets # The name used to reference this repository in the checkout step
-    type: github
-    endpoint: eryph-org
-    name: eryph-org/basecatlets-hyperv
+# Checks for pull requests and pushes to main: builds and packs every geneset
+# (no push to the genepool) and runs the static repository checks.
+# Base catlet builds run separately, see azure-pipelines-base-catlets.yml.
 
+trigger:
+  branches:
+    include:
+    - main
+
+pr:
+  branches:
+    include:
+    - main
 
 pool:
-  name: eryph
+  vmImage: windows-latest
 
-jobs:
-- job: build
-  timeoutInMinutes: 240
-  strategy:
-    maxParallel: 1
-    matrix: 
-      ubuntu-22.04: 
-        template: ubuntu-22.04
-      winsrv2019-standard: 
-        template: winsrv2016-standard
-      winsrv2022-standard: 
-        template: winsrv2022-standard
-      winsrv2025-standard: 
-        template: winsrv2025-standard
-      win10-20h2: 
-        template: win10-20h2-enterprise
-      win11-21h1: 
-        template: win11-21h1-enterprise
-      win11-22h2:
-        template: win11-22h2-enterprise
-  steps:
-  - checkout: self
-  - checkout: basecatlets
-    clean: true
-  - task: Pre-PowerShell@2
-    inputs:
-      targetType: 'inline'
-      script: |
-        $template = $env:template
-        
-        if($template) {
-        
-        get-vm $template -ErrorAction Continue | Stop-VM -Force
-        get-vm $template -ErrorAction Continue | Remove-VM -Force
-        }
-  - task: PowerShell@2
-    displayName: setup tools
-    inputs:
-      filePath: '.\eryph-genes\prepare.ps1'
-      arguments: '$(UserMail) $(InvitationCode)'
-      warningPreference: 'continue'
-      informationPreference: 'continue'
-      verbosePreference: 'continue'
-  - task: CmdLine@2
-    inputs:
-      script: 'mkdir $(Build.SourcesDirectory)\basecatlets-hyperv\builds'
-    
-  - task: PowerShell@2
-    inputs:
-      filePath: '.\eryph-genes\build.ps1'
-      arguments: '-Filter $(template) -BuildPath $(Build.SourcesDirectory)\basecatlets-hyperv\builds'      
+steps:
+- checkout: self
+
+- task: NodeTool@0
+  displayName: Install Node.js
+  inputs:
+    versionSpec: '22.x'
+
+- pwsh: ./prepare.ps1
+  displayName: Install build tools
+
+- pwsh: pnpm install --frozen-lockfile
+  displayName: Install dependencies
+
+- pwsh: pnpm turbo build
+  displayName: Build and pack all genesets
+
+- pwsh: ./Test-Repository.ps1
+  displayName: Repository checks
+
+# Local refs differ from the genepool between a commit and the following
+# push, so a mismatch is reported but doesn't fail the build.
+- pwsh: ./check_ref_consistency.ps1
+  displayName: Compare tag references with the genepool
+  continueOnError: true
