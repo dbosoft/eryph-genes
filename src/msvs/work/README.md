@@ -287,10 +287,9 @@ The installation script properly handles Visual Studio's reboot requirements usi
 
 ### Exit Codes
 - **Exit 0**: Installation completed successfully, no reboot needed
-- **Exit 1003**: Installation completed but requires reboot (cloud-init will reboot and continue)
-- **Exit 1003**: Installation needs to restart and retry (cloud-init will reboot and retry the script)
-
-**⚠️ CRITICAL**: Never use exit code 1001! It stops ALL cloudbase-init processing, preventing EGS setup and other critical configurations from running.
+- **Exit 1003**: Reboot, then run this script again (used to continue the installation after a reboot)
+- **Exit 1001**: Reboot, then continue with the next script (only when this script is completely done)
+On Windows, eryph guest services (egs-service) handles these codes; `1002` is not supported.
 
 ### Common Scenarios
 1. **Simple workloads**: Usually complete without reboot
@@ -303,8 +302,8 @@ The installation script properly handles Visual Studio's reboot requirements usi
 # Check if catlet has rebooted
 Get-Catlet | Where-Object Name -eq "test-vs-community" | Select-Object Name, Status, Uptime
 
-# Check cloud-init logs after reboot
-ssh <catletId>.eryph.alt -C 'Get-Content "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\log\cloudbase-init.log" -Tail 50'
+# Check the per-script logs and the guest services agent log after reboot
+ssh <catletId>.eryph.alt -C 'Get-ChildItem C:\ProgramData\eryph\provisioning\logs; Get-Content C:\ProgramData\eryph\guest-services\logs\agent.log -Tail 50'
 ```
 
 ## Performance Considerations

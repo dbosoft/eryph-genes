@@ -13,7 +13,7 @@ fodder:
 
 ## System Account Limitation
 
-Winget is distributed as an AppX package through the Microsoft Store infrastructure. Due to Windows architecture constraints, AppX packages cannot be executed by the SYSTEM account. Since eryph fodder runs under the SYSTEM account during cloudbase-init provisioning, winget commands will not function during VM provisioning.
+Winget is distributed as an AppX package through the Microsoft Store infrastructure. Due to Windows architecture constraints, AppX packages cannot be executed by the SYSTEM account. Since eryph fodder runs under the SYSTEM account during provisioning, winget commands will not function during VM provisioning.
 
 For package installation during VM provisioning, use the Chocolatey geneset instead, which is fully compatible with the SYSTEM account. Winget remains useful for scenarios where users will interactively install software after provisioning or for creating developer workstation templates where winget will be used manually.
 

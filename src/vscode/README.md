@@ -8,7 +8,7 @@ This geneset provides automated installation and configuration of Visual Studio 
 - **System-Wide Configuration**: Settings and keybindings applied to all users
 - **Extension Bootstrap**: Automatic extension installation on first launch
 - **Dev Drive Integration**: Automatic detection and configuration of Dev Drives for optimal development performance
-- **Reboot Handling**: Automatic handling of installation reboots via cloudbase-init
+- **Reboot Handling**: Automatic handling of installation reboots (exit code 1003)
 
 ## Available Fodder
 
@@ -184,7 +184,7 @@ fsutil devdrv query E:
 
 ### Installation Issues
 
-- **Reboot Required**: The gene handles reboots automatically via cloudbase-init
+- **Reboot Required**: The gene handles reboots automatically (exit code 1003)
 - **Chocolatey Issues**: The gene will install Chocolatey if not present
 - **Path Issues**: VS Code is automatically added to system PATH
 

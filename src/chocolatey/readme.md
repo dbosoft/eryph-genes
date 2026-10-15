@@ -34,7 +34,7 @@ The Chocolatey installation fodder performs the following steps:
 This fodder includes intelligent reboot handling for .NET Framework dependencies:
 
 - Detects when .NET Framework update requires a reboot
-- Uses cloudbase-init exit code 1003 to request automatic reboot
+- Uses exit code 1003 to request a reboot and re-run of the script
 - Continues installation seamlessly after reboot
 - Creates temporary marker files to track installation state
 
