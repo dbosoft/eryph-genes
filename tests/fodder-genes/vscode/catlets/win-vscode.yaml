@@ -1,0 +1,5 @@
+name: vscode-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+fodder:
+  - source: gene:{{GENE}}:win-vscode

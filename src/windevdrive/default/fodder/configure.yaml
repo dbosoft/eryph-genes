@@ -1,8 +1,23 @@
 name: configure
 
 variables:
+  # Where the dev drive goes - set one of devdrive_name or devdrive_location:
+  # devdrive_name: an eryph drive of the catlet (e.g. sdb) that becomes the dev drive
   - name: devdrive_name
-    required: true
+    value: ""
+    required: false
+  # devdrive_location: an existing volume (e.g. C) that hosts the dev drive,
+  # either as VHD file (devdrive_type vhd) or in space shrunk off the volume (resize)
+  - name: devdrive_location
+    value: ""
+    required: false
+  - name: devdrive_type
+    value: "vhd"
+    required: false
+  # Size in GB for devdrive_location (Microsoft's minimum for a dev drive is 50 GB)
+  - name: devdrive_size
+    value: "50"
+    required: false
   - name: devdrive_letter
     value: "E"
     required: false
@@ -13,130 +28,144 @@ variables:
 fodder:
 - name: configure-devdrive
   type: shellscript
-  fileName: configure-devdrive.ps1
+  filename: configure-devdrive.ps1
   content: |
     Write-Host "=== Configuring Dev Drive ==="
     
-    # Parameters from variables
-    $eryphDriveName = "{{ devdrive_name }}"
-    $driveLetter = "{{ devdrive_letter }}"
+    $eryphDriveName = "{{ devdrive_name }}".Trim()
+    $location = "{{ devdrive_location }}".Trim().TrimEnd(':', '\')
+    $type = "{{ devdrive_type }}".Trim().ToLower()
+    $sizeGB = [int]"{{ devdrive_size }}"
+    $driveLetter = "{{ devdrive_letter }}".Trim().TrimEnd(':')
     $driveLabel = "{{ devdrive_label }}"
     
-    Write-Host "Looking for disk corresponding to Eryph drive: $eryphDriveName"
+    # Dev Drive requires Windows 11 Build 22621.2338 or later; older builds get a ReFS volume
+    $osBuild = [int](Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").CurrentBuildNumber
+    $devDriveSupported = $osBuild -ge 22621
+    Write-Host "Windows Build: $osBuild - Dev Drive supported: $devDriveSupported"
     
-    # Map Eryph drive name to Windows disk number
-    # sda = Disk 0, sdb = Disk 1, sdc = Disk 2, etc.
-    $diskNumber = switch ($eryphDriveName.ToLower()) {
-        'sda' { 0 }
-        'sdb' { 1 }
-        'sdc' { 2 }
-        'sdd' { 3 }
-        'sde' { 4 }
-        'sdf' { 5 }
-        'sdg' { 6 }
-        'sdh' { 7 }
-        default { 
-            Write-Host "ERROR: Unsupported Eryph drive name: $eryphDriveName"
-            exit 1
-        }
+    function Get-DevDrivePartition {
+        Get-Partition -DriveLetter $driveLetter -ErrorAction SilentlyContinue
     }
     
-    Write-Host "Eryph drive '$eryphDriveName' maps to Windows Disk $diskNumber"
+    # Prepares the disk/space and creates the partition $driveLetter.
+    # Returns $true when the partition was created now, $false when it exists already.
+    function New-DevDrivePartition {
+        if ($eryphDriveName) {
+            # Dedicated eryph drive: sda = Disk 0, sdb = Disk 1, ...
+            if ($eryphDriveName -notmatch '^sd([a-h])$') {
+                throw "Unsupported eryph drive name: $eryphDriveName"
+            }
+            $diskNumber = [int][char]$Matches[1] - [int][char]'a'
+            $disk = Get-Disk -Number $diskNumber -ErrorAction Stop
+            Write-Host "Eryph drive '$eryphDriveName' is Disk ${diskNumber}: $([Math]::Round($disk.Size / 1GB, 2)) GB, $($disk.PartitionStyle)"
+            if ($disk.PartitionStyle -ne 'RAW') {
+                # Running again (e.g. after a reboot): accept the disk when it already
+                # carries the dev drive volume
+                $existing = Get-DevDrivePartition
+                if ($existing -and $existing.DiskNumber -eq $diskNumber) { return $false }
+                throw "Disk $diskNumber is already initialized (PartitionStyle: $($disk.PartitionStyle)); a dev drive needs an empty disk"
+            }
+            Initialize-Disk -Number $diskNumber -PartitionStyle GPT -ErrorAction Stop
+            New-Partition -DiskNumber $diskNumber -UseMaximumSize -DriveLetter $driveLetter -ErrorAction Stop | Out-Null
+            return $true
+        }
     
-    # Verify the disk exists and is uninitialized
+        if (-not $location) {
+            throw "Set devdrive_name (an eryph drive) or devdrive_location (an existing volume, e.g. C)"
+        }
+        $sizeBytes = [int64]$sizeGB * 1GB
+    
+        if ($type -eq 'vhd') {
+            # Like the Windows settings page: a dynamically expanding VHDX on the volume
+            $vhdPath = "${location}:\DevDrives\$driveLabel.vhdx"
+            if (-not (Test-Path $vhdPath)) {
+                New-Item -ItemType Directory -Path (Split-Path $vhdPath -Parent) -Force | Out-Null
+                Write-Host "Creating $sizeGB GB VHDX at $vhdPath..."
+                $script = Join-Path $env:TEMP 'devdrive-diskpart.txt'
+                Set-Content -Path $script -Encoding ASCII -Value "create vdisk file=`"$vhdPath`" maximum=$($sizeGB * 1024) type=expandable"
+                $output = diskpart /s $script 2>&1
+                Remove-Item $script -Force
+                if ($LASTEXITCODE -ne 0) { throw "diskpart failed: $output" }
+            }
+    
+            $image = Get-DiskImage -ImagePath $vhdPath
+            if (-not $image.Attached) {
+                $image = Mount-DiskImage -ImagePath $vhdPath -PassThru -ErrorAction Stop
+            }
+            $disk = $image | Get-Disk
+    
+            # Windows doesn't attach a VHD again after a reboot; a startup task does
+            $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
+                -Argument "-NoProfile -NonInteractive -Command `"Mount-DiskImage -ImagePath '$vhdPath' -ErrorAction SilentlyContinue`""
+            Register-ScheduledTask -TaskName "Mount Dev Drive $driveLabel" -Action $action `
+                -Trigger (New-ScheduledTaskTrigger -AtStartup) -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
+    
+            if ($disk.PartitionStyle -ne 'RAW') {
+                if (Get-DevDrivePartition) { return $false }
+                throw "$vhdPath is already initialized but has no ${driveLetter}: volume"
+            }
+            Initialize-Disk -Number $disk.Number -PartitionStyle GPT -ErrorAction Stop
+            New-Partition -DiskNumber $disk.Number -UseMaximumSize -DriveLetter $driveLetter -ErrorAction Stop | Out-Null
+            return $true
+        }
+    
+        if ($type -eq 'resize') {
+            if (Get-DevDrivePartition) { return $false }
+            # Like "resize an existing volume": shrink it and use the freed space
+            $source = Get-Partition -DriveLetter $location -ErrorAction Stop
+            $supported = Get-PartitionSupportedSize -DiskNumber $source.DiskNumber -PartitionNumber $source.PartitionNumber
+            $newSize = $source.Size - $sizeBytes
+            if ($newSize -lt $supported.SizeMin) {
+                throw "${location}: can shrink by at most $([Math]::Floor(($source.Size - $supported.SizeMin) / 1GB)) GB, $sizeGB GB requested"
+            }
+            Write-Host "Shrinking ${location}: by $sizeGB GB..."
+            Resize-Partition -DiskNumber $source.DiskNumber -PartitionNumber $source.PartitionNumber -Size $newSize -ErrorAction Stop
+            New-Partition -DiskNumber $source.DiskNumber -UseMaximumSize -DriveLetter $driveLetter -ErrorAction Stop | Out-Null
+            return $true
+        }
+    
+        throw "Unsupported devdrive_type '$type' (vhd or resize)"
+    }
+    
     try {
-        $disk = Get-Disk -Number $diskNumber -ErrorAction Stop
-        
-        Write-Host "Found Disk ${diskNumber}:"
-        Write-Host "  Size: $([Math]::Round($disk.Size / 1GB, 2)) GB"
-        Write-Host "  Partition Style: $($disk.PartitionStyle)"
-        Write-Host "  Bus Type: $($disk.BusType)"
-        
-        if ($disk.PartitionStyle -ne 'RAW') {
-            Write-Host "ERROR: Disk $diskNumber is already initialized (PartitionStyle: $($disk.PartitionStyle))"
-            Write-Host "Dev Drive requires an uninitialized disk"
-            exit 1
-        }
-        
-        if ($disk.Size -lt 50GB) {
-            Write-Host "WARNING: Disk is smaller than 50GB (minimum recommended for Dev Drive)"
-        }
-        
+        $created = New-DevDrivePartition
     } catch {
-        Write-Host "ERROR: Disk $diskNumber not found or not accessible"
-        Write-Host "Error details: $_"
+        Write-Host "ERROR: $_"
         exit 1
     }
     
-    Write-Host ""
-    Write-Host "Initializing Disk $diskNumber as GPT..."
-    
-    try {
-        # Initialize the disk as GPT
-        Initialize-Disk -Number $diskNumber -PartitionStyle GPT -ErrorAction Stop
-        Write-Host "Disk initialized successfully"
-        
-        # Create a partition using all available space
-        Write-Host "Creating partition..."
-        $partition = New-Partition -DiskNumber $diskNumber -UseMaximumSize -DriveLetter $driveLetter
-        Write-Host "Partition created with letter $driveLetter"
-        
-        # Check Windows version to determine if Dev Drive is supported
-        $osVersion = [System.Environment]::OSVersion.Version
-        $osBuild = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").CurrentBuildNumber
-        Write-Host "Windows Build: $osBuild"
-        
-        # Dev Drive requires Windows 11 Build 22621.2338 or later
-        $devDriveSupported = $false
-        if ($osBuild -ge 22621) {
-            $devDriveSupported = $true
-            Write-Host "Dev Drive is supported on this Windows version"
-        } else {
-            Write-Host "Dev Drive not supported. Will create standard ReFS volume instead"
-        }
-        
-        # Format the volume
+    if ($created) {
         if ($devDriveSupported) {
-            Write-Host "Formatting as Dev Drive (ReFS with Dev Drive flag)..."
-            $formatCmd = "format ${driveLetter}: /devdrv /q /y"
-        } else {
-            Write-Host "Formatting as ReFS volume (Dev Drive optimizations not available)..."
-            $formatCmd = "format ${driveLetter}: /fs:ReFS /q /y"
+            Write-Host "Formatting ${driveLetter}: as Dev Drive..."
+            $formatResult = cmd /c "format ${driveLetter}: /devdrv /q /y /v:$driveLabel" 2>&1
+            Write-Host $formatResult
+            if ($LASTEXITCODE -ne 0) {
+                # /devdrv needs 22621.2338 or later; older 22621 builds reject it
+                Write-Host "Dev Drive format failed (exit code $LASTEXITCODE), formatting as ReFS instead..."
+                $devDriveSupported = $false
+            }
         }
-        
-        Write-Host "Running: $formatCmd"
-        $formatResult = cmd /c $formatCmd 2>&1
-        Write-Host $formatResult
-        
-        # Set the label
-        Write-Host "Setting volume label to '$driveLabel'..."
-        $labelCmd = "label ${driveLetter}: $driveLabel"
-        cmd /c $labelCmd
-        
-        # Verify the drive exists
-        Start-Sleep -Seconds 2
-        if (Test-Path "${driveLetter}:\") {
-            Write-Host "Drive created successfully at ${driveLetter}:"
-            
-            # Get volume info
-            $volume = Get-Volume -DriveLetter $driveLetter
-            Write-Host "  File System: $($volume.FileSystem)"
-            Write-Host "  Size: $([Math]::Round($volume.Size / 1GB, 2)) GB"
-            Write-Host "  Label: $($volume.FileSystemLabel)"
-        } else {
-            Write-Host "ERROR: Drive was not created properly"
+        if (-not $devDriveSupported) {
+            Write-Host "Formatting ${driveLetter}: as ReFS..."
+            $formatResult = cmd /c "format ${driveLetter}: /fs:ReFS /q /y /v:$driveLabel" 2>&1
+            Write-Host $formatResult
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: format failed with exit code $LASTEXITCODE"
             exit 1
         }
-        
-    } catch {
-        Write-Host "ERROR during disk initialization: $_"
-        exit 1
+    } else {
+        Write-Host "${driveLetter}: exists already - skipping partitioning and format"
     }
     
-    Write-Host ""
-    Write-Host "=== Configuring Drive Trust and Settings ==="
-    
-    # Only configure Dev Drive trust on Windows 11 with Dev Drive support
+    $volume = Get-Volume -DriveLetter $driveLetter -ErrorAction SilentlyContinue
+    if (-not $volume) {
+        Write-Host "ERROR: volume ${driveLetter}: not found"
+        exit 1
+    }
+    Write-Host "Volume ${driveLetter}: $($volume.FileSystem), $([Math]::Round($volume.Size / 1GB, 2)) GB, label $($volume.FileSystemLabel)"
+        # Only configure Dev Drive trust on Windows 11 with Dev Drive support
     if ($devDriveSupported) {
         # Mark the Dev Drive as trusted
         Write-Host "Marking Dev Drive as trusted..."

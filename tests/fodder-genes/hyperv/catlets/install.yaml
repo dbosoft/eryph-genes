@@ -1,0 +1,11 @@
+name: hyperv-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+capabilities:
+  - name: nested_virtualization
+
+memory:
+  startup: 4096
+
+fodder:
+  - source: gene:{{GENE}}:install

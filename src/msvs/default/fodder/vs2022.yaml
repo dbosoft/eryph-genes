@@ -34,7 +34,7 @@ fodder:
     type: shellscript
     filename: install-vs.ps1
     content: |
-      Write-Host "Starting Visual Studio $edition 2022 installation process..."
+      Write-Host "Starting Visual Studio {{ vs_edition }} 2022 installation process..."
       
       # Function to test if a command exists
       function Test-CommandExists {
@@ -55,8 +55,10 @@ fodder:
           
           Write-Host "Searching for Visual Studio $Edition installer on mounted drives..."
           
-          # Skip D: drive as it contains cloud-init disk
-          $drivesToCheck = @('E:', 'F:', 'G:', 'H:')
+          # Only optical drives: a VS layout ISO attached to the catlet. Fixed
+          # drives are skipped (e.g. the dev drive could hold any setup.exe).
+          $drivesToCheck = @(Get-Volume | Where-Object { $_.DriveType -eq 'CD-ROM' -and $_.DriveLetter } |
+              ForEach-Object { "$($_.DriveLetter):" })
           
           foreach ($drive in $drivesToCheck) {
               if (Test-Path $drive) {
@@ -293,8 +295,14 @@ fodder:
               $exitCode = $process.ExitCode
               
               if ($exitCode -eq 0) {
-                  Write-Host "Visual Studio installation completed successfully"
-                  $installed = $true
+                  # The installer can return 0 without having installed anything;
+                  # only devenv.exe proves the installation.
+                  if (Test-Path "$installPath\Common7\IDE\devenv.exe") {
+                      Write-Host "Visual Studio installation completed successfully"
+                      $installed = $true
+                  } else {
+                      Write-Host "ERROR: the installer returned 0, but $installPath\Common7\IDE\devenv.exe does not exist"
+                  }
               } elseif ($exitCode -eq 3010) {
                   Write-Host "Visual Studio installation completed successfully (reboot required)"
                   $installed = $true
@@ -308,16 +316,16 @@ fodder:
                   exit 1003
               } else {
                   Write-Host "Visual Studio installation failed with exit code: $exitCode"
-                  Write-Host "Check logs in: $logDir"
-                  
-                  # Try to find and display error logs
-                  $errorLog = Get-ChildItem -Path "$env:TEMP" -Filter "dd_*.log" -ErrorAction SilentlyContinue | 
-                              Sort-Object LastWriteTime -Descending | 
-                              Select-Object -First 1
-                  
-                  if ($errorLog) {
-                      Write-Host "Recent log file: $($errorLog.FullName)"
-                      Get-Content $errorLog.FullName -Tail 50 | Write-Host
+              }
+      
+              if (-not $installed) {
+                  # The installer logs to %TEMP% of the installing account
+                  # (C:\Windows\Temp as Local System): dd_bootstrapper_*, dd_setup_*, dd_installer_*
+                  $logs = Get-ChildItem -Path $env:TEMP -Filter "dd_*.log" -ErrorAction SilentlyContinue |
+                      Sort-Object LastWriteTime -Descending | Select-Object -First 3
+                  foreach ($log in $logs) {
+                      Write-Host "----- $($log.FullName) (last 40 lines)"
+                      Get-Content $log.FullName -Tail 40 | Write-Host
                   }
               }
           } catch {

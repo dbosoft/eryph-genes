@@ -1,0 +1,12 @@
+name: devdrive-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+drives:
+  - name: sdb
+    size: 60
+
+fodder:
+  - source: gene:{{GENE}}:configure
+    variables:
+      - name: devdrive_name
+        value: sdb

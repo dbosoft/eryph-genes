@@ -17,16 +17,25 @@ On older Windows versions, it creates a ReFS volume that still provides better p
 
 The configure fodder sets up the development drive with optimal settings and directory structure.
 
-**Variables:**
-- devdrive_name (required):  
-  Eryph drive name (e.g., sdb, sdc) - must match the drive defined in your catlet
-- devdrive_letter (optional, default: "E"):  
-  Windows drive letter to assign
-- devdrive_label (optional, default: "DevDrive"):  
-  Volume label for the drive
+**Where the dev drive goes** - like the options Windows 11 offers when creating a dev drive:
 
+| Setting | Dev drive on |
+|---|---|
+| `devdrive_name: sdb` | a dedicated, empty eryph drive of the catlet |
+| `devdrive_location: C` (`devdrive_type: vhd`, default) | a dynamically expanding VHDX in `C:\DevDrives\`; a startup task attaches it again after reboots |
+| `devdrive_location: C`, `devdrive_type: resize` | space shrunk off the C: volume |
+
+**Variables:**
+- devdrive_name: eryph drive name (e.g. sdb) - must match a drive defined in your catlet
+- devdrive_location: existing volume letter (e.g. C) for the vhd and resize types
+- devdrive_type (default: "vhd"): vhd or resize, used with devdrive_location
+- devdrive_size (default: "50"): size in GB for devdrive_location; Microsoft's minimum for a dev drive is 50 GB
+- devdrive_letter (default: "E"): Windows drive letter to assign
+- devdrive_label (default: "DevDrive"): volume label (also the VHDX file name)
+
+Set either devdrive_name or devdrive_location. Running the fodder again keeps an existing dev drive.
 The fodder automatically:
-- Initializes and partitions the specified drive
+- Initializes and partitions the drive, VHDX or freed space
 - Formats as Dev Drive (Windows 11) or ReFS (older versions)
 - Creates package cache directories for NuGet, npm, pip, Maven, Gradle, Cargo, and vcpkg
 - Sets system-wide environment variables for package managers
@@ -36,26 +45,31 @@ The fodder automatically:
 **Example usage:**
 
 ```yaml
+# dedicated drive
 name: dev-workstation
 parent: dbosoft/win11-24h2-enterprise/starter
 
 drives:
-- name: sda
-  size: 60
 - name: sdb
-  size: 100  # Additional drive for Dev Drive
+  size: 100
 
 fodder:
   - source: gene:dbosoft/windevdrive:configure
     variables:
       - name: devdrive_name
         value: sdb
-      - name: devdrive_letter
-        value: E
-      - name: devdrive_label
-        value: DevDrive
 ```
 
+```yaml
+# 80 GB VHDX on C:
+fodder:
+  - source: gene:dbosoft/windevdrive:configure
+    variables:
+      - name: devdrive_location
+        value: C
+      - name: devdrive_size
+        value: "80"
+```
 ## Integration with Visual Studio
 
 The windevdrive gene works seamlessly with the Visual Studio gene. When used together, Visual Studio will automatically detect the Dev Drive and create appropriate project directories:

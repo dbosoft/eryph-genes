@@ -1,0 +1,11 @@
+name: msvs-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+cpu:
+  count: 4
+
+memory:
+  startup: 8192
+
+fodder:
+  - source: gene:{{GENE}}:vs2022

@@ -35,156 +35,45 @@ variables:
     required: false
 
 fodder:
-  # Install VS Code with system-wide configuration via Chocolatey
+  # Install VS Code system-wide with Microsoft's system installer
   - name: install-vscode-systemwide
     type: shellscript
     filename: install-vscode-systemwide.ps1
     content: |
-      Write-Host "Starting VS Code installation via Chocolatey..."
-      
-      # Check if we need to handle post-reboot scenario
-      $rebootMarker = "C:\ProgramData\vscode-install-reboot.marker"
-      if (Test-Path $rebootMarker) {
-          Write-Host "Detected post-reboot scenario, continuing VS Code installation..."
-          Remove-Item $rebootMarker -Force
-      }
-      
-      # Function to test if a command exists
-      function Test-CommandExists {
-          param($Command)
-          try {
-              if (Get-Command $Command -ErrorAction Stop) {
-                  return $true
-              }
-          } catch {
-              return $false
-          }
-          return $false
-      }
-      
-      # Function to install Chocolatey
-      function Install-Chocolatey {
-          Write-Host "Installing Chocolatey package manager..."
-          
-          try {
-              Set-ExecutionPolicy Bypass -Scope Process -Force
-              [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-              
-              # Capture the installation output to check for reboot requirements
-              $chocoInstallOutput = Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')) 2>&1 | Out-String
-              
-              Write-Host $chocoInstallOutput
-              
-              # Check if .NET Framework reboot is required
-              if ($chocoInstallOutput -match "reboot is required") {
-                  Write-Host "Reboot required for .NET Framework - requesting cloudbase-init reboot..."
-                  # Create marker file to track reboot
-                  New-Item -Path "C:\ProgramData\vscode-install-reboot.marker" -ItemType File -Force | Out-Null
-                  # Exit with cloudbase-init reboot code (1003 = reboot and run again)
-                  exit 1003
-              }
-              
-              # Refresh environment variables
-              $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-              
-              if (Test-CommandExists "choco") {
-                  Write-Host "Chocolatey successfully installed"
-                  return $true
-              } else {
-                  Write-Host "Chocolatey installation completed but command not found"
-                  return $false
-              }
-          } catch {
-              Write-Host "Error installing Chocolatey: $_"
-              return $false
-          }
-      }
-      
-      # Function to install VS Code via Chocolatey
-      function Install-VSCodeChocolatey {
-          Write-Host "Installing VS Code via Chocolatey..."
-          
-          # Check if Chocolatey is installed
-          if (!(Test-CommandExists "choco")) {
-              Write-Host "Chocolatey not found, installing it first..."
-              if (!(Install-Chocolatey)) {
-                  Write-Host "ERROR: Failed to install Chocolatey"
-                  return $false
-              }
-          }
-          
-          # Install VS Code using Chocolatey
-          Write-Host "Installing VS Code with Chocolatey..."
-          try {
-              # Refresh PATH to ensure choco is available
-              $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-              
-              $chocoOutput = choco install vscode -y --no-progress 2>&1 | Out-String
-              Write-Host $chocoOutput
-              
-              if ($LASTEXITCODE -eq 0) {
-                  Write-Host "VS Code successfully installed via Chocolatey"
-                  return $true
-              } else {
-                  Write-Host "Chocolatey installation failed with exit code: $LASTEXITCODE"
-                  
-                  # Check if it's a reboot requirement issue
-                  if ($chocoOutput -match "reboot" -or $LASTEXITCODE -eq 3010) {
-                      Write-Host "Installation requires a reboot - requesting cloudbase-init reboot..."
-                      New-Item -Path "C:\ProgramData\vscode-install-reboot.marker" -ItemType File -Force | Out-Null
-                      exit 1003
-                  }
-                  
-                  return $false
-              }
-          } catch {
-              Write-Host "Error during Chocolatey installation: $_"
-              return $false
-          }
-      }
-      
-      # Main installation logic
-      $installed = $false
-      
-      # Check if VS Code is already installed
-      $vscodePaths = @(
-          "${env:ProgramFiles}\Microsoft VS Code\Code.exe",
-          "${env:ProgramFiles(x86)}\Microsoft VS Code\Code.exe",
-          "${env:LOCALAPPDATA}\Programs\Microsoft VS Code\Code.exe"
-      )
-      
-      foreach ($path in $vscodePaths) {
-          if (Test-Path $path) {
-              Write-Host "VS Code is already installed at: $path"
-              $installed = $true
-              break
-          }
-      }
-      
-      if (!$installed) {
-          # Install via Chocolatey
-          Write-Host "Installing VS Code..."
-          if (Install-VSCodeChocolatey) {
-              $installed = $true
-          }
-      }
-      
-      # Final verification
-      if ($installed) {
-          Write-Host "VS Code installation completed successfully!"
-          
-          # Add VS Code to PATH if not already there
-          $codePath = "${env:ProgramFiles}\Microsoft VS Code\bin"
-          if (Test-Path $codePath) {
-              $currentPath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-              if ($currentPath -notlike "*$codePath*") {
-                  [System.Environment]::SetEnvironmentVariable("Path", "$currentPath;$codePath", "Machine")
-                  Write-Host "Added VS Code to system PATH"
-              }
-          }
+      $ErrorActionPreference = 'Stop'
+      $ProgressPreference = 'SilentlyContinue'
+      [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+
+      $codeExe = "${env:ProgramFiles}\Microsoft VS Code\Code.exe"
+      if (Test-Path $codeExe) {
+          Write-Host "VS Code is already installed at: $codeExe"
       } else {
-          Write-Host "ERROR: Failed to install VS Code"
-          exit 1
+          # The system installer (not the user installer) installs to Program Files
+          # for all users, which works when running as Local System.
+          $platform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'win32-arm64' } else { 'win32-x64' }
+          $installer = Join-Path $env:TEMP 'VSCodeSetup.exe'
+          Write-Host "Downloading VS Code ($platform system installer)..."
+          Invoke-WebRequest -Uri "https://update.code.visualstudio.com/latest/$platform/stable" -OutFile $installer -UseBasicParsing
+
+          Write-Host "Installing VS Code..."
+          $process = Start-Process -FilePath $installer -Wait -PassThru -ArgumentList @(
+              '/VERYSILENT', '/NORESTART', '/SUPPRESSMSGBOXES',
+              '/MERGETASKS=!runcode,addcontextmenufiles,addcontextmenufolders,associatewithfiles,addtopath')
+          Remove-Item $installer -Force -ErrorAction SilentlyContinue
+
+          if ($process.ExitCode -ne 0 -or -not (Test-Path $codeExe)) {
+              Write-Host "ERROR: VS Code installation failed (exit code $($process.ExitCode))"
+              exit 1
+          }
+          Write-Host "VS Code installed at: $codeExe"
+      }
+
+      # The installer adds the bin folder to the machine PATH; make sure it is there
+      $codePath = "${env:ProgramFiles}\Microsoft VS Code\bin"
+      $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+      if ($machinePath -notlike "*$codePath*") {
+          [System.Environment]::SetEnvironmentVariable("Path", "$machinePath;$codePath", "Machine")
+          Write-Host "Added VS Code to system PATH"
       }
 
   # Configure VS Code with dev drive integration

@@ -1,0 +1,12 @@
+name: devdrive-vhd-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+fodder:
+  - source: gene:{{GENE}}:configure
+    variables:
+      - name: devdrive_location
+        value: C
+      - name: devdrive_type
+        value: vhd
+      - name: devdrive_size
+        value: "50"
