@@ -1,0 +1,12 @@
+name: sapadt-test
+parent: dbosoft/{{OS_VERSION}}/starter
+cpu:
+  count: 4
+memory:
+  startup: 8192
+
+fodder:
+  - source: gene:{{GENE}}:install
+    variables:
+      - name: defender_exclusion
+        value: false
