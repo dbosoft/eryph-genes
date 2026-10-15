@@ -1,5 +1,11 @@
 # @dbosoft/sapadt-default
 
+## 1.1.0
+
+### Minor Changes
+
+- 64b412e: add a Microsoft Defender process exclusion for eclipse.exe (variable defender_exclusion, default true) and turn off Eclipse's Defender startup check, so users don't get a dialog they need admin rights for.
+
 ## 1.0.0
 
 ### Major Changes
