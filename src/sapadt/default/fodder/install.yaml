@@ -1,0 +1,154 @@
+name: install
+
+variables:
+  # Eclipse simultaneous release, e.g. 2026-09; it must be supported by ADT
+  - name: eclipse_release
+    value: '2026-09'
+  - name: install_dir
+    value: 'C:\eclipse'
+  # Optional: ADT update site, default https://tools.hana.ondemand.com/<eclipse_release>
+  - name: adt_repository
+    value: ''
+  # Optional: p2 installable units, comma separated; default is the
+  # "ABAP Development Tools" category
+  - name: adt_features
+    value: ''
+
+fodder:
+- name: install-vcredist
+  type: shellscript
+  filename: install-vcredist.ps1
+  content: |
+    #ps1_sysnative
+    # ADT needs the Microsoft Visual C++ v14 runtime (x64) for the SAP
+    # communication libraries.
+    $ErrorActionPreference = 'Stop'
+    $ProgressPreference = 'SilentlyContinue'
+
+    $installer = Join-Path $env:TEMP 'vc_redist.x64.exe'
+    Write-Host 'Downloading Visual C++ v14 runtime (x64)...'
+    curl.exe -fsSL --retry 3 -o $installer 'https://aka.ms/vs/17/release/vc_redist.x64.exe'
+    if ($LASTEXITCODE -ne 0) { throw "Download of the Visual C++ runtime failed (curl exit $LASTEXITCODE)" }
+
+    $process = Start-Process -FilePath $installer -ArgumentList '/install', '/quiet', '/norestart' -Wait -PassThru
+    Remove-Item $installer -Force -ErrorAction SilentlyContinue
+    # 1638: a newer version is already installed, 3010: reboot pending
+    if ($process.ExitCode -notin 0, 1638, 3010) {
+        throw "Visual C++ runtime setup failed with exit code $($process.ExitCode)"
+    }
+    Write-Host "Visual C++ runtime installed (exit code $($process.ExitCode))"
+
+- name: install-eclipse
+  type: shellscript
+  filename: install-eclipse.ps1
+  content: |
+    #ps1_sysnative
+    # Installs the Eclipse IDE for Java Developers. The package bundles its
+    # own Temurin JRE, so no separate Java installation is needed.
+    $ErrorActionPreference = 'Stop'
+    $ProgressPreference = 'SilentlyContinue'
+
+    $release = '{{ eclipse_release }}'
+    $installDir = '{{ install_dir }}'
+
+    if (Test-Path (Join-Path $installDir 'eclipse.exe')) {
+        Write-Host "Eclipse is already installed in $installDir"
+        exit 0
+    }
+
+    $fileName = "eclipse-java-$release-R-win32-x86_64.zip"
+    $url = "https://download.eclipse.org/technology/epp/downloads/release/$release/R/$fileName"
+    $tempDir = Join-Path $env:TEMP 'eclipse-install'
+    New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+    try {
+        $zip = Join-Path $tempDir $fileName
+        Write-Host "Downloading Eclipse $release from $url..."
+        curl.exe -fsSL --retry 3 -o $zip $url
+        if ($LASTEXITCODE -ne 0) { throw "Download of $url failed (curl exit $LASTEXITCODE)" }
+
+        $expected = ((curl.exe -fsSL --retry 3 "$url.sha512") -split '\s+')[0]
+        $actual = (Get-FileHash -Path $zip -Algorithm SHA512).Hash
+        if (-not $expected -or $actual -ne $expected) {
+            throw "SHA512 of $fileName does not match (expected '$expected', got '$actual')"
+        }
+
+        Write-Host 'Extracting Eclipse...'
+        $extractDir = Join-Path $tempDir 'extract'
+        New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
+        tar.exe -xf $zip -C $extractDir
+        if ($LASTEXITCODE -ne 0) { throw "Extracting $fileName failed (tar exit $LASTEXITCODE)" }
+
+        $parent = Split-Path $installDir -Parent
+        if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
+        Move-Item -Path (Join-Path $extractDir 'eclipse') -Destination $installDir
+    }
+    finally {
+        Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    # Users may update Eclipse and install plugins without elevation.
+    icacls.exe $installDir /grant '*S-1-5-32-545:(OI)(CI)M' /Q | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Granting users access to $installDir failed (icacls exit $LASTEXITCODE)" }
+
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut((Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\Eclipse.lnk'))
+    $shortcut.TargetPath = Join-Path $installDir 'eclipse.exe'
+    $shortcut.WorkingDirectory = $installDir
+    $shortcut.Save()
+
+    Write-Host "Eclipse $release installed in $installDir"
+
+- name: install-adt
+  type: shellscript
+  filename: install-adt.ps1
+  content: |
+    #ps1_sysnative
+    # Installs ABAP Development Tools (ADT) into Eclipse with the p2 director.
+    $ErrorActionPreference = 'Stop'
+
+    $release = '{{ eclipse_release }}'
+    $installDir = '{{ install_dir }}'
+    $repository = '{{ adt_repository }}'
+    $features = '{{ adt_features }}'
+
+    if (-not $repository) { $repository = "https://tools.hana.ondemand.com/$release" }
+    if (-not $features) {
+        # the features of the "ABAP Development Tools" category
+        $features = @(
+            'com.sap.adt.core.devedition.feature.group'
+            'com.sap.adt.tools.hana.devedition.feature.group'
+            'com.sap.adt.tools.bopf.devedition.feature.group'
+            'com.sap.adt.wda.core.devedition.feature.group'
+            'com.sap.adt.pitools.tlf.devedition.feature.group'
+        ) -join ','
+    }
+
+    $eclipsec = Join-Path $installDir 'eclipsec.exe'
+    if (-not (Test-Path $eclipsec)) { throw "Eclipse not found in $installDir" }
+
+    # Without a configuration logback logs DEBUG to the console, including the
+    # HTTP wire log of every downloaded byte; that slows the download to a crawl.
+    $logbackConfig = Join-Path $env:TEMP 'p2-director-logback.xml'
+    Set-Content -Path $logbackConfig -Encoding ASCII -Value @'
+    <configuration>
+      <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder><pattern>%level %logger - %msg%n</pattern></encoder>
+      </appender>
+      <root level="WARN"><appender-ref ref="console"/></root>
+    </configuration>
+    '@
+
+    Write-Host "Installing $features from $repository..."
+    # Eclipse logs to stderr; Windows PowerShell would turn that into errors.
+    $ErrorActionPreference = 'Continue'
+    & $eclipsec -nosplash -consoleLog `
+        -application org.eclipse.equinox.p2.director `
+        -repository "$repository,https://download.eclipse.org/releases/$release" `
+        -installIU $features `
+        -vmargs "-Dlogback.configurationFile=$logbackConfig" 2>&1 | ForEach-Object { Write-Host "$_" }
+    $exitCode = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    Remove-Item $logbackConfig -Force -ErrorAction SilentlyContinue
+    if ($exitCode -ne 0) { throw "p2 director failed with exit code $exitCode" }
+
+    Write-Host 'ABAP Development Tools installed'
