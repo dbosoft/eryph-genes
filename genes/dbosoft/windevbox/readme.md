@@ -17,14 +17,25 @@ This geneset represents an edge case for catlets configured purely via configura
 ## What's installed
 
 - winget, plus the command line tools from the `dev_tools` variable (default `Git.Git,OpenJS.NodeJS.LTS,GitHub.cli`), installed machine-wide
-- a 100 GB Dev Drive on `E:` (drive `sdb`), with package caches and a `E:\source` workspace
+- a trusted Dev Drive on `E:` (`devdrive_letter`): a dynamically expanding 100 GB VHDX on C: (`devdrive_size`), with package caches and a `\source` workspace
 - Hyper-V (nested virtualization)
 - PowerShell 7
-- VS Code with the extensions from `vscode_extensions`
-- Visual Studio 2022 (`vs_edition`, `vs_workloads`)
-- system-wide Git configuration
+- VS Code; the extensions from `vscode_extensions` are installed for each user at first logon
+- Visual Studio 2026 (`vs_edition`, `vs_workloads`) with its package cache on the Dev Drive
+- system-wide Git configuration, and the Git identity from `git_user_name` / `git_user_email` for each user at first logon
 
-The system disk (`sda`) is enlarged to 127 GB; the 39 GB of the base catlet are not enough for Visual Studio.
+The catlet has 8 vCPUs, 16 GB memory and a 250 GB (dynamically expanding) system disk.
+
+To put the Dev Drive on a dedicated disk instead, add the disk and set `devdrive_name`:
+
+```yaml
+drives:
+ - name: sdb
+   size: 100
+variables:
+ - name: devdrive_name
+   value: sdb
+```
 
 Windows Terminal is not installed: Windows 11 already ships it, and winget can't install it for all users.
 ## Usage
@@ -42,10 +53,6 @@ parent: dbosoft/windevbox/win11
 fodder:
   - source: gene:dbosoft/starter-food:win-starter
 
-drives:
- - name: sdb
-   size: 100
-   mutation: overwrite  
 ```
 
 Or using PowerShell with inline YAML:
@@ -55,10 +62,6 @@ Or using PowerShell with inline YAML:
 name: my-devbox  
 parent: dbosoft/windevbox/win11
 
-drives:
- - name: sdb
-   size: 100
-   mutation: overwrite  
 
 fodder:
   - source: gene:dbosoft/starter-food:win-starter
