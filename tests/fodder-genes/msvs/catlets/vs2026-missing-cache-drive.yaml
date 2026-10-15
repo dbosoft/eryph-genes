@@ -1,0 +1,18 @@
+name: msvs-nocache-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+cpu:
+  count: 4
+
+memory:
+  startup: 8192
+
+drives:
+  - name: sda
+    size: 100
+
+fodder:
+  - source: gene:{{GENE}}:vs2026
+    variables:
+      - name: vs_cache_path
+        value: Q:\VSCache

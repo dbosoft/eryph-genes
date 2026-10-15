@@ -1,8 +1,13 @@
 name: configure
 
 variables:
-  # Where the dev drive goes - set one of devdrive_name or devdrive_location:
-  # devdrive_name: an eryph drive of the catlet (e.g. sdb) that becomes the dev drive
+  # Where the dev drive goes - set devdrive_disk, devdrive_location or both:
+  # devdrive_disk: an empty eryph drive of the catlet (e.g. sdb) that becomes the dev drive;
+  # if it can't be used, the dev drive goes to devdrive_location
+  - name: devdrive_disk
+    value: ""
+    required: false
+  # Former name of devdrive_disk, still accepted
   - name: devdrive_name
     value: ""
     required: false
@@ -32,7 +37,8 @@ fodder:
   content: |
     Write-Host "=== Configuring Dev Drive ==="
     
-    $eryphDriveName = "{{ devdrive_name }}".Trim()
+    $eryphDriveName = "{{ devdrive_disk }}".Trim()
+    if (-not $eryphDriveName) { $eryphDriveName = "{{ devdrive_name }}".Trim() }
     $location = "{{ devdrive_location }}".Trim().TrimEnd(':', '\')
     $type = "{{ devdrive_type }}".Trim().ToLower()
     $sizeGB = [int]"{{ devdrive_size }}"
@@ -48,31 +54,48 @@ fodder:
         Get-Partition -DriveLetter $driveLetter -ErrorAction SilentlyContinue
     }
     
+    # Checks the dedicated eryph drive (sda = Disk 0, sdb = Disk 1, ...).
+    # Returns the disk, or throws why it can't hold the dev drive.
+    function Get-EryphDisk {
+        if ($eryphDriveName -notmatch '^sd([a-h])$') {
+            throw "'$eryphDriveName' is not an eryph drive name (sdb, sdc, ...)"
+        }
+        $diskNumber = [int][char]$Matches[1] - [int][char]'a'
+        $disk = Get-Disk -Number $diskNumber -ErrorAction SilentlyContinue
+        if (-not $disk) { throw "eryph drive '$eryphDriveName' (Disk $diskNumber) not found; add it to the catlet's drives" }
+        Write-Host "Eryph drive '$eryphDriveName' is Disk ${diskNumber}: $([Math]::Round($disk.Size / 1GB, 2)) GB, $($disk.PartitionStyle)"
+        if ($disk.PartitionStyle -ne 'RAW') {
+            # Running again (e.g. after a reboot): accept the disk when it already
+            # carries the dev drive volume
+            $existing = Get-DevDrivePartition
+            if (-not ($existing -and $existing.DiskNumber -eq $diskNumber)) {
+                throw "Disk $diskNumber is already initialized (PartitionStyle: $($disk.PartitionStyle)); a dev drive needs an empty disk"
+            }
+        }
+        return $disk
+    }
+
     # Prepares the disk/space and creates the partition $driveLetter.
     # Returns $true when the partition was created now, $false when it exists already.
     function New-DevDrivePartition {
         if ($eryphDriveName) {
-            # Dedicated eryph drive: sda = Disk 0, sdb = Disk 1, ...
-            if ($eryphDriveName -notmatch '^sd([a-h])$') {
-                throw "Unsupported eryph drive name: $eryphDriveName"
+            $disk = $null
+            try {
+                $disk = Get-EryphDisk
+            } catch {
+                if (-not $location) { throw }
+                Write-Host "WARNING: $_ - using devdrive_location $location instead"
             }
-            $diskNumber = [int][char]$Matches[1] - [int][char]'a'
-            $disk = Get-Disk -Number $diskNumber -ErrorAction Stop
-            Write-Host "Eryph drive '$eryphDriveName' is Disk ${diskNumber}: $([Math]::Round($disk.Size / 1GB, 2)) GB, $($disk.PartitionStyle)"
-            if ($disk.PartitionStyle -ne 'RAW') {
-                # Running again (e.g. after a reboot): accept the disk when it already
-                # carries the dev drive volume
-                $existing = Get-DevDrivePartition
-                if ($existing -and $existing.DiskNumber -eq $diskNumber) { return $false }
-                throw "Disk $diskNumber is already initialized (PartitionStyle: $($disk.PartitionStyle)); a dev drive needs an empty disk"
+            if ($disk) {
+                if ($disk.PartitionStyle -ne 'RAW') { return $false }
+                Initialize-Disk -Number $disk.Number -PartitionStyle GPT -ErrorAction Stop
+                New-Partition -DiskNumber $disk.Number -UseMaximumSize -DriveLetter $driveLetter -ErrorAction Stop | Out-Null
+                return $true
             }
-            Initialize-Disk -Number $diskNumber -PartitionStyle GPT -ErrorAction Stop
-            New-Partition -DiskNumber $diskNumber -UseMaximumSize -DriveLetter $driveLetter -ErrorAction Stop | Out-Null
-            return $true
         }
-    
+
         if (-not $location) {
-            throw "Set devdrive_name (an eryph drive) or devdrive_location (an existing volume, e.g. C)"
+            throw "Set devdrive_disk (an eryph drive) or devdrive_location (an existing volume, e.g. C)"
         }
         $sizeBytes = [int64]$sizeGB * 1GB
     

@@ -26,14 +26,14 @@ This geneset represents an edge case for catlets configured purely via configura
 
 The catlet has 8 vCPUs, 16 GB memory and a 250 GB (dynamically expanding) system disk.
 
-To put the Dev Drive on a dedicated disk instead, add the disk and set `devdrive_name`:
+To put the Dev Drive on a dedicated disk instead, add the disk and set `devdrive_disk` (if that disk is missing or not empty, the Dev Drive falls back to the VHDX on C:):
 
 ```yaml
 drives:
  - name: sdb
    size: 100
 variables:
- - name: devdrive_name
+ - name: devdrive_disk
    value: sdb
 ```
 

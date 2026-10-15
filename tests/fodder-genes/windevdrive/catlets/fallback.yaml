@@ -1,0 +1,14 @@
+name: devdrive-fallback-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+# The former variable name with a value that is no eryph drive: the dev drive
+# falls back to the VHDX on devdrive_location
+fodder:
+  - source: gene:{{GENE}}:configure
+    variables:
+      - name: devdrive_name
+        value: name
+      - name: devdrive_location
+        value: C
+      - name: devdrive_size
+        value: "50"

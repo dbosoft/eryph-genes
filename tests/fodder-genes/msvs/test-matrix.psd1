@@ -23,5 +23,15 @@
                 @{ Name = "package cache is in vs_cache_path"; Command = "Test-Path C:\VSCache"; Expect = 'True' }
             )
         }
+        @{
+            # vs_cache_path on a drive that doesn't exist: installs with the default cache
+            Name = "VS2026MissingCacheDrive"
+            OSMatrix = @("win11-24h2-enterprise")
+            CatletSpec = "catlets/vs2026-missing-cache-drive.yaml"
+            HostTests = @(
+                @{ Name = "devenv.exe is installed"; Command = "Test-Path 'C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\devenv.exe'"; Expect = 'True' }
+                @{ Name = "missing cache drive is logged"; Command = "Get-Content C:\ProgramData\eryph\provisioning\logs\*vs*.log -Raw"; Expect = 'WARNING: drive of vs_cache_path' }
+            )
+        }
     )
 }
