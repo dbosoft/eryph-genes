@@ -1,0 +1,6 @@
+name: sapdevbox-test
+parent: {{GENE}}
+
+variables:
+  - name: accept_sap_developer_license
+    value: true
