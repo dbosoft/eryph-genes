@@ -13,7 +13,12 @@ variables:
   # "ABAP Development Tools" category
   - name: adt_features
     value: ''
-
+  # Add a Microsoft Defender process exclusion for eclipse.exe - what Eclipse
+  # itself offers at startup - and turn off Eclipse's startup check. With false
+  # only the check is turned off (users can't add the exclusion without admin rights).
+  - name: defender_exclusion
+    type: boolean
+    value: true
 fodder:
 - name: install-vcredist
   type: shellscript
@@ -152,3 +157,45 @@ fodder:
     if ($exitCode -ne 0) { throw "p2 director failed with exit code $exitCode" }
 
     Write-Host 'ABAP Development Tools installed'
+
+- name: configure-defender
+  type: shellscript
+  filename: configure-defender.ps1
+  content: |
+    #ps1_sysnative
+    # Eclipse checks at startup whether Microsoft Defender excludes it and asks
+    # to add a process exclusion for its launcher, which needs admin rights.
+    # Do that here (as Local System) and record the decision in the shared
+    # configuration area, so no user gets the dialog.
+    $ErrorActionPreference = 'Stop'
+
+    $installDir = '{{ install_dir }}'
+    $launcher = Join-Path $installDir 'eclipse.exe'
+    if (-not (Test-Path $launcher)) { throw "Eclipse not found in $installDir" }
+
+    if ('{{ defender_exclusion }}' -eq 'true') {
+        try {
+            Add-MpPreference -ExclusionProcess $launcher
+            Write-Host "Microsoft Defender process exclusion added for $launcher"
+        } catch {
+            # Defender not installed/running or exclusions are tamper protected
+            Write-Host "WARNING: could not add the Defender exclusion: $_"
+        }
+    } else {
+        Write-Host 'No Defender exclusion (defender_exclusion is false)'
+    }
+
+    # Eclipse reads org.eclipse.ui.workbench/windows.defender.startup.check.skip
+    # from the configuration area of the installation, shared by all users.
+    $settingsDir = Join-Path $installDir 'configuration\.settings'
+    New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
+    $prefsFile = Join-Path $settingsDir 'org.eclipse.ui.workbench.prefs'
+    $prefs = [ordered]@{ 'eclipse.preferences.version' = '1' }
+    if (Test-Path $prefsFile) {
+        foreach ($line in Get-Content $prefsFile) {
+            if ($line -match '^([^#=]+)=(.*)$') { $prefs[$Matches[1]] = $Matches[2] }
+        }
+    }
+    $prefs['windows.defender.startup.check.skip'] = 'true'
+    Set-Content -Path $prefsFile -Encoding ASCII -Value ($prefs.Keys | ForEach-Object { "$_=$($prefs[$_])" })
+    Write-Host "Eclipse Defender startup check turned off in $prefsFile"

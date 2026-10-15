@@ -1,3 +1,4 @@
+| `defender_exclusion` | `true` | Adds a Microsoft Defender process exclusion for `eclipse.exe`, as Eclipse offers at startup. With `false` no exclusion is added. Either way, Eclipse's Defender startup check is turned off for all users. |
 # Eclipse with SAP ABAP Development Tools (ADT)
 
 This geneset provides fodder for installing the Eclipse IDE with the SAP ABAP Development Tools
@@ -65,6 +66,10 @@ fodder:
       - name: adt_features
         value: com.sap.adt.core.devedition.feature.group
 ```
+
+## Microsoft Defender
+
+At startup Eclipse checks whether Microsoft Defender excludes it and offers to add a process exclusion for its launcher (`Add-MpPreference -ExclusionProcess <install_dir>\eclipse.exe`), which needs admin rights. The fodder does this during provisioning and records it in the shared configuration area (`configuration\.settings\org.eclipse.ui.workbench.prefs`, `windows.defender.startup.check.skip=true`), so users never get the dialog. Files Eclipse reads or writes are not scanned with the exclusion; set `defender_exclusion` to `false` where that is not acceptable.
 
 ## Notes
 
