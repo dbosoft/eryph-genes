@@ -3,245 +3,78 @@ name: install
 fodder:
 - name: install-winget
   type: shellscript
-  fileName: install-winget.ps1
+  filename: install-winget.ps1
   content: |
     #ps1_sysnative
-    Write-Host "Starting winget installation process..."
-    
-    # Function to test if a command exists
-    function Test-CommandExists {
-        param($Command)
-        try {
-            if (Get-Command $Command -ErrorAction Stop) {
-                return $true
-            }
-        } catch {
-            # Check in WindowsApps folder for pre-installed winget
-            if ($Command -eq "winget") {
-                $wingetPaths = @(
-                    "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller*\winget.exe"
-                )
-                foreach ($path in $wingetPaths) {
-                    $found = Get-ChildItem -Path $path -ErrorAction SilentlyContinue | Select-Object -First 1
-                    if ($found) {
-                        Write-Host "Found winget at: $($found.FullName)"
-                        return $found.FullName
-                    }
-                }
-            }
-            return $false
-        }
-        return $false
+    # Installs winget (App Installer) for all users.
+    #
+    # Fodder runs as Local System, and Add-AppxPackage refuses to install for
+    # that account. The package is therefore provisioned for the image with
+    # Add-AppxProvisionedPackage; every user gets it at logon. Dependencies and
+    # license come from the same winget release, so they always match.
+    $ErrorActionPreference = 'Stop'
+    $ProgressPreference = 'SilentlyContinue'
+
+    if ([System.Net.ServicePointManager]::SecurityProtocol -ne 0) {
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
     }
-    
-    # Function to check if OS supports winget
-    function Test-WingetSupported {
-        $os = Get-CimInstance -ClassName Win32_OperatingSystem
-        $build = [int]$os.BuildNumber
-        
-        # Windows 10 1709 (build 16299) or later, or Windows Server 2022 (build 20348) or later
-        if ($build -ge 16299) {
-            Write-Host "OS Build $build supports winget"
-            return $true
-        } else {
-            Write-Host "OS Build $build does not support winget"
-            return $false
-        }
-    }
-    
-    # Function to install winget (App Installer)
-    function Install-Winget {
-        Write-Host "Installing winget (App Installer)..."
-        
-        try {
-            # Download required dependencies
-            $tempDir = New-Item -ItemType Directory -Path "$env:TEMP\winget-install" -Force
-            
-            # Download Microsoft.UI.Xaml (dependency) - only if not already present
-            Write-Host "Checking for Microsoft.UI.Xaml..."
-            $xamlPackage = Get-AppxPackage -Name "Microsoft.UI.Xaml.2.8" -ErrorAction SilentlyContinue
-            
-            if ($xamlPackage) {
-                Write-Host "Microsoft.UI.Xaml 2.8 is already installed"
-                $xamlPath = $null
-            } else {
-                Write-Host "Downloading Microsoft.UI.Xaml..."
-                # Note: No evergreen URL available, using stable 2.8.6 release
-                # This is the minimum version required by current winget releases
-                $xamlUrl = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx"
-                $xamlPath = "$tempDir\Microsoft.UI.Xaml.2.8.x64.appx"
-                Invoke-WebRequest -Uri $xamlUrl -OutFile $xamlPath -UseBasicParsing
-            }
-            
-            # Download VCLibs (dependency) - Microsoft's evergreen links
-            Write-Host "Downloading VCLibs..."
-            # Microsoft's official evergreen link for latest VCLibs Desktop framework
-            $vcLibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
-            $vcLibsPath = "$tempDir\Microsoft.VCLibs.x64.14.00.Desktop.appx"
-            Invoke-WebRequest -Uri $vcLibsUrl -OutFile $vcLibsPath -UseBasicParsing
-            
-            # Install dependencies
-            Write-Host "Installing dependencies..."
-            if ($xamlPath -and (Test-Path $xamlPath)) {
-                Add-AppxPackage -Path $xamlPath -ErrorAction SilentlyContinue
-            }
-            
-            # Install/Update VCLibs
-            Write-Host "Installing/Updating VCLibs..."
-            try {
-                # Try force update first for newer versions
-                Add-AppxPackage -Path $vcLibsPath -ForceUpdateFromAnyVersion -ErrorAction Stop
-            } catch {
-                # Fall back to regular install if force update fails
-                Write-Host "Could not force update, trying regular install..."
-                Add-AppxPackage -Path $vcLibsPath -ErrorAction SilentlyContinue
-            }
-            
-            # Download and install winget with license
-            Write-Host "Downloading winget..."
-            $wingetUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-            $wingetPath = "$tempDir\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-            Invoke-WebRequest -Uri $wingetUrl -OutFile $wingetPath -UseBasicParsing
-            
-            # Also download the license file which might help with dependencies
-            Write-Host "Downloading winget license..."
-            $licenseUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.xml"
-            $licensePath = "$tempDir\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.xml"
-            try {
-                Invoke-WebRequest -Uri $licenseUrl -OutFile $licensePath -UseBasicParsing -ErrorAction SilentlyContinue
-            } catch {
-                Write-Host "Could not download license file, continuing without it"
-                $licensePath = $null
-            }
-            
-            Write-Host "Installing winget..."
-            # Build dependency list based on what's available
-            $dependencies = @($vcLibsPath)
-            if ($xamlPath -and (Test-Path $xamlPath)) {
-                $dependencies += $xamlPath
-            }
-            
-            if ($licensePath -and (Test-Path $licensePath)) {
-                Add-AppxPackage -Path $wingetPath -DependencyPath $dependencies -LicensePath $licensePath -ForceApplicationShutdown
-            } else {
-                Add-AppxPackage -Path $wingetPath -DependencyPath $dependencies -ForceApplicationShutdown
-            }
-            
-            # Clean up temp files
-            Remove-Item $tempDir -Recurse -Force
-            
-            # Refresh PATH
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-            
-            # Wait a moment for winget to be available
-            Start-Sleep -Seconds 2
-            
-            if (Test-CommandExists "winget") {
-                Write-Host "winget successfully installed"
-                return $true
-            } else {
-                Write-Host "winget installation completed but command not found"
-                return $false
-            }
-        } catch {
-            Write-Host "Error installing winget: $_"
-            return $false
-        }
-    }
-    
-    # Function to run winget command (handles path issues)
-    function Invoke-Winget {
-        param([string]$Arguments)
-        
-        $wingetPath = Test-CommandExists "winget"
-        if ($wingetPath -eq $true) {
-            # winget is in PATH
-            $result = & winget $Arguments 2>&1
-        } elseif ($wingetPath -and (Test-Path $wingetPath)) {
-            # winget found in WindowsApps
-            $result = & $wingetPath $Arguments 2>&1
-        } else {
-            Write-Host "ERROR: winget not found"
-            return $false
-        }
-        
-        return $result
-    }
-    
-    # Main installation logic
-    
-    # Check if winget is already installed (including in WindowsApps)
-    $wingetCheck = Test-CommandExists "winget"
-    if ($wingetCheck) {
-        Write-Host "winget is already installed"
-        
-        # For Windows 11, winget is pre-installed but may not be in PATH
-        if ($wingetCheck -ne $true -and $wingetCheck) {
-            Write-Host "Adding winget to system PATH..."
-            
-            # Get the winget directory path
-            $wingetDir = Split-Path -Parent $wingetCheck
-            
-            # Also find VCRuntime dependency path (required for winget to run)
-            $vcRuntimePath = Get-ChildItem "C:\Program Files\WindowsApps\Microsoft.VCLibs.140.00.UWPDesktop_*_x64__8wekyb3d8bbwe" -ErrorAction SilentlyContinue | 
-                Sort-Object Name -Descending | 
-                Select-Object -First 1 | 
-                Select-Object -ExpandProperty FullName
-            
-            # Add both to the SYSTEM PATH
-            $currentPath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
-            $newPaths = @($wingetDir)
-            if ($vcRuntimePath) {
-                $newPaths += $vcRuntimePath
-            }
-            
-            foreach ($path in $newPaths) {
-                if ($currentPath -notlike "*$path*") {
-                    Write-Host "Adding to PATH: $path"
-                    $currentPath = "$currentPath;$path"
-                }
-            }
-            
-            try {
-                [Environment]::SetEnvironmentVariable("PATH", $currentPath, "Machine")
-                Write-Host "Successfully added winget to system PATH"
-                
-                # Update current session PATH
-                $env:Path = $currentPath
-                
-                # Test if winget works now
-                & $wingetCheck --version
-            } catch {
-                Write-Host "Could not update PATH, but winget is available at: $wingetCheck"
-            }
-        }
-        
-        # Display version using our invoke function
-        $version = Invoke-Winget "--version"
-        Write-Host "winget version: $version"
-        exit 0
-    }
-    
-    # Check if OS supports winget
-    if (!(Test-WingetSupported)) {
-        Write-Host "ERROR: This OS does not support winget (requires Windows 10 build 16299 or later)"
+
+    $os = Get-CimInstance -ClassName Win32_OperatingSystem
+    $build = [int]$os.BuildNumber
+    $isServer = $os.ProductType -ne 1
+    # The current App Installer package cannot be provisioned on Server 2019
+    # (DISM rejects its manifest); clients need Windows 10 1809 or later.
+    if (($isServer -and $build -lt 20348) -or $build -lt 17763) {
+        Write-Host "ERROR: winget is not supported on $($os.Caption) (build $build). Supported: Windows 10 1809+, Windows 11, Windows Server 2022+."
         exit 1
     }
-    
-    # Install winget only if not found
-    Write-Host "winget not found, attempting installation..."
-    if (Install-Winget) {
-        Write-Host "winget installation completed successfully!"
-        
-        # Verify installation
-        $wingetCheck = Test-CommandExists "winget"
-        if ($wingetCheck) {
-            $version = Invoke-Winget "--version"
-            Write-Host "winget version: $version"
+
+    $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
+        'AMD64' { 'x64' }
+        'ARM64' { 'arm64' }
+        default { 'x86' }
+    }
+
+    $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/microsoft/winget-cli/releases/latest' -UseBasicParsing
+    function Get-ReleaseAsset([string]$pattern) {
+        $asset = $release.assets | Where-Object { $_.name -like $pattern } | Select-Object -First 1
+        if (-not $asset) { throw "winget release $($release.tag_name) has no asset matching '$pattern'" }
+        return $asset
+    }
+
+    $bundleVersion = $release.tag_name -replace '^v', ''
+    $installed = Get-AppxProvisionedPackage -Online | Where-Object DisplayName -eq 'Microsoft.DesktopAppInstaller'
+    Write-Host "winget release: $bundleVersion; provisioned App Installer: $(if ($installed) { $installed.Version } else { 'none' })"
+
+    $tempDir = Join-Path $env:TEMP 'winget-install'
+    New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+    try {
+        $bundlePath = Join-Path $tempDir 'Microsoft.DesktopAppInstaller.msixbundle'
+        $dependenciesZip = Join-Path $tempDir 'dependencies.zip'
+        $licensePath = Join-Path $tempDir 'license.xml'
+
+        Write-Host "Downloading winget $bundleVersion..."
+        Invoke-WebRequest -Uri (Get-ReleaseAsset 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle').browser_download_url -OutFile $bundlePath -UseBasicParsing
+        Invoke-WebRequest -Uri (Get-ReleaseAsset 'DesktopAppInstaller_Dependencies.zip').browser_download_url -OutFile $dependenciesZip -UseBasicParsing
+        Invoke-WebRequest -Uri (Get-ReleaseAsset '*_License1.xml').browser_download_url -OutFile $licensePath -UseBasicParsing
+
+        Expand-Archive -Path $dependenciesZip -DestinationPath (Join-Path $tempDir 'dependencies') -Force
+        $dependencies = @(Get-ChildItem (Join-Path $tempDir "dependencies\$arch") -Filter *.appx | ForEach-Object FullName)
+        if ($dependencies.Count -eq 0) {
+            throw "The winget dependencies contain no packages for $arch"
         }
-        
-        exit 0
-    } else {
-        Write-Host "ERROR: Failed to install winget"
+        Write-Host "Dependencies: $(($dependencies | ForEach-Object { Split-Path $_ -Leaf }) -join ', ')"
+
+        Write-Host "Provisioning winget for all users..."
+        Add-AppxProvisionedPackage -Online -PackagePath $bundlePath -DependencyPackagePath $dependencies -LicensePath $licensePath | Out-Null
+    }
+    finally {
+        Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    $provisioned = Get-AppxProvisionedPackage -Online | Where-Object DisplayName -eq 'Microsoft.DesktopAppInstaller'
+    if (-not $provisioned) {
+        Write-Host "ERROR: App Installer is not provisioned after installation"
         exit 1
     }
+    Write-Host "winget provisioned: App Installer $($provisioned.Version). Users get it at their next logon."

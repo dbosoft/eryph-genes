@@ -19,29 +19,26 @@ For package installation during VM provisioning, use the Chocolatey geneset inst
 
 ## Supported Platforms
 
-- Windows 10 (build 16299 or later)
+- Windows 10 1809 (build 17763) or later
 - Windows Server 2022 and later
 - Windows 11
 
+Windows Server 2019 is not supported: the current App Installer package cannot be provisioned there, and the fodder fails with a clear error.
+
 ## What it does
 
-The winget installation fodder performs the following steps:
-
-1. **Checks existing installation** - Verifies if winget is already installed
-2. **OS compatibility check** - Ensures Windows build 16299 or later
-3. **Installs dependencies**:
-   - Microsoft.UI.Xaml 2.8
-   - Microsoft VCLibs 14.00
-4. **Installs winget** - Downloads and installs the latest Microsoft.DesktopAppInstaller
-5. **PATH configuration** - Updates system PATH to ensure winget is available globally
+1. Checks the OS build (winget needs build 17763 or later)
+2. Downloads the latest winget release from GitHub: the App Installer bundle, the dependency
+   packages for the machine's architecture (VCLibs, Windows App Runtime) and the license
+3. Provisions App Installer with `Add-AppxProvisionedPackage` for all users. Fodder runs as Local
+   System, which `Add-AppxPackage` rejects, so winget is provisioned instead of installed for the
+   current user. Every user gets winget at their next logon.
+4. Fails the provisioning step (exit code 1) when App Installer is not provisioned afterwards
 
 ## Notes
 
-- The installation process handles all required dependencies automatically
-- winget will be available system-wide after installation
-- The fodder uses PowerShell with proper error handling and logging
-- Installation is idempotent - safe to run multiple times
-
+- Dependencies and license always match the downloaded winget release
+- Re-running updates the provisioned package to the latest release
 ## Post-Provisioning Usage
 
 After winget is installed through this gene, it becomes available for users to install software interactively or through scripts running in user context. Due to the SYSTEM account limitation noted above, winget cannot be used in fodder for automated software installation during provisioning.
