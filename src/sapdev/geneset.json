@@ -1,0 +1,8 @@
+{
+    "geneset": "dbosoft/sapdev",
+    "public": true,
+    "short_description": "SAP development tools (CAP, UI5, Cloud Foundry, BTP)",
+    "description": "This geneset contains fodder for installing the command line tools of the SAP BTP development stack on Windows: Node.js tools for CAP and UI5, the Cloud Foundry CLI with MultiApps plugin and the SAP BTP CLI.",
+    "description_markdown": null,
+    "description_markdown_file": "readme.md"
+}

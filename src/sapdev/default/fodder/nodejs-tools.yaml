@@ -1,0 +1,70 @@
+name: nodejs-tools
+
+variables:
+  # npm packages installed globally for all users, comma separated
+  - name: npm_packages
+    value: '@sap/cds-dk,@ui5/cli,mbt'
+
+fodder:
+- name: install-nodejs-tools
+  type: shellscript
+  filename: install-nodejs-tools.ps1
+  content: |
+    #ps1_sysnative
+    # Installs the SAP Node.js tooling (CAP, UI5, MTA) globally for all users.
+    # Fodder runs as Local System, whose npm prefix lives in its own profile;
+    # the global prefix is moved to C:\ProgramData\npm so every user gets the tools.
+    $ErrorActionPreference = 'Stop'
+    $ProgressPreference = 'SilentlyContinue'
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+
+    $nodeDir = Join-Path $env:ProgramFiles 'nodejs'
+    if (-not (Test-Path (Join-Path $nodeDir 'node.exe'))) {
+        $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
+        # Assign first: Windows PowerShell passes a JSON array on as one object
+        $releases = Invoke-RestMethod -Uri 'https://nodejs.org/dist/index.json' -UseBasicParsing
+        $lts = ($releases | Where-Object { $_.lts } | Select-Object -First 1).version
+        $msi = Join-Path $env:TEMP "node-$lts-$arch.msi"
+        Write-Host "Node.js not found, installing $lts..."
+        Invoke-WebRequest -Uri "https://nodejs.org/dist/$lts/node-$lts-$arch.msi" -OutFile $msi -UseBasicParsing
+        $process = Start-Process msiexec.exe -ArgumentList "/i `"$msi`" /qn /norestart" -Wait -PassThru
+        Remove-Item $msi -Force -ErrorAction SilentlyContinue
+        if ($process.ExitCode -notin 0, 3010 -or -not (Test-Path (Join-Path $nodeDir 'node.exe'))) {
+            throw "Node.js setup failed with exit code $($process.ExitCode)"
+        }
+    }
+    Write-Host "Node.js: $(& (Join-Path $nodeDir 'node.exe') --version)"
+
+    $npm = Join-Path $nodeDir 'npm.cmd'
+    $prefix = Join-Path $env:ProgramData 'npm'
+    New-Item -ItemType Directory -Path $prefix -Force | Out-Null
+    # Users may install and update global tools without elevation.
+    icacls.exe $prefix /grant '*S-1-5-32-545:(OI)(CI)M' /Q | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Granting users access to $prefix failed (icacls exit $LASTEXITCODE)" }
+
+    # The process keeps the PATH the provisioning agent started with; npm needs node.
+    $env:Path = "$prefix;$nodeDir;$env:Path"
+
+    $ErrorActionPreference = 'Continue'   # npm writes warnings to stderr
+    & $npm config set prefix $prefix --location=global 2>&1 | ForEach-Object { Write-Host "$_" }
+    if ($LASTEXITCODE -ne 0) { throw "npm config set prefix failed with exit code $LASTEXITCODE" }
+
+    $failed = @()
+    foreach ($package in @('{{ npm_packages }}' -split '[,\s]+' | Where-Object { $_ })) {
+        Write-Host "Installing $package..."
+        & $npm install --global $package --no-fund --no-audit 2>&1 | ForEach-Object { Write-Host "$_" }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: npm install $package failed with exit code $LASTEXITCODE"
+            $failed += $package
+        }
+    }
+    $ErrorActionPreference = 'Stop'
+
+    $machinePath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+    if (($machinePath -split ';') -notcontains $prefix) {
+        [System.Environment]::SetEnvironmentVariable('Path', "$machinePath;$prefix", 'Machine')
+        Write-Host "Added $prefix to the system PATH"
+    }
+
+    if ($failed) { throw "Failed packages: $($failed -join ', ')" }
+    Write-Host "Installed in ${prefix}: $((Get-ChildItem $prefix -Filter *.cmd | ForEach-Object BaseName) -join ', ')"

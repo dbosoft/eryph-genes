@@ -1,0 +1,12 @@
+{
+  "name": "@dbosoft/sapdev-default",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build": "build-geneset-tag",
+    "publish": "build-geneset-tag publish"
+  },
+  "devDependencies": {
+    "@dbosoft/build-geneset": "workspace:*"
+  }
+}

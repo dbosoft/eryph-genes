@@ -186,6 +186,44 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/build-geneset
 
+  src/sapdev:
+    dependencies:
+      '@dbosoft/sapdev-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/sapdev/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
+  src/sapdevbox:
+    dependencies:
+      '@dbosoft/sapdevbox-win11':
+        specifier: workspace:*
+        version: link:win11
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/sapdevbox/win11:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/starter-food:
     dependencies:
       '@dbosoft/starter-food-default':

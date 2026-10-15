@@ -1,0 +1,10 @@
+name: sapdev-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+fodder:
+  - source: gene:{{GENE}}:nodejs-tools
+  - source: gene:{{GENE}}:cf-cli
+  - source: gene:{{GENE}}:btp-cli
+    variables:
+      - name: accept_sap_developer_license
+        value: true
