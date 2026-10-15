@@ -14,6 +14,19 @@ Windows 11 Enterprise development environment based on Windows 11 24H2 Enterpris
 
 This geneset represents an edge case for catlets configured purely via configuration from a base catlet. Due to the long installation time (typically 20-40 minutes, potentially longer with customizations), it is strongly recommended to repack this catlet after build into a custom base-catlet for reuse. This avoids repeated lengthy installation processes for each deployment.
 
+## What's installed
+
+- winget, plus the command line tools from the `dev_tools` variable (default `Git.Git,OpenJS.NodeJS.LTS,GitHub.cli`), installed machine-wide
+- a 100 GB Dev Drive on `E:` (drive `sdb`), with package caches and a `E:\source` workspace
+- Hyper-V (nested virtualization)
+- PowerShell 7
+- VS Code with the extensions from `vscode_extensions`
+- Visual Studio 2022 (`vs_edition`, `vs_workloads`)
+- system-wide Git configuration
+
+The system disk (`sda`) is enlarged to 127 GB; the 39 GB of the base catlet are not enough for Visual Studio.
+
+Windows Terminal is not installed: Windows 11 already ships it, and winget can't install it for all users.
 ## Usage
 
 This catlet does not include a default user.  
