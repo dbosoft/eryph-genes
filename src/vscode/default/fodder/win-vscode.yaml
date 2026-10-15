@@ -270,106 +270,32 @@ fodder:
       $keybindingsJson | Out-File -FilePath "$defaultUserPath\keybindings.json" -Encoding UTF8 -Force
       Write-Host "[OK] Default keybindings.json created"
       
-      # Create a user configuration script
-      Write-Host ""
-      Write-Host "Creating user configuration script..."
+      # VS Code installs extensions per user, and fodder runs as Local System:
+      # install the downloaded extensions for every user at their first logon
+      # (Active Setup runs StubPath once per user; started detached so the
+      # logon doesn't wait for it).
+      $userSetupDir = "C:\ProgramData\eryph\vscode"
+      New-Item -ItemType Directory -Path $userSetupDir -Force | Out-Null
+      $userScript = "$userSetupDir\install-user-extensions.ps1"
+      Set-Content -Path $userScript -Encoding UTF8 -Value @'
+      # Installs the VS Code extensions prepared by gene:dbosoft/vscode for the current user.
+      $code = "$env:ProgramFiles\Microsoft VS Code\bin\code.cmd"
+      $log = "$env:LOCALAPPDATA\eryph-vscode-extensions.log"
+      Get-ChildItem "$env:ProgramFiles\Microsoft VS Code\bootstrap\extensions" -Filter *.vsix -ErrorAction SilentlyContinue |
+          ForEach-Object { & $code --install-extension $_.FullName --force 2>&1 | ForEach-Object { "$_" } | Add-Content $log }
+      '@
       
-      if ($devDriveLetter) {
-          $configScript = @"
-      Write-Host 'Configuring VS Code for Dev Drive...'
-      
-      `$vscodeUserDir = "`$env:APPDATA\Code\User"
-      `$devDrive = "${devDriveLetter}:"
-      
-      # Ensure directory exists
-      if (-not (Test-Path `$vscodeUserDir)) {
-          New-Item -ItemType Directory -Path `$vscodeUserDir -Force | Out-Null
-      }
-      
-      # Check if settings already exist
-      if (-not (Test-Path "`$vscodeUserDir\settings.json")) {
-          # Copy from Default profile if available
-          `$defaultSettings = "C:\Users\Default\AppData\Roaming\Code\User\settings.json"
-          if (Test-Path `$defaultSettings) {
-              Copy-Item `$defaultSettings -Destination "`$vscodeUserDir\settings.json"
-              Write-Host "VSCode settings configured from defaults"
-          }
-      }
-      
-      # Check if keybindings already exist
-      if (-not (Test-Path "`$vscodeUserDir\keybindings.json")) {
-          # Copy from Default profile if available
-          `$defaultKeybindings = "C:\Users\Default\AppData\Roaming\Code\User\keybindings.json"
-          if (Test-Path `$defaultKeybindings) {
-              Copy-Item `$defaultKeybindings -Destination "`$vscodeUserDir\keybindings.json"
-              Write-Host "VSCode keybindings configured from defaults"
-          }
-      }
-      
-      Write-Host ''
-      Write-Host 'VS Code is configured for Dev Drive at ${devDriveLetter}:'
-      Write-Host '- Extensions will use ${devDriveLetter}:\vscode\extensions'
-      Write-Host '- User data stored on ${devDriveLetter}:\vscode\user-data'  
-      Write-Host '- Git repositories default to ${devDriveLetter}:\source\repos'
-      Write-Host '- Enhanced performance for file operations and builds'
-      Write-Host ''
-      Write-Host 'To use dev drive locations in VS Code:'
-      Write-Host '1. Open Terminal in VS Code (Ctrl+``) - starts in ${devDriveLetter}:\source'
-      Write-Host '2. Use File -> Clone Repository to clone to ${devDriveLetter}:\source\repos'
-      Write-Host '3. Open folders from ${devDriveLetter}: for best performance'
-      Write-Host ''
-      Write-Host "VSCode configuration complete for user: `$env:USERNAME"
-      "@
-      } else {
-          $configScript = @"
-      Write-Host 'Configuring VS Code...'
-      
-      `$vscodeUserDir = "`$env:APPDATA\Code\User"
-      
-      # Ensure directory exists
-      if (-not (Test-Path `$vscodeUserDir)) {
-          New-Item -ItemType Directory -Path `$vscodeUserDir -Force | Out-Null
-      }
-      
-      # Check if settings already exist
-      if (-not (Test-Path "`$vscodeUserDir\settings.json")) {
-          # Copy from Default profile if available
-          `$defaultSettings = "C:\Users\Default\AppData\Roaming\Code\User\settings.json"
-          if (Test-Path `$defaultSettings) {
-              Copy-Item `$defaultSettings -Destination "`$vscodeUserDir\settings.json"
-              Write-Host "VSCode settings configured from defaults"
-          }
-      }
-      
-      # Check if keybindings already exist
-      if (-not (Test-Path "`$vscodeUserDir\keybindings.json")) {
-          # Copy from Default profile if available
-          `$defaultKeybindings = "C:\Users\Default\AppData\Roaming\Code\User\keybindings.json"
-          if (Test-Path `$defaultKeybindings) {
-              Copy-Item `$defaultKeybindings -Destination "`$vscodeUserDir\keybindings.json"
-              Write-Host "VSCode keybindings configured from defaults"
-          }
-      }
-      
-      Write-Host "VSCode configuration complete for user: `$env:USERNAME"
-      "@
-      }
-      
-      $configScript | Out-File -FilePath "C:\ProgramData\configure-vscode-user.ps1" -Encoding UTF8 -Force
-      Write-Host "[OK] User configuration script created at C:\ProgramData\configure-vscode-user.ps1"
+      $activeSetupKey = 'HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\eryph-vscode-extensions'
+      New-Item -Path $activeSetupKey -Force | Out-Null
+      Set-ItemProperty -Path $activeSetupKey -Name '(Default)' -Value 'VS Code extensions (eryph)'
+      Set-ItemProperty -Path $activeSetupKey -Name 'Version' -Value '1,0,0,0'
+      Set-ItemProperty -Path $activeSetupKey -Name 'IsInstalled' -Value 1 -Type DWord
+      Set-ItemProperty -Path $activeSetupKey -Name 'StubPath' -Value ("powershell.exe -NoProfile -WindowStyle Hidden -Command " +
+          "`"Start-Process powershell.exe -WindowStyle Hidden -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File $userScript'`"")
+      Write-Host "[OK] Extensions are installed for each user at first logon: $userScript"
       
       Write-Host ""
+      Write-Host "=== VS Code Configuration Complete ==="
       if ($devDriveLetter) {
-          Write-Host "=== VS Code with Dev Drive Configuration Complete ==="
-          Write-Host "VS Code is ready with Dev Drive optimization at ${devDriveLetter}:"
-          Write-Host "- Extensions will be installed to ${devDriveLetter}:\vscode\extensions on first launch"
-          Write-Host "- User data and workspace storage on dev drive for better performance"
-          Write-Host "- Git operations default to ${devDriveLetter}:\source\repos"
-          Write-Host "- Bootstrap extensions ready - install on first VS Code launch"
-      } else {
-          Write-Host "=== VS Code Configuration Complete ==="
-          Write-Host "VS Code is ready with standard configuration:"
-          Write-Host "- Default User Profile configured - new users get settings automatically"
-          Write-Host "- Bootstrap extensions ready - install on first VS Code launch"
+          Write-Host "Dev Drive: ${devDriveLetter}:"
       }
-      Write-Host "- User configuration script available at C:\ProgramData\configure-vscode-user.ps1"

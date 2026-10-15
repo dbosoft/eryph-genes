@@ -4,17 +4,19 @@ This geneset contains fodder for installing Microsoft Visual Studio 2022 in Wind
 
 ## Usage
 
-To install Visual Studio 2022 in your Windows catlets, add a gene reference:
+| Fodder | Installs | Default install path |
+|---|---|---|
+| `vs2026` | Visual Studio 2026 (version 18) | `C:\Program Files\Microsoft Visual Studio\18\<edition>` |
+| `vs2022` | Visual Studio 2022 (version 17) | `C:\Program Files\Microsoft Visual Studio\2022\<edition>` |
 
 ``` yaml
 fodder:
- - source: gene:dbosoft/msvs:vs2022
+ - source: gene:dbosoft/msvs:vs2026
 ```
 
 ## Configuration
 
-The vs2022 gene supports the following variables to configure the installation:
-
+Both fodders support the following variables:
 ### Edition and Location
 
 - **vs_edition**  
@@ -34,7 +36,7 @@ The vs2022 gene supports the following variables to configure the installation:
   
   Optional path to a Visual Studio ISO file for offline installation. The gene will:
   1. Try the provided ISO path
-  2. Auto-detect mounted ISOs on drives E: through H:
+  2. Auto-detect an ISO attached as optical drive
   3. Fall back to downloading from the internet
 
 ### Workloads and Components
@@ -83,6 +85,16 @@ The vs2022 gene supports the following variables to configure the installation:
   
   Optional drive letter for Dev Drive. When provided, Visual Studio will configure its project directories to use this drive. If not provided, the gene will auto-detect Dev Drive on Windows 11 or ReFS drives labeled as "Dev*".
 
+### Package Cache
+
+- **vs_cache_path**  
+  default value: *empty* (the installer's cache on C:)
+
+  Folder for the installer's package cache, e.g. `E:\VSCache` on a dev drive. Can only be set on the first installation.
+
+### Verification
+
+The installation counts as successful only when `devenv.exe` exists afterwards. Otherwise the fodder fails (exit code 1) and prints the last lines of the installer logs (`dd_*.log` in the temp folder of the installing account, `C:\Windows\Temp` for Local System). Visual Studio with several workloads needs 20-40 GB on C:; the 39 GB system disk of the dbosoft base catlets is too small for more than a minimal installation, so enlarge `sda`.
 ## Examples
 
 ### Basic Installation
@@ -139,7 +151,7 @@ fodder:
  - source: gene:dbosoft/msvs:vs2022
 ```
 
-The gene will automatically detect the mounted ISO on drives E: through H: and use it for offline installation.
+The gene detects an ISO attached as optical drive and uses it for offline installation.
 
 ### Dev Drive Integration
 

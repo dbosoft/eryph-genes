@@ -6,7 +6,7 @@ This geneset provides automated installation and configuration of Visual Studio 
 
 - **Automated Installation**: VS Code system installer from Microsoft, installed for all users
 - **System-Wide Configuration**: Settings and keybindings applied to all users
-- **Extension Bootstrap**: Automatic extension installation on first launch
+- **Extensions per user**: Installed for every user at their first logon (Active Setup), since VS Code installs extensions per user
 - **Dev Drive Integration**: Automatic detection and configuration of Dev Drives for optimal development performance
 - **Reboot Handling**: Automatic handling of installation reboots (exit code 1003)
 
@@ -60,9 +60,6 @@ When a Dev Drive is detected (automatically or via `dev_drive_letter`), the gene
 
 ### Dev Drive Configuration
 
-- **Extensions Directory**: `{DevDrive}:\vscode\extensions`
-- **User Data**: `{DevDrive}:\vscode\user-data`
-- **Workspace Storage**: `{DevDrive}:\vscode\workspace-storage`
 - **Default Git Location**: `{DevDrive}:\source\repos`
 - **Terminal Working Directory**: `{DevDrive}:\source`
 
@@ -150,21 +147,9 @@ fodder:
 
 ## Post-Installation
 
-### User Configuration
-
-Each user should run the configuration script on first login:
-```powershell
-C:\ProgramData\configure-vscode-user.ps1
-```
-
-This script:
-- Copies default settings and keybindings to user profile
-- Shows Dev Drive configuration details (if applicable)
-- Provides usage instructions
-
 ### Extension Installation
 
-Extensions are installed automatically when users first launch VS Code through the bootstrap mechanism.
+The extensions are downloaded during provisioning to `C:\Program Files\Microsoft VS Code\bootstrap\extensions`. An Active Setup entry runs `C:\ProgramData\eryph\vscode\install-user-extensions.ps1` once for every user at their first logon; it installs them in the background with `code --install-extension` and logs to `%LOCALAPPDATA%\eryph-vscode-extensions.log`.
 
 ### Verification
 

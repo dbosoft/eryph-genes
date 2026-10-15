@@ -3,3 +3,16 @@ parent: dbosoft/{{OS_VERSION}}/starter
 
 fodder:
   - source: gene:{{GENE}}:win-vscode
+
+  # Test only: log on the starter user automatically after a reboot, so the
+  # first-logon (Active Setup) extension install runs like for a real user
+  - name: autologon-for-test
+    type: shellscript
+    filename: autologon.ps1
+    content: |
+      $key = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+      Set-ItemProperty $key AutoAdminLogon '1'
+      Set-ItemProperty $key DefaultUserName 'Admin'
+      Set-ItemProperty $key DefaultPassword 'InitialPassw0rd'
+      Set-ItemProperty $key DefaultDomainName '.'
+      exit 1001

@@ -28,6 +28,11 @@ variables:
   - name: dev_drive_letter
     value: ""
     required: false
+  # Optional folder for the installer's package cache (e.g. on the dev drive);
+  # default: the installer's cache on C:
+  - name: vs_cache_path
+    value: ""
+    required: false
 
 fodder:
   - name: install-vs-2022
@@ -173,7 +178,8 @@ fodder:
               [string]$Components,
               [string]$Languages,
               [bool]$IncludeRecommended,
-              [bool]$IncludeOptional
+              [bool]$IncludeOptional,
+              [string]$CachePath
           )
           
           $args = @(
@@ -224,6 +230,11 @@ fodder:
           # Include optional components
           if ($IncludeOptional) {
               $args += "--includeOptional"
+          }
+      
+          # Package cache location; can only be set on the first installation
+          if (![string]::IsNullOrWhiteSpace($CachePath)) {
+              $args += "--path", "cache=`"$CachePath`""
           }
           
           return $args
@@ -279,7 +290,7 @@ fodder:
           }
           
           # Build installation arguments
-          $installArgs = Build-InstallArguments -InstallPath $installPath -Workloads $workloads -Components $components -Languages $languages -IncludeRecommended $includeRecommended -IncludeOptional $includeOptional
+          $installArgs = Build-InstallArguments -InstallPath $installPath -Workloads $workloads -Components $components -Languages $languages -IncludeRecommended $includeRecommended -IncludeOptional $includeOptional -CachePath "{{ vs_cache_path }}"
           
           Write-Host "Starting Visual Studio installation..."
           Write-Host "Installer: $installerPath"

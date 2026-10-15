@@ -5,8 +5,7 @@ The windevdrive geneset configures a Dev Drive (Windows 11) or ReFS development 
 ## Features
 
 On Windows 11 Build 22621+, it creates a true Dev Drive with:
-- Trust settings for improved performance
-- Antivirus optimizations and exclusions
+- Trusted Dev Drive (`fsutil devdrv trust`): Microsoft Defender scans it in performance mode (asynchronous scanning), with real-time protection still active
 - ReFS file system with performance tuning
 
 On older Windows versions, it creates a ReFS volume that still provides better performance than NTFS for development workloads.
@@ -40,7 +39,7 @@ The fodder automatically:
 - Creates package cache directories for NuGet, npm, pip, Maven, Gradle, Cargo, and vcpkg
 - Sets system-wide environment variables for package managers
 - Creates a standard developer workspace structure
-- Configures Dev Drive trust and antivirus settings (Windows 11 only)
+- Marks the Dev Drive as trusted, which enables Defender's performance mode (Windows 11 only); no antivirus exclusions are added
 
 **Example usage:**
 
@@ -125,14 +124,14 @@ Dev Drives provide:
 - Up to 30% faster build times
 - Reduced file system overhead
 - Optimized for developer workloads
-- Automatic antivirus exclusions
+- Microsoft Defender performance mode on the trusted Dev Drive (no antivirus exclusions are configured)
 - Copy-on-write capabilities with ReFS
 
 ## Requirements
 
 - Windows 11 Build 22621+ for full Dev Drive support
 - Windows 10 1709+ or Windows Server 2016+ for ReFS support
-- An additional drive configured in your catlet
+- An additional drive configured in your catlet (devdrive_name), or an existing volume with enough space (devdrive_location)
 
 ---
 
