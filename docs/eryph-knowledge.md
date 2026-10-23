@@ -194,7 +194,7 @@ fodder:
 
 ## Genesets in this repo
 
-- OS base catlets: `ubuntu-20.04` ... `ubuntu-26.04`, `almalinux-9`, `oraclelinux-9`,
+- OS base catlets: `ubuntu-20.04` ... `ubuntu-26.04`, `almalinux-9`, `almalinux-10`, `oraclelinux-9`,
   `winsrv2022-standard`, `winsrv2025-standard`, `win10-*`/`win11-*-enterprise` (built from
   hyperv-boxes; more historic genesets exist under `genes/dbosoft/`).
 - Fodder genesets (`src/`): `starter-food` (`linux-starter`, `win-starter`), `winconfig` (`enable-ssh`,
