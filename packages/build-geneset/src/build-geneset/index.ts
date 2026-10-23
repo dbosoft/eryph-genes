@@ -3,7 +3,7 @@ import {glob} from 'glob';
 import * as path from 'path';
 import { findMonorepoRoot } from 'find-monorepo-root';
 import { GenesetTagManifest, Tag } from '../lib/types';
-import { exec } from 'child_process';
+import { execSync } from 'child_process';
 import { TemplateVariables, initHandlebars, parseTemplate } from '../lib/handlebars';
 type Mode = 'build' | 'publish';
 
@@ -154,21 +154,68 @@ async function main(){
 
         const packCommand = `eryph-packer geneset-tag pack ${fullTagName}`;
 
-        exec(packCommand, { cwd: genesDir }, (error, stdout, stderr) => {
-            
-            error = error as Error;
-            stderr = stderr as string;
-            stdout = stdout as string;
-            const fullError = `{error: ${error}, stderr: ${stderr}, stdout: ${stdout}}`;
+        try {
+            execSync(packCommand, { cwd: genesDir, stdio: 'inherit' });
+        } catch (error) {
+            throw `Error executing geneset-tag pack command for ${fullTagName}: ${error}`;
+        }
+        console.log(`geneset-tag ${fullTagName} packed`);
+    }
 
-            if (error) {
-                throw `Error executing geneset-tag pack command: ${fullError}`;
+    // Auto-create the unversioned 'starter' reference tag pointing at the highest
+    // starter-<version> tag. The readmes point New-Catlet at <geneset>/starter,
+    // but the starter catlet package only emits starter-<majorMinor>; without this
+    // the 'starter' ref is missing (it used to be added by hand). Build mode emits
+    // starter-next (skipped on push), so only do this on publish.
+    if (mode === 'publish') {
+        const starterTags = tags
+            .map((tag) => tag.tagName)
+            .filter((name) => /^starter-\d+\.\d+/.test(name))
+            .sort(compareVersionTag);
+
+        if (starterTags.length > 0) {
+            const target = starterTags[starterTags.length - 1];
+            const aliasName = 'starter';
+            const aliasDir = path.join(genesetDir, aliasName);
+            if (!fs.existsSync(aliasDir)) {
+                fs.mkdirSync(aliasDir);
             }
-            console.log(`geneset-tag pack command stdout: ${stdout}`);
-        });
+            const refManifest = {
+                version: '1.1',
+                geneset: `${geneset}/${aliasName}`,
+                ref: `${geneset}/${target}`,
+            };
+            fs.writeFileSync(
+                path.join(aliasDir, 'geneset-tag.json'),
+                JSON.stringify(refManifest));
+
+            const aliasPackCommand = `eryph-packer geneset-tag pack ${geneset}/${aliasName}`;
+            try {
+                execSync(aliasPackCommand, { cwd: genesDir, stdio: 'inherit' });
+            } catch (error) {
+                throw `Error packing alias tag ${geneset}/${aliasName}: ${error}`;
+            }
+            console.log(`alias tag ${geneset}/${aliasName} -> ${target} created`);
+        }
     }
 
     console.log(`Geneset ${geneset} build and copied to ${genesetDir}`);
+}
+
+// Compare two version-suffixed tag names (e.g. "starter-1.0", "starter-2.3.1")
+// numerically by their embedded version components. Returns <0/0/>0 for sort.
+function compareVersionTag(a: string, b: string): number {
+    const parse = (s: string) => (s.match(/\d+/g) ?? []).map(Number);
+    const va = parse(a);
+    const vb = parse(b);
+    const len = Math.max(va.length, vb.length);
+    for (let i = 0; i < len; i++) {
+        const diff = (va[i] ?? 0) - (vb[i] ?? 0);
+        if (diff !== 0) {
+            return diff;
+        }
+    }
+    return 0;
 }
 
 async function readTags(variables: TemplateVariables)

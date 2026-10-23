@@ -31,8 +31,21 @@ if ($Staged) {
 }
 
 
+# Push reference tags (those whose manifest has a 'ref', e.g. latest / starter)
+# AFTER the concrete tags they point at, so the target already exists on the
+# genepool when the ref is created. Without this, pushing a brand-new geneset
+# where both the ref and its target are new fails with "<target> not found".
+$isRefTag = {
+    param($genesetTag)
+    $manifestPath = "genes/$genesetTag/geneset-tag.json"
+    if (-not (Test-Path $manifestPath)) { return $false }
+    try { [bool]((Get-Content -Raw $manifestPath | ConvertFrom-Json).ref) } catch { $false }
+}
+$changedGenesets = @($changedGenesets | Where-Object { -not (& $isRefTag $_) }) +
+                   @($changedGenesets | Where-Object {        & $isRefTag $_ })
+
 Write-Information "Changed Genesets:"
-$changedGenesets        
+$changedGenesets
 $apikey = $env:ERYPH_APIKEY
 
 $changedGenesets | ForEach-Object {
