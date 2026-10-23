@@ -16,11 +16,18 @@
     }},    
     {"ubuntu-25.04": {
         "osType": "linux",
-        "pack": "dbosoft/ubuntu-25.04/{date}",        
-        "update": [ 
-            "dbosoft/ubuntu-25.04/latest" 
+        "pack": "dbosoft/ubuntu-25.04/{date}",
+        "update": [
+            "dbosoft/ubuntu-25.04/latest"
         ]
-    }},    
+    }},
+    {"ubuntu-26.04": {
+        "osType": "linux",
+        "pack": "dbosoft/ubuntu-26.04/{date}",
+        "update": [
+            "dbosoft/ubuntu-26.04/latest"
+        ]
+    }},
     {"almalinux-9": {
         "osType": "linux",
         "pack": "dbosoft/almalinux-9/{date}",        
