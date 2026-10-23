@@ -155,6 +155,25 @@ importers:
         specifier: workspace:*
         version: link:../../packages/build-geneset
 
+  src/mariadb:
+    dependencies:
+      '@dbosoft/mariadb-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/mariadb/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/msvs:
     dependencies:
       '@dbosoft/msvs-default':

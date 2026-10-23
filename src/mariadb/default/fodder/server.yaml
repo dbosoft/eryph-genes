@@ -1,0 +1,58 @@
+name: server
+
+variables:
+  - name: db_name
+    value: db
+  - name: db_user
+    value: dbuser
+  - name: db_password
+    required: true
+    secret: true
+  - name: allowed_host
+    value: '%'
+
+fodder:
+- name: server
+  type: cloud-config
+  secret: true
+  content: |
+    package_update: true
+    packages:
+    - mariadb-server
+    - openssl
+    write_files:
+    - path: /opt/eryph-mariadb-setup.sh
+      permissions: '0755'
+      content: |
+        #!/bin/bash
+        set -euo pipefail
+        DB_NAME='{{ db_name }}'
+        DB_USER='{{ db_user }}'
+        DB_PASS='{{ db_password }}'
+        ALLOWED_HOST='{{ allowed_host }}'
+        # Start first so MariaDB initialises its datadir (RHEL inits on first start,
+        # only when the datadir is empty - never create files there before this).
+        systemctl enable --now mariadb
+        # Config include dir differs per family; certs live here too (SELinux-readable
+        # by mysqld, and outside the datadir).
+        if [ -d /etc/mysql/mariadb.conf.d ]; then CONF_DIR=/etc/mysql/mariadb.conf.d
+        else mkdir -p /etc/my.cnf.d; CONF_DIR=/etc/my.cnf.d; fi
+        if [ ! -f "$CONF_DIR/eryph-server-cert.pem" ]; then
+          openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -keyout "$CONF_DIR/eryph-server-key.pem" -out "$CONF_DIR/eryph-server-cert.pem" -subj "/CN=$(hostname)" >/dev/null 2>&1
+          chown mysql:mysql "$CONF_DIR/eryph-server-key.pem" "$CONF_DIR/eryph-server-cert.pem"
+          chmod 640 "$CONF_DIR/eryph-server-key.pem"; chmod 644 "$CONF_DIR/eryph-server-cert.pem"
+        fi
+        printf '[mysqld]\nbind-address = 0.0.0.0\nssl-cert = %s/eryph-server-cert.pem\nssl-key = %s/eryph-server-key.pem\n' "$CONF_DIR" "$CONF_DIR" > "$CONF_DIR/99-eryph.cnf"
+        systemctl restart mariadb
+        if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+          firewall-cmd --permanent --add-port=3306/tcp; firewall-cmd --reload
+        fi
+        if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+          ufw allow 3306/tcp
+        fi
+        mariadb -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;"
+        mariadb -e "CREATE USER IF NOT EXISTS '$DB_USER'@'$ALLOWED_HOST' IDENTIFIED BY '$DB_PASS';"
+        mariadb -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'$ALLOWED_HOST';"
+        mariadb -e "FLUSH PRIVILEGES;"
+    runcmd:
+    - bash /opt/eryph-mariadb-setup.sh
