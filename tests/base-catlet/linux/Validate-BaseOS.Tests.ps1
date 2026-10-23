@@ -95,11 +95,15 @@ Describe "Linux Base Catlet Validation" {
             $cfg | Should -Match "Azure" -Because "Azure datasource must be enabled (images are Azure-published)"
         }
 
-        It "Should have Azure Linux Agent installed (Ubuntu)" -Skip:$script:isRHEL {
-            # walinuxagent enables the Azure platform target (images are published
-            # to Azure as well as eryph/Hyper-V).
-            $waAgent = (Invoke-LinuxCommand "dpkg-query -s walinuxagent 2>/dev/null") -join "`n"
-            $waAgent | Should -Match "install ok installed" -Because "walinuxagent provides Azure platform support"
+        It "Should have Azure Linux Agent installed (Debian/Ubuntu)" -Skip:$script:isRHEL {
+            # The Azure Linux Agent enables the Azure platform target (images are
+            # published to Azure as well as eryph/Hyper-V). Ubuntu ships it as
+            # 'walinuxagent'; Debian ships the same agent as 'waagent' (it still
+            # installs the walinuxagent.service unit and /etc/waagent.conf).
+            $osr = (Invoke-LinuxCommand "cat /etc/os-release 2>/dev/null") -join "`n"
+            $pkg = if ($osr -imatch '(?mi)^ID=debian') { "waagent" } else { "walinuxagent" }
+            $waAgent = (Invoke-LinuxCommand "dpkg-query -s $pkg 2>/dev/null") -join "`n"
+            $waAgent | Should -Match "install ok installed" -Because "the Azure Linux Agent provides Azure platform support"
         }
 
         It "Should have Azure Linux Agent installed (RHEL)" -Skip:$script:isUbuntu {

@@ -42,6 +42,13 @@
             "dbosoft/almalinux-10/latest"
         ]
     }},
+    {"debian-13": {
+        "osType": "linux",
+        "pack": "dbosoft/debian-13/{date}",
+        "update": [
+            "dbosoft/debian-13/latest"
+        ]
+    }},
     {"oracle-9": {
         "osType": "linux",
         "pack": "dbosoft/oraclelinux-9/{date}",        

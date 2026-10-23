@@ -85,6 +85,19 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/build-geneset
 
+  src/debian-13:
+    dependencies:
+      '@dbosoft/linux-starter-catlet':
+        specifier: workspace:*
+        version: link:../linux-starter-catlet
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
   src/guest-services:
     dependencies:
       '@dbosoft/guest-services-default':

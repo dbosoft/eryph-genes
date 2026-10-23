@@ -1,0 +1,24 @@
+# {{ manifest.short_description }}
+
+This geneset contains the base catlet for {{ manifest.short_description }}.
+
+## Usage
+
+The base catlet can be used as parent catlet like this
+
+``` ps
+New-Catlet -Parent "{{ geneset }}"
+```
+
+This base catlet does not include a default user.
+You should therefore set up your own fodder to create an initial local user or to automatically join a domain.
+
+Alternatively, you can use the Starter Catlet, which creates a default admin user with an initial password of "admin".
+
+
+``` ps
+New-Catlet -Parent "{{ geneset }}/starter"
+```
+
+
+See also [starter-food](/b/dbosoft/starter-food) for other defaults and variables for starter food.
