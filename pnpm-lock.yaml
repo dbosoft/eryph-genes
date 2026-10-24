@@ -193,6 +193,25 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/build-geneset
 
+  src/nextcloud:
+    dependencies:
+      '@dbosoft/nextcloud-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/nextcloud/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/oraclelinux-9:
     dependencies:
       '@dbosoft/linux-starter-catlet':

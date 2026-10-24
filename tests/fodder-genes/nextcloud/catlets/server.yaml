@@ -1,0 +1,32 @@
+name: nextcloud-server-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+memory:
+  startup: 3072
+
+fodder:
+  - source: gene:dbosoft/mariadb:server
+    variables:
+      - name: db_name
+        value: nextcloud
+      - name: db_user
+        value: nextcloud
+      - name: db_password
+        value: Test-Passw0rd-123
+        secret: true
+  - source: gene:{{GENE}}:server
+    variables:
+      - name: db_host
+        value: 127.0.0.1
+      - name: db_name
+        value: nextcloud
+      - name: db_user
+        value: nextcloud
+      - name: db_password
+        value: Test-Passw0rd-123
+        secret: true
+      - name: admin_user
+        value: ncadmin
+      - name: admin_password
+        value: Admin-Passw0rd-123
+        secret: true

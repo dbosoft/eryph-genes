@@ -1,0 +1,15 @@
+{
+  "name": "@dbosoft/nextcloud",
+  "private": true,
+  "scripts": {
+    "build": "build-geneset",
+    "publish": "build-geneset publish"
+  },
+  "dependencies": {
+    "templates": "workspace:*",
+    "@dbosoft/nextcloud-default": "workspace:*"
+  },
+  "devDependencies": {
+    "@dbosoft/build-geneset": "workspace:*"
+  }
+}
