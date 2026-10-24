@@ -16,6 +16,10 @@ with the WordPress gene. Set the application's `db_host` to the **name** of the 
 eryph's internal DNS resolves catlet names within the project, so you don't need to look up its
 IP address.
 
+The application catlet needs a **second drive** for its persistent state (the `wp-content`
+directory and `wp-config.php`): see [Persistent state](#persistent-state) below. Without it the
+provisioning fails on purpose rather than storing state that a redeploy would silently lose.
+
 ``` yaml
 name: wordpress-db
 parent: dbosoft/debian-13/starter
@@ -38,6 +42,10 @@ parent: dbosoft/debian-13/starter
 
 memory:
   startup: 3072
+
+drives:
+ - name: sdb
+   size: 20
 
 fodder:
  - source: gene:dbosoft/wordpress:server
@@ -63,17 +71,32 @@ The fodder:
 
 - installs Apache (mod_php on Debian/Ubuntu, php-fpm on the RHEL family) and the PHP modules
   WordPress needs
-- downloads and extracts WordPress to `/var/www/wordpress`
+- downloads and extracts the WordPress code to `/var/www/wordpress`
+- mounts the state drive at `/var/wordpress` and keeps `wp-content` and `wp-config.php` there
 - on the RHEL family configures SELinux (`httpd_can_network_connect_db`, and
-  `httpd_sys_rw_content_t` on wp-content)
+  `httpd_sys_rw_content_t` on the state directory)
 - installs WP-CLI to `/usr/local/bin/wp`
-- writes `wp-config.php` and runs `wp core install`
+- writes `wp-config.php` and runs `wp core install` on first deploy; re-attaches on a redeploy
 - when `site_url` is empty, makes WordPress follow the request host (works via a NAT/forwarded
   address out of the box)
 - opens port 80 when `firewalld` or `ufw` is active
 
 WordPress is served over plain HTTP on port 80. For production use, put a TLS-terminating reverse
 proxy (e.g. the `dbosoft/caddy` gene) in front of it and set `site_url` to the public HTTPS URL.
+
+## Persistent state
+
+WordPress keeps state the database does not: the `wp-content` directory (uploads, installed
+plugins and themes) and `wp-config.php` with the database credentials and the generated auth keys
+and salts. The OS disk is recreated from the gene on every deploy, so that state must live on a
+**separate, persistent drive**.
+
+Give the application catlet a second drive (any name/size; the example uses `sdb`, 20 GB). The
+fodder formats it on first use (ext4, label `wordpress`), mounts it at `/var/wordpress`, and keeps
+`wp-content` and `wp-config.php` there (symlinked into the webroot). On a **redeploy** the drive is
+kept, so WordPress re-attaches to the existing installation instead of reinstalling. If no empty
+drive is present, provisioning stops with a clear error rather than storing state that would not
+survive.
 
 ## Configuration
 

@@ -1,5 +1,11 @@
 # @dbosoft/wordpress-default
 
+## 1.2.0
+
+### Minor Changes
+
+- Keep `wp-content` and `wp-config.php` on a required persistent state drive, making the application catlet redeployable: a redeploy re-attaches to the existing installation instead of reinstalling, and uploads/plugins/themes and the auth keys survive. The catlet now needs a second drive for its state; provisioning fails with a clear error when none is present.
+
 ## 1.1.0
 
 ### Minor Changes

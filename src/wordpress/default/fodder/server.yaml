@@ -53,12 +53,46 @@ fodder:
         ADMIN_EMAIL='{{ admin_email }}'
         WP_VERSION='{{ wordpress_version }}'
         WP_DIR=/var/www/wordpress
+        STATE=/var/wordpress
+        STATE_LABEL=wordpress
 
         . /etc/os-release
         FAMILY=rhel
         case " ${ID:-} ${ID_LIKE:-} " in
           *" debian "*|*" ubuntu "*) FAMILY=debian ;;
         esac
+
+        # --- Persistent state drive: wp-content (uploads, plugins, themes) and
+        # wp-config.php (DB credentials + auth keys) live here so they survive a
+        # redeploy. A named data drive on the catlet is required. ---
+        if ! mountpoint -q "$STATE"; then
+          mkdir -p "$STATE"
+          dev=$(blkid -L "$STATE_LABEL" 2>/dev/null || true)
+          if [ -z "$dev" ]; then
+            root_src=$(findmnt -no SOURCE / || true)
+            root_disk=$(lsblk -no PKNAME "$root_src" 2>/dev/null || true)
+            [ -z "$root_disk" ] && root_disk=$(basename "$root_src")
+            for d in $(lsblk -dn -o NAME,TYPE | awk '$2=="disk"{print $1}'); do
+              [ "$d" = "$root_disk" ] && continue
+              if [ -z "$(lsblk -no FSTYPE "/dev/$d" | tr -d '[:space:]')" ]; then
+                mkfs.ext4 -q -L "$STATE_LABEL" "/dev/$d"
+                dev="/dev/$d"; break
+              fi
+            done
+          fi
+          if [ -z "$dev" ]; then
+            echo "ERROR: no empty data drive found for persistent state." >&2
+            echo "Add a data drive to the catlet, e.g.:" >&2
+            echo "  drives:" >&2
+            echo "    - name: sdb" >&2
+            echo "      size: 20" >&2
+            exit 1
+          fi
+          grep -q "LABEL=$STATE_LABEL[[:space:]]" /etc/fstab || \
+            echo "LABEL=$STATE_LABEL $STATE ext4 defaults,nofail 0 2" >> /etc/fstab
+          mount "$STATE"
+        fi
+        mkdir -p "$STATE"
 
         # Packages (names differ per family; RHEL has no mod_php -> php-fpm)
         if [ "$FAMILY" = debian ]; then
@@ -73,7 +107,7 @@ fodder:
           WEB_USER=apache; WEB_SVC=httpd
         fi
 
-        # Download + extract WordPress
+        # Download + extract the WordPress code (on the OS disk)
         if [ "$WP_VERSION" = latest ]; then
           WP_URL=https://wordpress.org/latest.tar.gz
         else
@@ -84,8 +118,20 @@ fodder:
           tar -xzf /tmp/wordpress.tar.gz -C /var/www/
           rm -f /tmp/wordpress.tar.gz
         fi
-        mkdir -p "$WP_DIR/wp-content/uploads"
+
+        # Keep wp-content on the state drive (seed from the fresh extract on first run)
+        if [ ! -d "$STATE/wp-content" ] && [ -d "$WP_DIR/wp-content" ] && [ ! -L "$WP_DIR/wp-content" ]; then
+          mv "$WP_DIR/wp-content" "$STATE/wp-content"
+        fi
+        mkdir -p "$STATE/wp-content/uploads"
+        rm -rf "$WP_DIR/wp-content"
+        ln -sfn "$STATE/wp-content" "$WP_DIR/wp-content"
+        # Keep wp-config.php on the state drive (symlinked into the webroot)
+        if [ -f "$STATE/wp-config.php" ]; then
+          ln -sfn "$STATE/wp-config.php" "$WP_DIR/wp-config.php"
+        fi
         chown -R "$WEB_USER":"$WEB_USER" "$WP_DIR"
+        chown "$WEB_USER":"$WEB_USER" "$STATE"
 
         # Web server configuration (printf keeps this indentation-independent)
         DIR_BLOCK=$(printf '%s\n' \
@@ -107,11 +153,11 @@ fodder:
           { printf '%s\n' "DocumentRoot $WP_DIR"
             printf '%s\n' "$DIR_BLOCK"
           } > /etc/httpd/conf.d/wordpress.conf
-          # SELinux: let the web server reach the database and write wp-content
+          # SELinux: let the web server reach the database and write the state dir
           if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce)" != Disabled ]; then
             setsebool -P httpd_can_network_connect_db on
-            semanage fcontext -a -t httpd_sys_rw_content_t "$WP_DIR/wp-content(/.*)?" 2>/dev/null || true
-            restorecon -R "$WP_DIR" >/dev/null 2>&1 || true
+            semanage fcontext -a -t httpd_sys_rw_content_t "$STATE(/.*)?" 2>/dev/null || true
+            restorecon -R "$STATE" "$WP_DIR" >/dev/null 2>&1 || true
           fi
           systemctl enable --now php-fpm >/dev/null 2>&1
         fi
@@ -122,30 +168,33 @@ fodder:
         chmod +x /usr/local/bin/wp
         WP="sudo -u $WEB_USER /usr/local/bin/wp --path=$WP_DIR"
 
-        # Configure + install WordPress against the database (idempotent)
-        if [ ! -f "$WP_DIR/wp-config.php" ]; then
+        # Create wp-config.php on the state drive on first run
+        if [ ! -f "$STATE/wp-config.php" ]; then
           $WP config create --dbname="$DB_NAME" --dbuser="$DB_USER" \
             --dbpass="$DB_PASS" --dbhost="$DB_HOST"
+          # With no fixed site_url, follow the host the client used (works via a
+          # NAT/forwarded address out of the box). A set site_url keeps a fixed URL.
+          if [ -z "$SITE_URL" ]; then
+            SNIP='if (isset($_SERVER["HTTP_HOST"])) { $eryph_s = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off") ? "https" : "http"; define("WP_HOME", $eryph_s . "://" . $_SERVER["HTTP_HOST"]); define("WP_SITEURL", $eryph_s . "://" . $_SERVER["HTTP_HOST"]); }'
+            awk -v snip="$SNIP" '/stop editing/ && !ins {print snip; ins=1} {print}' "$WP_DIR/wp-config.php" > "$WP_DIR/wp-config.php.eryph" \
+              && mv "$WP_DIR/wp-config.php.eryph" "$WP_DIR/wp-config.php"
+          fi
+          mv "$WP_DIR/wp-config.php" "$STATE/wp-config.php"
+          ln -sfn "$STATE/wp-config.php" "$WP_DIR/wp-config.php"
+          chown "$WEB_USER":"$WEB_USER" "$STATE/wp-config.php"
+          chown -h "$WEB_USER":"$WEB_USER" "$WP_DIR/wp-config.php"
         fi
+
+        # Install WordPress against the database (idempotent; DB-backed check)
         if ! $WP core is-installed 2>/dev/null; then
           $WP core install --url="${SITE_URL:-http://localhost}" --title="$SITE_TITLE" \
             --admin_user="$ADMIN_USER" --admin_password="$ADMIN_PASS" \
             --admin_email="$ADMIN_EMAIL" --skip-email
         fi
 
-        # With no fixed site_url, make WordPress follow the host the client used,
-        # so it works through a NAT/forwarded address out of the box (the catlet
-        # cannot know that external address). A set site_url keeps a fixed URL.
-        CFG="$WP_DIR/wp-config.php"
-        if [ -z "$SITE_URL" ] && ! grep -q 'WP_SITEURL' "$CFG"; then
-          SNIP='if (isset($_SERVER["HTTP_HOST"])) { $eryph_s = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off") ? "https" : "http"; define("WP_HOME", $eryph_s . "://" . $_SERVER["HTTP_HOST"]); define("WP_SITEURL", $eryph_s . "://" . $_SERVER["HTTP_HOST"]); }'
-          awk -v snip="$SNIP" '/stop editing/ && !ins {print snip; ins=1} {print}' "$CFG" > "$CFG.eryph" && mv "$CFG.eryph" "$CFG"
-          chown "$WEB_USER":"$WEB_USER" "$CFG"
-        fi
-
         # Re-apply SELinux contexts to files written during install
         if [ "$FAMILY" != debian ] && command -v restorecon >/dev/null 2>&1; then
-          restorecon -R "$WP_DIR" >/dev/null 2>&1 || true
+          restorecon -R "$STATE" >/dev/null 2>&1 || true
         fi
 
         # Open the firewall only when one is active
