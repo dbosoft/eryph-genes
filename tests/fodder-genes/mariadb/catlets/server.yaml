@@ -1,6 +1,10 @@
 name: mariadb-server-test
 parent: dbosoft/{{OS_VERSION}}/starter
 
+drives:
+  - name: sdb
+    size: 10
+
 fodder:
   - source: gene:{{GENE}}:server
     variables:

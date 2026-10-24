@@ -1,0 +1,99 @@
+name: server
+
+variables:
+  - name: db_name
+    value: db
+  - name: db_user
+    value: dbuser
+  - name: db_password
+    required: true
+    secret: true
+  - name: allowed_host
+    value: '%'
+
+fodder:
+- name: server
+  type: cloud-config
+  secret: true
+  content: |
+    package_update: true
+    packages:
+    - mariadb-server
+    - openssl
+    write_files:
+    - path: /opt/eryph-mariadb-setup.sh
+      permissions: '0755'
+      content: |
+        #!/bin/bash
+        set -euo pipefail
+        DB_NAME='{{ db_name }}'
+        DB_USER='{{ db_user }}'
+        DB_PASS='{{ db_password }}'
+        ALLOWED_HOST='{{ allowed_host }}'
+
+        # --- Persistent state drive mounted at the data directory /var/lib/mysql,
+        # so the databases survive a redeploy. A named data drive on the catlet is
+        # required. ---
+        STATE=/var/lib/mysql
+        STATE_LABEL=mariadb
+        systemctl stop mariadb >/dev/null 2>&1 || true   # Debian auto-starts it on install
+        if ! mountpoint -q "$STATE"; then
+          mkdir -p "$STATE"
+          dev=$(blkid -L "$STATE_LABEL" 2>/dev/null || true)
+          if [ -z "$dev" ]; then
+            root_src=$(findmnt -no SOURCE / || true)
+            root_disk=$(lsblk -no PKNAME "$root_src" 2>/dev/null || true)
+            [ -z "$root_disk" ] && root_disk=$(basename "$root_src")
+            for d in $(lsblk -dn -o NAME,TYPE | awk '$2=="disk"{print $1}'); do
+              [ "$d" = "$root_disk" ] && continue
+              if [ -z "$(lsblk -no FSTYPE "/dev/$d" | tr -d '[:space:]')" ]; then
+                mkfs.ext4 -q -L "$STATE_LABEL" "/dev/$d"; dev="/dev/$d"; break
+              fi
+            done
+          fi
+          if [ -z "$dev" ]; then
+            echo "ERROR: no empty data drive found for persistent state." >&2
+            echo "Add a data drive to the catlet, e.g. drives: - name: sdb / size: 10" >&2
+            exit 1
+          fi
+          grep -q "LABEL=$STATE_LABEL[[:space:]]" /etc/fstab || \
+            echo "LABEL=$STATE_LABEL $STATE ext4 defaults,nofail 0 2" >> /etc/fstab
+          mount "$STATE"
+        fi
+        # Initialise the datadir on the drive on first use. Remove lost+found so it
+        # does not show up as a bogus "#mysql50#lost+found" database. The RHEL
+        # mariadb-prepare-db-dir checks /var/lib/mysql directly, so init there (not
+        # in a subdirectory).
+        rm -rf "$STATE/lost+found"
+        if [ ! -d "$STATE/mysql" ]; then
+          mariadb-install-db --user=mysql --datadir="$STATE" \
+            --auth-root-authentication-method=socket >/dev/null 2>&1
+          chown -R mysql:mysql "$STATE"
+        fi
+        chown mysql:mysql "$STATE"
+        command -v restorecon >/dev/null 2>&1 && restorecon -R "$STATE" || true
+
+        # Config include dir differs per family; certs live here too (SELinux-readable
+        # by mysqld, and outside the datadir).
+        if [ -d /etc/mysql/mariadb.conf.d ]; then CONF_DIR=/etc/mysql/mariadb.conf.d
+        else mkdir -p /etc/my.cnf.d; CONF_DIR=/etc/my.cnf.d; fi
+        if [ ! -f "$CONF_DIR/eryph-server-cert.pem" ]; then
+          openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -keyout "$CONF_DIR/eryph-server-key.pem" -out "$CONF_DIR/eryph-server-cert.pem" -subj "/CN=$(hostname)" >/dev/null 2>&1
+          chown mysql:mysql "$CONF_DIR/eryph-server-key.pem" "$CONF_DIR/eryph-server-cert.pem"
+          chmod 640 "$CONF_DIR/eryph-server-key.pem"; chmod 644 "$CONF_DIR/eryph-server-cert.pem"
+        fi
+        printf '[mysqld]\nbind-address = 0.0.0.0\nssl-cert = %s/eryph-server-cert.pem\nssl-key = %s/eryph-server-key.pem\n' "$CONF_DIR" "$CONF_DIR" > "$CONF_DIR/99-eryph.cnf"
+        systemctl enable mariadb >/dev/null 2>&1 || true
+        systemctl restart mariadb
+        if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+          firewall-cmd --permanent --add-port=3306/tcp; firewall-cmd --reload
+        fi
+        if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+          ufw allow 3306/tcp
+        fi
+        mariadb -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;"
+        mariadb -e "CREATE USER IF NOT EXISTS '$DB_USER'@'$ALLOWED_HOST' IDENTIFIED BY '$DB_PASS';"
+        mariadb -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'$ALLOWED_HOST';"
+        mariadb -e "FLUSH PRIVILEGES;"
+    runcmd:
+    - bash /opt/eryph-mariadb-setup.sh
