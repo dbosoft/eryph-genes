@@ -1,0 +1,69 @@
+name: express
+
+variables:
+  - name: sa_password
+    required: true
+    secret: true
+  - name: db_name
+    value: db
+  - name: db_user
+    value: dbuser
+  - name: db_password
+    required: true
+    secret: true
+
+fodder:
+- name: express
+  type: shellscript
+  filename: install-mssql-express.ps1
+  secret: true
+  content: |
+    $ErrorActionPreference = 'Stop'
+    $SA = '{{ sa_password }}'
+    $DB = '{{ db_name }}'
+    $DBUSER = '{{ db_user }}'
+    $DBPASS = '{{ db_password }}'
+    $work = 'C:\sql'
+    New-Item -ItemType Directory -Force -Path $work | Out-Null
+
+    # Install SQL Server Express (idempotent: skip when the instance already exists).
+    # The SSEI bootstrapper downloads the offline media; the media self-extracts the setup.
+    if (-not (Get-Service 'MSSQL$SQLEXPRESS' -ErrorAction SilentlyContinue)) {
+      $ssei = "$work\SQL-SSEI-Expr.exe"
+      Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/?linkid=2216019' -OutFile $ssei -UseBasicParsing
+      & $ssei /ACTION=Download /MEDIATYPE=Core /MEDIAPATH=$work\media /QUIET | Out-Null
+      & "$work\media\SQLEXPR_x64_ENU.exe" /Q /X:$work\setup | Out-Null
+      $a = '/Q /ACTION=Install /FEATURES=SQLENGINE /INSTANCENAME=SQLEXPRESS ' +
+           '/SECURITYMODE=SQL /SAPWD="' + $SA + '" ' +
+           '/SQLSVCACCOUNT="NT AUTHORITY\SYSTEM" /SQLSYSADMINACCOUNTS="BUILTIN\Administrators" ' +
+           '/TCPENABLED=1 /NPENABLED=0 /UPDATEENABLED=0 /IACCEPTSQLSERVERLICENSETERMS'
+      $p = Start-Process -FilePath "$work\setup\setup.exe" -Wait -PassThru -ArgumentList $a
+      if ($p.ExitCode -ne 0) { throw "SQL Server setup failed with exit code $($p.ExitCode)" }
+    }
+
+    # Serve on the static TCP port 1433 (the installer defaults to a dynamic port)
+    $inst = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL').'SQLEXPRESS'
+    $tcp = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$inst\MSSQLServer\SuperSocketNetLib\Tcp\IPAll"
+    Set-ItemProperty -Path $tcp -Name TcpPort -Value '1433'
+    Set-ItemProperty -Path $tcp -Name TcpDynamicPorts -Value ''
+    Restart-Service 'MSSQL$SQLEXPRESS' -Force
+    Start-Sleep -Seconds 5
+
+    # Create the database and a SQL login that owns it (idempotent).
+    # Uses the built-in .NET SqlClient, so no sqlcmd install is required.
+    function Invoke-Sql($database, $sql) {
+      $cs = "Server=tcp:127.0.0.1,1433;Database=$database;User ID=sa;Password=$SA;TrustServerCertificate=True"
+      $c = New-Object System.Data.SqlClient.SqlConnection $cs
+      $c.Open()
+      $cmd = $c.CreateCommand(); $cmd.CommandText = $sql
+      [void]$cmd.ExecuteNonQuery()
+      $c.Close()
+    }
+    Invoke-Sql 'master' "IF DB_ID('$DB') IS NULL CREATE DATABASE [$DB];"
+    Invoke-Sql 'master' "IF SUSER_ID('$DBUSER') IS NULL CREATE LOGIN [$DBUSER] WITH PASSWORD='$DBPASS', CHECK_POLICY=ON;"
+    Invoke-Sql $DB "IF USER_ID('$DBUSER') IS NULL CREATE USER [$DBUSER] FOR LOGIN [$DBUSER]; ALTER ROLE db_owner ADD MEMBER [$DBUSER];"
+
+    # Open the firewall for remote connections
+    if (-not (Get-NetFirewallRule -DisplayName 'SQL Server (TCP 1433)' -ErrorAction SilentlyContinue)) {
+      New-NetFirewallRule -DisplayName 'SQL Server (TCP 1433)' -Direction Inbound -Protocol TCP -LocalPort 1433 -Action Allow | Out-Null
+    }

@@ -1,0 +1,21 @@
+name: mssql-express-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+cpu:
+  count: 2
+memory:
+  startup: 4096
+
+fodder:
+  - source: gene:{{GENE}}:express
+    variables:
+      - name: sa_password
+        value: Sql-Passw0rd-123!
+        secret: true
+      - name: db_name
+        value: testdb
+      - name: db_user
+        value: testuser
+      - name: db_password
+        value: Test-Passw0rd-123!
+        secret: true
