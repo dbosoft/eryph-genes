@@ -49,6 +49,42 @@ fodder:
         SVC=valkey
         systemctl list-unit-files | grep -q '^valkey-server.service' && SVC=valkey-server
 
+        # Stop the service before relocating its data directory (Debian
+        # auto-starts it on install and would hold the old directory open).
+        systemctl stop "$SVC" >/dev/null 2>&1 || true
+
+        # --- Persistent state drive mounted at the data directory, so the saved
+        # data (RDB/AOF snapshots) survives a redeploy. A named data drive on the
+        # catlet is required. ---
+        STATE=/var/lib/valkey
+        STATE_LABEL=valkey
+        if ! mountpoint -q "$STATE"; then
+          mkdir -p "$STATE"
+          dev=$(blkid -L "$STATE_LABEL" 2>/dev/null || true)
+          if [ -z "$dev" ]; then
+            root_src=$(findmnt -no SOURCE / || true)
+            root_disk=$(lsblk -no PKNAME "$root_src" 2>/dev/null || true)
+            [ -z "$root_disk" ] && root_disk=$(basename "$root_src")
+            for d in $(lsblk -dn -o NAME,TYPE | awk '$2=="disk"{print $1}'); do
+              [ "$d" = "$root_disk" ] && continue
+              if [ -z "$(lsblk -no FSTYPE "/dev/$d" | tr -d '[:space:]')" ]; then
+                mkfs.ext4 -q -L "$STATE_LABEL" "/dev/$d"
+                dev="/dev/$d"; break
+              fi
+            done
+          fi
+          if [ -z "$dev" ]; then
+            echo "ERROR: no empty data drive found for persistent state." >&2
+            echo "Add a data drive to the catlet, e.g. drives: - name: sdb / size: 10" >&2
+            exit 1
+          fi
+          grep -q "LABEL=$STATE_LABEL[[:space:]]" /etc/fstab || \
+            echo "LABEL=$STATE_LABEL $STATE ext4 defaults,nofail 0 2" >> /etc/fstab
+          mount "$STATE"
+        fi
+        chown valkey:valkey "$STATE"; chmod 750 "$STATE"
+        command -v restorecon >/dev/null 2>&1 && restorecon -R "$STATE" || true
+
         # Configure remote access (config path is /etc/valkey/valkey.conf on both)
         CONF=/etc/valkey/valkey.conf
         sed -i '/# eryph-begin/,/# eryph-end/d' "$CONF"

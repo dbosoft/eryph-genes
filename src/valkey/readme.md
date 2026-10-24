@@ -11,11 +11,16 @@ RHEL family (AlmaLinux, Rocky Linux, ...). It has been tested on Debian 13 and A
 
 ## Usage
 
-Add a gene reference to a Linux catlet and optionally set a password:
+Add a gene reference to a Linux catlet, give it a data drive for its persistent state (see
+[Persistent state](#persistent-state)), and optionally set a password:
 
 ``` yaml
 name: valkey-server
 parent: dbosoft/debian-13/starter
+
+drives:
+ - name: sdb
+   size: 10
 
 fodder:
  - source: gene:dbosoft/valkey:server
@@ -34,7 +39,20 @@ The fodder:
 - listens on all interfaces (`bind 0.0.0.0`, `protected-mode no`)
 - sets `requirepass` when a password is given
 - sets `maxmemory` and the `allkeys-lru` eviction policy when a memory limit is given
+- mounts the state drive at `/var/lib/valkey` so the saved data survives a redeploy
 - opens port 6379/tcp when `firewalld` or `ufw` is active
+
+## Persistent state
+
+Valkey periodically saves its data to disk (an RDB snapshot in its data directory). That data
+would be lost on a redeploy, because the OS disk is recreated from the gene. Give the catlet a
+second drive (any name/size; the example uses `sdb`, 10 GB); the fodder formats it on first use
+(ext4, label `valkey`) and mounts it at the data directory `/var/lib/valkey`, so the saved data
+survives a redeploy. If no empty drive is present, provisioning stops with a clear error.
+
+A pure in-memory cache does not strictly need this, but these genes are reference setups and
+default to durable state. For a throwaway cache you can still point an app at it and ignore the
+saved data.
 
 ## Configuration
 
