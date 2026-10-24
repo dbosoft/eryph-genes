@@ -1,0 +1,32 @@
+name: caddy-proxy-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+fodder:
+  - name: test-backend
+    type: cloud-config
+    content: |
+      write_files:
+      - path: /var/tmp/caddy-backend/index.html
+        content: |
+          CADDY-BACKEND-OK
+      - path: /etc/systemd/system/caddy-test-backend.service
+        content: |
+          [Unit]
+          Description=Caddy test backend
+          After=network.target
+          [Service]
+          ExecStart=/usr/bin/python3 -m http.server 8080 --directory /var/tmp/caddy-backend
+          Restart=on-failure
+          [Install]
+          WantedBy=multi-user.target
+      runcmd:
+      - systemctl daemon-reload
+      - systemctl enable --now caddy-test-backend
+  - source: gene:{{GENE}}:server
+    variables:
+      - name: site_address
+        value: localhost
+      - name: backend
+        value: 127.0.0.1:8080
+      - name: tls
+        value: internal

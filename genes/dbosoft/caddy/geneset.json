@@ -1,0 +1,8 @@
+{
+    "geneset": "dbosoft/caddy",
+    "public": true,
+    "short_description": "Caddy reverse proxy",
+    "description": "This geneset contains fodder for installing Caddy as a reverse proxy with automatic HTTPS on Linux.",
+    "description_markdown": null,
+    "description_markdown_file": "readme.md"
+}

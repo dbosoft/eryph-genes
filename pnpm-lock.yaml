@@ -66,6 +66,25 @@ importers:
         specifier: workspace:*
         version: link:../../packages/build-geneset
 
+  src/caddy:
+    dependencies:
+      '@dbosoft/caddy-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/caddy/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/chocolatey:
     dependencies:
       '@dbosoft/chocolatey-default':
