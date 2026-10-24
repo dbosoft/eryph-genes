@@ -10,9 +10,10 @@ and the RHEL family).
 
 ## Usage
 
-Use two catlets: one database catlet with the `dbosoft/mariadb` gene and one application catlet
-with the Nextcloud gene. `db_host` of the Nextcloud catlet must point at the address of the
-database catlet.
+Deploy two catlets: a database catlet with the `dbosoft/mariadb` gene and an application catlet
+with the Nextcloud gene. Set the application's `db_host` to the **name** of the database catlet —
+eryph's internal DNS resolves catlet names within the project, so you don't need to look up its
+IP address.
 
 ``` yaml
 name: nextcloud-db
@@ -41,7 +42,7 @@ fodder:
  - source: gene:dbosoft/nextcloud:server
    variables:
      - name: db_host
-       value: 10.0.0.10
+       value: nextcloud-db
      - name: db_name
        value: nextcloud
      - name: db_user
@@ -82,7 +83,8 @@ The following variables can be used to configure the `server` fodder:
 - **db_host**  
   required, no default value
 
-  The address of the database server.
+  The database server. Use the **name** of the database catlet (eryph's internal DNS resolves it
+  within the project); an IP address or any resolvable hostname also works.
 
 - **db_name**  
   default value: nextcloud
@@ -114,11 +116,14 @@ The following variables can be used to configure the `server` fodder:
 
   The Nextcloud version to install. Set it to a specific release like `35.0.2` to pin the version.
 
-- **trusted_domain**  
-  optional, default value: empty
+- **trusted_domains**  
+  default value: `*`
 
-  An additional trusted domain, appended to the automatically detected ones (host name and
-  primary IP address).
+  Space-separated list of additional trusted domains, appended to the automatically detected ones
+  (host name and primary IP address). Nextcloud rejects requests whose `Host` header is not a
+  trusted domain. The default `*` accepts any host, so the site works out of the box when reached
+  through a NAT/forwarded address whose IP the catlet cannot know. For production, set this to the
+  exact host name(s) users browse to (e.g. `cloud.example.com`) to restrict access.
 
 ---
 
