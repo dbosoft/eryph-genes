@@ -17,6 +17,7 @@ parent: dbosoft/debian-13/starter
 drives:
  - name: sdb
    size: 10
+   location: postgresql-data
 
 fodder:
  - source: gene:dbosoft/postgresql:server
@@ -45,13 +46,20 @@ The fodder:
 ## Persistent state
 
 A database server's data must survive a redeploy, but the OS disk is recreated from the gene each
-time. Give the catlet a second drive (any name/size; the example uses `sdb`, 10 GB); the fodder
-formats it on first use (ext4, label `postgresql`) and puts the PostgreSQL data directory on it —
-mounted at `/var/lib/pgsql/data` on the RHEL family, and at `/var/lib/postgresql/eryph/pgdata`
-(with `data_directory` pointed there) on Debian/Ubuntu. On a **redeploy** the drive is kept, so the
-existing databases are used as-is. If no empty drive is present, provisioning stops with a clear
-error. (Guest device names are not stable, so the fodder selects the drive by label or as the
-empty non-root disk, never by a fixed `/dev/sdX` name.)
+time. Give the catlet a second drive and make it **persistent** with an explicit `location`. This
+is the key detail: `name` (`sdb`) only sets the device order inside the guest, while `location` is
+the drive's identity on the host. Without a `location`, eryph assigns a throwaway storage id and
+**deletes the drive together with the catlet**; with one, the drive lives independently of the
+catlet and is re-attached on the next deploy. Pick a `location` that is unique within the project
+(the example uses `postgresql-data`).
+
+The fodder formats the drive on first use (ext4, label `postgresql`) and puts the PostgreSQL data
+directory on it — mounted at `/var/lib/pgsql/data` on the RHEL family, and at
+`/var/lib/postgresql/eryph/pgdata` (with `data_directory` pointed there) on Debian/Ubuntu. On a
+**redeploy** — removing the catlet and deploying it again with the same `location` — the drive is
+re-attached, so the existing databases are used as-is. If no empty drive is present, provisioning
+stops with a clear error. (Guest device names are not stable, so the fodder selects the drive by
+label or as the empty non-root disk, never by a fixed `/dev/sdX` name.)
 
 ## Configuration
 

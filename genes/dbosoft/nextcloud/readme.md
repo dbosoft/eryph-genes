@@ -27,6 +27,7 @@ parent: dbosoft/debian-13/starter
 drives:
  - name: sdb
    size: 10
+   location: nextcloud-db-data
 
 fodder:
  - source: gene:dbosoft/mariadb:server
@@ -50,6 +51,7 @@ memory:
 drives:
  - name: sdb
    size: 20
+   location: nextcloud-app-data
 
 fodder:
  - source: gene:dbosoft/nextcloud:server
@@ -99,13 +101,19 @@ same reason). The OS disk is recreated from the gene on every deploy, so that st
 **separate, persistent drive** — otherwise a redeploy would lose it while the database keeps the
 old installation, and provisioning would fail with *"The Login is already being used"*.
 
-Give each catlet a second drive (any name/size; the examples use `sdb`, 10 GB for the database and
-20 GB for the application). The application fodder formats it on first use (ext4, label
-`nextcloud`), mounts it at `/var/nextcloud`, and stores the data directory and `config.php` there;
-the MariaDB fodder does the same for its data directory. On a **redeploy** the drives are kept, so
-the fodder re-attaches to the existing installation and runs `occ upgrade` instead of re-installing.
-If no empty drive is present, provisioning stops with a clear error rather than storing state that
-would not survive.
+Give each catlet a second drive and make it **persistent** with an explicit `location`. This is the
+key detail: `name` (`sdb`) only sets the device order inside the guest, while `location` is the
+drive's identity on the host. Without a `location`, eryph assigns a throwaway storage id and
+**deletes the drive together with the catlet**; with one, the drive lives independently of the
+catlet and is re-attached on the next deploy. Give each catlet its own `location`, unique within the
+project (the examples use `nextcloud-db-data` and `nextcloud-app-data`).
+
+The application fodder formats its drive on first use (ext4, label `nextcloud`), mounts it at
+`/var/nextcloud`, and stores the data directory and `config.php` there; the MariaDB fodder does the
+same for its data directory. On a **redeploy** — removing the catlets and deploying them again with
+the same `location`s — the drives are re-attached, so the fodder re-attaches to the existing
+installation and runs `occ upgrade` instead of re-installing. If no empty drive is present,
+provisioning stops with a clear error rather than storing state that would not survive.
 
 ## Configuration
 

@@ -28,6 +28,7 @@ parent: dbosoft/debian-13/starter
 drives:
  - name: sdb
    size: 10
+   location: wordpress-db-data
 
 fodder:
  - source: gene:dbosoft/mariadb:server
@@ -51,6 +52,7 @@ memory:
 drives:
  - name: sdb
    size: 20
+   location: wordpress-app-data
 
 fodder:
  - source: gene:dbosoft/wordpress:server
@@ -98,13 +100,19 @@ drive** (the `dbosoft/mariadb` gene requires a drive for its data directory for 
 The OS disk is recreated from the gene on every deploy, so that state must live on a **separate,
 persistent drive**.
 
-Give each catlet a second drive (any name/size; the examples use `sdb`, 10 GB for the database and
-20 GB for the application). The application fodder formats it on first use (ext4, label
-`wordpress`), mounts it at `/var/wordpress`, and keeps `wp-content` and `wp-config.php` there
-(symlinked into the webroot); the MariaDB fodder does the same for its data directory. On a
-**redeploy** the drives are kept, so WordPress re-attaches to the existing installation instead of
-reinstalling. If no empty drive is present, provisioning stops with a clear error rather than
-storing state that would not survive.
+Give each catlet a second drive and make it **persistent** with an explicit `location`. This is the
+key detail: `name` (`sdb`) only sets the device order inside the guest, while `location` is the
+drive's identity on the host. Without a `location`, eryph assigns a throwaway storage id and
+**deletes the drive together with the catlet**; with one, the drive lives independently of the
+catlet and is re-attached on the next deploy. Give each catlet its own `location`, unique within the
+project (the examples use `wordpress-db-data` and `wordpress-app-data`).
+
+The application fodder formats its drive on first use (ext4, label `wordpress`), mounts it at
+`/var/wordpress`, and keeps `wp-content` and `wp-config.php` there (symlinked into the webroot); the
+MariaDB fodder does the same for its data directory. On a **redeploy** — removing the catlets and
+deploying them again with the same `location`s — the drives are re-attached, so WordPress re-attaches
+to the existing installation instead of reinstalling. If no empty drive is present, provisioning
+stops with a clear error rather than storing state that would not survive.
 
 ## Configuration
 

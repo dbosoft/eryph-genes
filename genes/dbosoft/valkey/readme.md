@@ -21,6 +21,7 @@ parent: dbosoft/debian-13/starter
 drives:
  - name: sdb
    size: 10
+   location: valkey-data
 
 fodder:
  - source: gene:dbosoft/valkey:server
@@ -46,9 +47,16 @@ The fodder:
 
 Valkey periodically saves its data to disk (an RDB snapshot in its data directory). That data
 would be lost on a redeploy, because the OS disk is recreated from the gene. Give the catlet a
-second drive (any name/size; the example uses `sdb`, 10 GB); the fodder formats it on first use
-(ext4, label `valkey`) and mounts it at the data directory `/var/lib/valkey`, so the saved data
-survives a redeploy. If no empty drive is present, provisioning stops with a clear error.
+second drive and make it **persistent** with an explicit `location`. This is the key detail:
+`name` (`sdb`) only sets the device order inside the guest, while `location` is the drive's identity
+on the host. Without a `location`, eryph assigns a throwaway storage id and **deletes the drive
+together with the catlet**; with one, the drive lives independently of the catlet and is re-attached
+on the next deploy. Pick a `location` that is unique within the project (the example uses
+`valkey-data`).
+
+The fodder formats the drive on first use (ext4, label `valkey`) and mounts it at the data directory
+`/var/lib/valkey`, so the saved data survives a **redeploy** (removing the catlet and deploying it
+again with the same `location`). If no empty drive is present, provisioning stops with a clear error.
 
 A pure in-memory cache does not strictly need this, but these genes are reference setups and
 default to durable state. For a throwaway cache you can still point an app at it and ignore the
