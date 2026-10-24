@@ -1,0 +1,8 @@
+{
+    "geneset": "dbosoft/wordpress",
+    "public": true,
+    "short_description": "WordPress server",
+    "description": "This geneset contains fodder for installing a WordPress server on Linux, backed by a MariaDB/MySQL database.",
+    "description_markdown": null,
+    "description_markdown_file": "readme.md"
+}

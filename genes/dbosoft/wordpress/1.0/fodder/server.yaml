@@ -1,0 +1,151 @@
+name: server
+
+variables:
+  - name: db_host
+    required: true
+  - name: db_name
+    value: wordpress
+  - name: db_user
+    value: wordpress
+  - name: db_password
+    required: true
+    secret: true
+  - name: site_url
+    value: http://localhost
+  - name: site_title
+    value: WordPress
+  - name: admin_user
+    value: admin
+  - name: admin_password
+    required: true
+    secret: true
+  - name: admin_email
+    value: admin@example.com
+  - name: wordpress_version
+    value: latest
+
+fodder:
+- name: server
+  type: cloud-config
+  secret: true
+  content: |
+    # Append (don't replace) write_files/runcmd when combined with other
+    # cloud-config fodder on the same catlet, e.g. a co-located database.
+    merge_how:
+    - name: list
+      settings: [append]
+    - name: dict
+      settings: [no_replace, recurse_list]
+    write_files:
+    - path: /opt/eryph-wordpress-setup.sh
+      permissions: '0755'
+      content: |
+        #!/bin/bash
+        set -euo pipefail
+        DB_HOST='{{ db_host }}'
+        DB_NAME='{{ db_name }}'
+        DB_USER='{{ db_user }}'
+        DB_PASS='{{ db_password }}'
+        SITE_URL='{{ site_url }}'
+        SITE_TITLE='{{ site_title }}'
+        ADMIN_USER='{{ admin_user }}'
+        ADMIN_PASS='{{ admin_password }}'
+        ADMIN_EMAIL='{{ admin_email }}'
+        WP_VERSION='{{ wordpress_version }}'
+        WP_DIR=/var/www/wordpress
+
+        . /etc/os-release
+        FAMILY=rhel
+        case " ${ID:-} ${ID_LIKE:-} " in
+          *" debian "*|*" ubuntu "*) FAMILY=debian ;;
+        esac
+
+        # Packages (names differ per family; RHEL has no mod_php -> php-fpm)
+        if [ "$FAMILY" = debian ]; then
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y -qq apache2 libapache2-mod-php php php-mysql php-gd \
+            php-curl php-xml php-mbstring php-zip php-intl curl tar
+          WEB_USER=www-data; WEB_SVC=apache2
+        else
+          dnf install -y -q httpd php php-fpm php-mysqlnd php-gd php-mbstring \
+            php-xml php-intl php-process policycoreutils-python-utils curl tar
+          WEB_USER=apache; WEB_SVC=httpd
+        fi
+
+        # Download + extract WordPress
+        if [ "$WP_VERSION" = latest ]; then
+          WP_URL=https://wordpress.org/latest.tar.gz
+        else
+          WP_URL=https://wordpress.org/wordpress-$WP_VERSION.tar.gz
+        fi
+        if [ ! -e "$WP_DIR/wp-includes/version.php" ]; then
+          curl -fsSL "$WP_URL" -o /tmp/wordpress.tar.gz
+          tar -xzf /tmp/wordpress.tar.gz -C /var/www/
+          rm -f /tmp/wordpress.tar.gz
+        fi
+        mkdir -p "$WP_DIR/wp-content/uploads"
+        chown -R "$WEB_USER":"$WEB_USER" "$WP_DIR"
+
+        # Web server configuration (printf keeps this indentation-independent)
+        DIR_BLOCK=$(printf '%s\n' \
+          "<Directory $WP_DIR>" \
+          "    Require all granted" \
+          "    AllowOverride All" \
+          "    Options FollowSymLinks" \
+          "</Directory>")
+        if [ "$FAMILY" = debian ]; then
+          { printf '%s\n' "<VirtualHost *:80>" "    DocumentRoot $WP_DIR"
+            printf '%s\n' "$DIR_BLOCK" | sed 's/^/    /'
+            printf '%s\n' "</VirtualHost>"
+          } > /etc/apache2/sites-available/wordpress.conf
+          a2enmod rewrite >/dev/null
+          a2dissite 000-default >/dev/null 2>&1 || true
+          a2ensite wordpress >/dev/null
+          systemctl enable apache2 >/dev/null 2>&1 || true
+        else
+          { printf '%s\n' "DocumentRoot $WP_DIR"
+            printf '%s\n' "$DIR_BLOCK"
+          } > /etc/httpd/conf.d/wordpress.conf
+          # SELinux: let the web server reach the database and write wp-content
+          if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce)" != Disabled ]; then
+            setsebool -P httpd_can_network_connect_db on
+            semanage fcontext -a -t httpd_sys_rw_content_t "$WP_DIR/wp-content(/.*)?" 2>/dev/null || true
+            restorecon -R "$WP_DIR" >/dev/null 2>&1 || true
+          fi
+          systemctl enable --now php-fpm >/dev/null 2>&1
+        fi
+
+        # WP-CLI
+        curl -fsSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
+          -o /usr/local/bin/wp
+        chmod +x /usr/local/bin/wp
+        WP="sudo -u $WEB_USER /usr/local/bin/wp --path=$WP_DIR"
+
+        # Configure + install WordPress against the database (idempotent)
+        if [ ! -f "$WP_DIR/wp-config.php" ]; then
+          $WP config create --dbname="$DB_NAME" --dbuser="$DB_USER" \
+            --dbpass="$DB_PASS" --dbhost="$DB_HOST"
+        fi
+        if ! $WP core is-installed 2>/dev/null; then
+          $WP core install --url="$SITE_URL" --title="$SITE_TITLE" \
+            --admin_user="$ADMIN_USER" --admin_password="$ADMIN_PASS" \
+            --admin_email="$ADMIN_EMAIL" --skip-email
+        fi
+
+        # Re-apply SELinux contexts to files written during install
+        if [ "$FAMILY" != debian ] && command -v restorecon >/dev/null 2>&1; then
+          restorecon -R "$WP_DIR" >/dev/null 2>&1 || true
+        fi
+
+        # Open the firewall only when one is active
+        if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+          firewall-cmd --permanent --add-service=http >/dev/null; firewall-cmd --reload >/dev/null
+        fi
+        if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+          ufw allow 80/tcp >/dev/null
+        fi
+
+        systemctl restart "$WEB_SVC"
+    runcmd:
+    - bash /opt/eryph-wordpress-setup.sh
