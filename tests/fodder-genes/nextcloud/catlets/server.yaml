@@ -4,6 +4,10 @@ parent: dbosoft/{{OS_VERSION}}/starter
 memory:
   startup: 3072
 
+drives:
+  - name: sdb
+    size: 20
+
 fodder:
   - source: gene:dbosoft/mariadb:server
     variables:

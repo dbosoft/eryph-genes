@@ -15,6 +15,10 @@ with the Nextcloud gene. Set the application's `db_host` to the **name** of the 
 eryph's internal DNS resolves catlet names within the project, so you don't need to look up its
 IP address.
 
+The application catlet needs a **second drive** for its persistent state (the data directory and
+the generated `config.php`): see [Persistent state](#persistent-state) below. Without it the
+provisioning fails on purpose rather than storing state that a redeploy would silently lose.
+
 ``` yaml
 name: nextcloud-db
 parent: dbosoft/debian-13/starter
@@ -37,6 +41,10 @@ parent: dbosoft/debian-13/starter
 
 memory:
   startup: 3072
+
+drives:
+ - name: sdb
+   size: 20
 
 fodder:
  - source: gene:dbosoft/nextcloud:server
@@ -64,17 +72,32 @@ The fodder:
 
 - installs Apache (mod_php on Debian/Ubuntu, php-fpm on the RHEL family) and the PHP modules
   Nextcloud needs
-- downloads and extracts Nextcloud to `/var/www/nextcloud`
-- uses `/var/nextcloud-data` as data directory
+- downloads and extracts the Nextcloud code to `/var/www/nextcloud`
+- mounts the state drive at `/var/nextcloud` and keeps the data directory and `config.php` there
 - sets the PHP `memory_limit` to 512M
 - on the RHEL family configures SELinux (`httpd_can_network_connect_db`, and
-  `httpd_sys_rw_content_t` on config, apps and data)
-- runs `occ maintenance:install`
+  `httpd_sys_rw_content_t` on the state directory and apps)
+- runs `occ maintenance:install` on first deploy, and re-attaches + `occ upgrade` on a redeploy
 - sets `trusted_domains` to the host name and the primary IP address
 - opens port 80 when `firewalld` or `ufw` is active
 
 Nextcloud is served over plain HTTP on port 80. For production use, put a TLS-terminating reverse
 proxy in front of it.
+
+## Persistent state
+
+Nextcloud's state is split between the database and the application catlet: the catlet holds the
+**data directory** (user files) and `config.php` with the generated `instanceid`, `secret` and
+`passwordsalt`. The OS disk is recreated from the gene on every deploy, so that state must live on
+a **separate, persistent drive** — otherwise a redeploy would lose it while the database keeps the
+old installation, and provisioning would fail with *"The Login is already being used"*.
+
+Give the application catlet a second drive (any name/size; the example uses `sdb`, 20 GB). The
+fodder formats it on first use (ext4, label `nextcloud`), mounts it at `/var/nextcloud`, and stores
+the data directory and `config.php` there. On a **redeploy** the drive is kept, so the fodder
+re-attaches to the existing installation and runs `occ upgrade` instead of re-installing. If no
+empty drive is present, provisioning stops with a clear error rather than storing state that would
+not survive.
 
 ## Configuration
 

@@ -1,5 +1,11 @@
 # @dbosoft/nextcloud-default
 
+## 1.2.0
+
+### Minor Changes
+
+- Store the data directory and `config.php` on a required persistent state drive, making the application catlet redeployable: a redeploy re-attaches to the existing installation (and runs `occ upgrade`) instead of failing with "The Login is already being used". The catlet now needs a second drive for its state; provisioning fails with a clear error when none is present.
+
 ## 1.1.0
 
 ### Minor Changes

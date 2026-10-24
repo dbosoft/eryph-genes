@@ -1,0 +1,215 @@
+name: server
+
+variables:
+  - name: db_host
+    required: true
+  - name: db_name
+    value: nextcloud
+  - name: db_user
+    value: nextcloud
+  - name: db_password
+    required: true
+    secret: true
+  - name: admin_user
+    value: admin
+  - name: admin_password
+    required: true
+    secret: true
+  - name: nextcloud_version
+    value: latest
+  - name: trusted_domains
+    value: '*'
+
+fodder:
+- name: server
+  type: cloud-config
+  secret: true
+  content: |
+    # Append (don't replace) write_files/runcmd when combined with other
+    # cloud-config fodder on the same catlet, e.g. a co-located database.
+    merge_how:
+    - name: list
+      settings: [append]
+    - name: dict
+      settings: [no_replace, recurse_list]
+    write_files:
+    - path: /opt/eryph-nextcloud-setup.sh
+      permissions: '0755'
+      content: |
+        #!/bin/bash
+        set -euo pipefail
+        DB_HOST='{{ db_host }}'
+        DB_NAME='{{ db_name }}'
+        DB_USER='{{ db_user }}'
+        DB_PASS='{{ db_password }}'
+        ADMIN_USER='{{ admin_user }}'
+        ADMIN_PASS='{{ admin_password }}'
+        NC_VERSION='{{ nextcloud_version }}'
+        TRUSTED_DOMAINS='{{ trusted_domains }}'
+        NC_DIR=/var/www/nextcloud
+        STATE=/var/nextcloud
+        STATE_LABEL=nextcloud
+
+        . /etc/os-release
+        FAMILY=rhel
+        case " ${ID:-} ${ID_LIKE:-} " in
+          *" debian "*|*" ubuntu "*) FAMILY=debian ;;
+        esac
+
+        # --- Persistent state drive: data directory and config live here so they
+        # survive a redeploy (the OS disk is recreated from the gene). A named data
+        # drive on the catlet is required; the state is mounted at $STATE. ---
+        if ! mountpoint -q "$STATE"; then
+          mkdir -p "$STATE"
+          dev=$(blkid -L "$STATE_LABEL" 2>/dev/null || true)
+          if [ -z "$dev" ]; then
+            root_src=$(findmnt -no SOURCE / || true)
+            root_disk=$(lsblk -no PKNAME "$root_src" 2>/dev/null || true)
+            [ -z "$root_disk" ] && root_disk=$(basename "$root_src")
+            for d in $(lsblk -dn -o NAME,TYPE | awk '$2=="disk"{print $1}'); do
+              [ "$d" = "$root_disk" ] && continue
+              if [ -z "$(lsblk -no FSTYPE "/dev/$d" | tr -d '[:space:]')" ]; then
+                mkfs.ext4 -q -L "$STATE_LABEL" "/dev/$d"
+                dev="/dev/$d"; break
+              fi
+            done
+          fi
+          if [ -z "$dev" ]; then
+            echo "ERROR: no empty data drive found for persistent state." >&2
+            echo "Add a data drive to the catlet, e.g.:" >&2
+            echo "  drives:" >&2
+            echo "    - name: sdb" >&2
+            echo "      size: 20" >&2
+            exit 1
+          fi
+          grep -q "LABEL=$STATE_LABEL[[:space:]]" /etc/fstab || \
+            echo "LABEL=$STATE_LABEL $STATE ext4 defaults,nofail 0 2" >> /etc/fstab
+          mount "$STATE"
+        fi
+        mkdir -p "$STATE/data" "$STATE/config"
+
+        # Packages (names differ per family; RHEL has no mod_php -> php-fpm)
+        if [ "$FAMILY" = debian ]; then
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y -qq apache2 libapache2-mod-php php php-mysql php-gd \
+            php-curl php-xml php-mbstring php-zip php-intl php-bcmath php-gmp \
+            php-apcu php-bz2 tar bzip2 wget
+          WEB_USER=www-data; WEB_SVC=apache2
+        else
+          dnf install -y -q httpd php php-fpm php-mysqlnd php-gd php-mbstring \
+            php-xml php-intl php-bcmath php-gmp php-opcache php-pecl-apcu \
+            php-pecl-zip php-process policycoreutils-python-utils tar bzip2 wget
+          WEB_USER=apache; WEB_SVC=httpd
+        fi
+
+        # Nextcloud recommends a 512M PHP memory limit
+        for ini in /etc/php.ini /etc/php/*/apache2/php.ini /etc/php/*/cli/php.ini /etc/php/*/fpm/php.ini; do
+          [ -f "$ini" ] && sed -i 's/^\s*memory_limit\s*=.*/memory_limit = 512M/' "$ini"
+        done
+
+        # Download + extract the Nextcloud code (on the OS disk; the state drive
+        # holds data and config)
+        if [ "$NC_VERSION" = latest ]; then
+          NC_URL=https://download.nextcloud.com/server/releases/latest.tar.bz2
+        else
+          NC_URL=https://download.nextcloud.com/server/releases/nextcloud-$NC_VERSION.tar.bz2
+        fi
+        if [ ! -e "$NC_DIR/version.php" ]; then
+          wget -q "$NC_URL" -O /tmp/nextcloud.tar.bz2
+          tar -xjf /tmp/nextcloud.tar.bz2 -C /var/www/
+          rm -f /tmp/nextcloud.tar.bz2
+        fi
+
+        # Point the webroot config dir at the state drive (symlink). On first run
+        # seed it from the freshly extracted config; on redeploy keep the existing.
+        if [ ! -f "$STATE/config/config.php" ] && [ -d "$NC_DIR/config" ] && [ ! -L "$NC_DIR/config" ]; then
+          cp -a "$NC_DIR/config/." "$STATE/config/" 2>/dev/null || true
+        fi
+        rm -rf "$NC_DIR/config"
+        ln -sfn "$STATE/config" "$NC_DIR/config"
+        chown -R "$WEB_USER":"$WEB_USER" "$NC_DIR"
+        chown "$WEB_USER":"$WEB_USER" "$STATE" "$STATE/data" "$STATE/config"
+
+        # Web server configuration (printf keeps this indentation-independent)
+        DIR_BLOCK=$(printf '%s\n' \
+          "<Directory $NC_DIR>" \
+          "    Require all granted" \
+          "    AllowOverride All" \
+          "    Options FollowSymLinks MultiViews" \
+          "    <IfModule mod_dav.c>" \
+          "        Dav off" \
+          "    </IfModule>" \
+          "</Directory>")
+        if [ "$FAMILY" = debian ]; then
+          { printf '%s\n' "<VirtualHost *:80>" "    DocumentRoot $NC_DIR"
+            printf '%s\n' "$DIR_BLOCK" | sed 's/^/    /'
+            printf '%s\n' "</VirtualHost>"
+          } > /etc/apache2/sites-available/nextcloud.conf
+          a2enmod rewrite headers env dir mime setenvif >/dev/null
+          a2dissite 000-default >/dev/null 2>&1 || true
+          a2ensite nextcloud >/dev/null
+          systemctl enable apache2 >/dev/null 2>&1 || true
+        else
+          { printf '%s\n' "DocumentRoot $NC_DIR"
+            printf '%s\n' "$DIR_BLOCK"
+          } > /etc/httpd/conf.d/nextcloud.conf
+          # SELinux: let the web server reach the DB and write state (data + config)
+          if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce)" != Disabled ]; then
+            setsebool -P httpd_can_network_connect_db on
+            semanage fcontext -a -t httpd_sys_rw_content_t "$STATE/data(/.*)?" 2>/dev/null || true
+            semanage fcontext -a -t httpd_sys_rw_content_t "$STATE/config(/.*)?" 2>/dev/null || true
+            semanage fcontext -a -t httpd_sys_rw_content_t "$NC_DIR/apps(/.*)?" 2>/dev/null || true
+            restorecon -R "$STATE" "$NC_DIR" >/dev/null 2>&1 || true
+          fi
+          systemctl enable --now php-fpm >/dev/null 2>&1
+        fi
+
+        OCC="sudo -u $WEB_USER php $NC_DIR/occ"
+
+        # Install against the database, or - on redeploy against persisted state -
+        # re-attach and upgrade the (possibly newer) code. Keyed off the config on
+        # the state drive, which is authoritative for "is this installed?".
+        if grep -q "'installed' => true" "$STATE/config/config.php" 2>/dev/null; then
+          $OCC maintenance:mode --off >/dev/null 2>&1 || true
+          $OCC upgrade --no-interaction >/dev/null 2>&1 || true
+        else
+          $OCC maintenance:install \
+            --database mysql --database-host "$DB_HOST" \
+            --database-name "$DB_NAME" --database-user "$DB_USER" --database-pass "$DB_PASS" \
+            --admin-user "$ADMIN_USER" --admin-pass "$ADMIN_PASS" \
+            --data-dir "$STATE/data"
+        fi
+
+        # Trusted domains: this host's name and primary IP, plus the configured list
+        HN=$(hostname)
+        IP=$(ip -4 -o addr show scope global | awk 'NR==1{sub(/\/.*/,"",$4);print $4}')
+        $OCC config:system:set trusted_domains 1 --value="$HN"
+        [ -n "$IP" ] && $OCC config:system:set trusted_domains 2 --value="$IP"
+        # Additional trusted domains (space-separated). The default '*' accepts any
+        # host, so the site is reachable via a NAT/forwarded address out of the box.
+        # set -f stops the shell from glob-expanding a bare '*'.
+        set -f
+        idx=3
+        for d in $TRUSTED_DOMAINS; do
+          $OCC config:system:set trusted_domains "$idx" --value="$d"
+          idx=$((idx+1))
+        done
+        set +f
+
+        # Re-apply SELinux contexts to files written during install
+        if [ "$FAMILY" != debian ] && command -v restorecon >/dev/null 2>&1; then
+          restorecon -R "$STATE" >/dev/null 2>&1 || true
+        fi
+
+        # Open the firewall only when one is active
+        if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+          firewall-cmd --permanent --add-service=http >/dev/null; firewall-cmd --reload >/dev/null
+        fi
+        if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+          ufw allow 80/tcp >/dev/null
+        fi
+
+        systemctl restart "$WEB_SVC"
+    runcmd:
+    - bash /opt/eryph-nextcloud-setup.sh
