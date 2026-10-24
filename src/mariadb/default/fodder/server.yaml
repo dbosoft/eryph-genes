@@ -91,6 +91,11 @@ fodder:
         if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
           ufw allow 3306/tcp
         fi
+        # Harden the fresh install: remove the anonymous accounts and test
+        # database that mariadb-install-db creates. The anonymous ''@'localhost'
+        # account otherwise shadows '%' accounts for local connections. Idempotent.
+        mariadb -e "DELETE FROM mysql.global_priv WHERE User='';"
+        mariadb -e "DROP DATABASE IF EXISTS test;"
         mariadb -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;"
         mariadb -e "CREATE USER IF NOT EXISTS '$DB_USER'@'$ALLOWED_HOST' IDENTIFIED BY '$DB_PASS';"
         mariadb -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'$ALLOWED_HOST';"
