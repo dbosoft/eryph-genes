@@ -1,0 +1,8 @@
+{
+    "geneset": "dbosoft/valkey",
+    "public": true,
+    "short_description": "Valkey (Redis-compatible) server",
+    "description": "This geneset contains fodder for installing a Valkey server (the Redis-compatible in-memory data store) on Linux.",
+    "description_markdown": null,
+    "description_markdown_file": "readme.md"
+}

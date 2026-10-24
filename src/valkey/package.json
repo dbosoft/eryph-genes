@@ -1,0 +1,15 @@
+{
+  "name": "@dbosoft/valkey",
+  "private": true,
+  "scripts": {
+    "build": "build-geneset",
+    "publish": "build-geneset publish"
+  },
+  "dependencies": {
+    "templates": "workspace:*",
+    "@dbosoft/valkey-default": "workspace:*"
+  },
+  "devDependencies": {
+    "@dbosoft/build-geneset": "workspace:*"
+  }
+}

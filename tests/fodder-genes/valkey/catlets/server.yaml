@@ -1,0 +1,9 @@
+name: valkey-server-test
+parent: dbosoft/{{OS_VERSION}}/starter
+
+fodder:
+  - source: gene:{{GENE}}:server
+    variables:
+      - name: password
+        value: Test-Redis-123
+        secret: true

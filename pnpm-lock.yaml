@@ -436,6 +436,25 @@ importers:
         specifier: workspace:*
         version: link:../../packages/build-geneset
 
+  src/valkey:
+    dependencies:
+      '@dbosoft/valkey-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/valkey/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/vscode:
     dependencies:
       '@dbosoft/vscode-default':
