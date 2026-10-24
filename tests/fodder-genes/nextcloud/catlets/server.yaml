@@ -7,6 +7,8 @@ memory:
 drives:
   - name: sdb
     size: 20
+  - name: sdc
+    size: 10
 
 fodder:
   - source: gene:dbosoft/mariadb:server
