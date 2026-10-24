@@ -7,11 +7,16 @@ RHEL family (AlmaLinux, Rocky Linux, ...). It has been tested on Debian 13 and A
 
 ## Usage
 
-Add a gene reference to a Linux catlet and set the password:
+Add a gene reference to a Linux catlet, give it a data drive for its persistent state (see
+[Persistent state](#persistent-state)), and set the password:
 
 ``` yaml
 name: postgresql-server
 parent: dbosoft/debian-13/starter
+
+drives:
+ - name: sdb
+   size: 10
 
 fodder:
  - source: gene:dbosoft/postgresql:server
@@ -30,12 +35,23 @@ variable, set to the address of the PostgreSQL catlet.
 
 The fodder:
 
-- installs PostgreSQL and starts it (on the RHEL family it also runs `initdb`)
+- installs PostgreSQL and initialises its data directory on the state drive
 - creates the database and a login role that owns it
 - enables TLS with a self-signed certificate (valid for 10 years)
 - listens on all interfaces (`listen_addresses = '*'`)
 - adds a `pg_hba.conf` rule (`scram-sha-256`) that allows the role to connect from `allowed_host`
 - opens port 5432/tcp when `firewalld` or `ufw` is active
+
+## Persistent state
+
+A database server's data must survive a redeploy, but the OS disk is recreated from the gene each
+time. Give the catlet a second drive (any name/size; the example uses `sdb`, 10 GB); the fodder
+formats it on first use (ext4, label `postgresql`) and puts the PostgreSQL data directory on it —
+mounted at `/var/lib/pgsql/data` on the RHEL family, and at `/var/lib/postgresql/eryph/pgdata`
+(with `data_directory` pointed there) on Debian/Ubuntu. On a **redeploy** the drive is kept, so the
+existing databases are used as-is. If no empty drive is present, provisioning stops with a clear
+error. (Guest device names are not stable, so the fodder selects the drive by label or as the
+empty non-root disk, never by a fixed `/dev/sdX` name.)
 
 ## Configuration
 
