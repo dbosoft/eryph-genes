@@ -244,6 +244,25 @@ importers:
         specifier: workspace:*
         version: link:../../packages/build-geneset
 
+  src/postgresql:
+    dependencies:
+      '@dbosoft/postgresql-default':
+        specifier: workspace:*
+        version: link:default
+      templates:
+        specifier: workspace:*
+        version: link:../../packages/templates
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../packages/build-geneset
+
+  src/postgresql/default:
+    devDependencies:
+      '@dbosoft/build-geneset':
+        specifier: workspace:*
+        version: link:../../../packages/build-geneset
+
   src/powershell:
     dependencies:
       '@dbosoft/powershell-default':

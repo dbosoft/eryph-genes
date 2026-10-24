@@ -1,0 +1,86 @@
+name: server
+
+variables:
+  - name: db_name
+    value: db
+  - name: db_user
+    value: dbuser
+  - name: db_password
+    required: true
+    secret: true
+  - name: allowed_host
+    value: 0.0.0.0/0
+
+fodder:
+- name: server
+  type: cloud-config
+  secret: true
+  content: |
+    package_update: true
+    write_files:
+    - path: /opt/eryph-postgresql-setup.sh
+      permissions: '0755'
+      content: |
+        #!/bin/bash
+        set -euo pipefail
+        DB_NAME='{{ db_name }}'
+        DB_USER='{{ db_user }}'
+        DB_PASS='{{ db_password }}'
+        ALLOWED_HOST='{{ allowed_host }}'
+
+        . /etc/os-release
+        FAMILY=rhel
+        case " ${ID:-} ${ID_LIKE:-} " in
+          *" debian "*|*" ubuntu "*) FAMILY=debian ;;
+        esac
+
+        # Install PostgreSQL (package names differ; RHEL needs an explicit initdb)
+        if [ "$FAMILY" = debian ]; then
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y -qq postgresql postgresql-contrib openssl
+          systemctl enable --now postgresql
+        else
+          dnf install -y -q postgresql-server postgresql-contrib openssl
+          if [ ! -s /var/lib/pgsql/data/PG_VERSION ]; then postgresql-setup --initdb; fi
+          systemctl enable --now postgresql
+        fi
+
+        PSQL="sudo -u postgres psql"
+        PGDATA=$($PSQL -tAc "SHOW data_directory;")
+        HBA=$($PSQL -tAc "SHOW hba_file;")
+
+        # Self-signed server certificate (PostgreSQL looks for server.crt/key in the datadir).
+        # Debian ships one and enables ssl; RHEL does not - generate for both for consistency.
+        if [ ! -f "$PGDATA/server.crt" ]; then
+          openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+            -keyout "$PGDATA/server.key" -out "$PGDATA/server.crt" -subj "/CN=$(hostname)" >/dev/null 2>&1
+          chown postgres:postgres "$PGDATA/server.key" "$PGDATA/server.crt"
+          chmod 600 "$PGDATA/server.key"; chmod 644 "$PGDATA/server.crt"
+        fi
+
+        $PSQL -c "ALTER SYSTEM SET listen_addresses = '*';" >/dev/null
+        $PSQL -c "ALTER SYSTEM SET ssl = 'on';" >/dev/null
+
+        # Role + database (idempotent)
+        $PSQL -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1 \
+          || $PSQL -c "CREATE ROLE \"$DB_USER\" LOGIN PASSWORD '$DB_PASS';" >/dev/null
+        $PSQL -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" | grep -q 1 \
+          || $PSQL -c "CREATE DATABASE \"$DB_NAME\" OWNER \"$DB_USER\";" >/dev/null
+
+        # Allow the user to connect over TCP. The rule must PRECEDE the distro
+        # defaults (RHEL ships a 127.0.0.1 ident rule that would match first).
+        LINE="host    $DB_NAME    $DB_USER    $ALLOWED_HOST    scram-sha-256"
+        tmp=$(mktemp); { echo "$LINE"; grep -vxF "$LINE" "$HBA"; } > "$tmp"; cat "$tmp" > "$HBA"; rm -f "$tmp"
+
+        systemctl restart postgresql
+
+        # Open the firewall only when one is active
+        if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+          firewall-cmd --permanent --add-port=5432/tcp >/dev/null; firewall-cmd --reload >/dev/null
+        fi
+        if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+          ufw allow 5432/tcp >/dev/null
+        fi
+    runcmd:
+    - bash /opt/eryph-postgresql-setup.sh

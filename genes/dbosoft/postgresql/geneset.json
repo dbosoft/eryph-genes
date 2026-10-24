@@ -1,0 +1,8 @@
+{
+    "geneset": "dbosoft/postgresql",
+    "public": true,
+    "short_description": "PostgreSQL server",
+    "description": "This geneset contains fodder for installing and configuring a PostgreSQL server on Linux.",
+    "description_markdown": null,
+    "description_markdown_file": "readme.md"
+}
