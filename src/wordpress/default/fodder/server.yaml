@@ -11,7 +11,7 @@ variables:
     required: true
     secret: true
   - name: site_url
-    value: http://localhost
+    value: ''
   - name: site_title
     value: WordPress
   - name: admin_user
@@ -128,9 +128,19 @@ fodder:
             --dbpass="$DB_PASS" --dbhost="$DB_HOST"
         fi
         if ! $WP core is-installed 2>/dev/null; then
-          $WP core install --url="$SITE_URL" --title="$SITE_TITLE" \
+          $WP core install --url="${SITE_URL:-http://localhost}" --title="$SITE_TITLE" \
             --admin_user="$ADMIN_USER" --admin_password="$ADMIN_PASS" \
             --admin_email="$ADMIN_EMAIL" --skip-email
+        fi
+
+        # With no fixed site_url, make WordPress follow the host the client used,
+        # so it works through a NAT/forwarded address out of the box (the catlet
+        # cannot know that external address). A set site_url keeps a fixed URL.
+        CFG="$WP_DIR/wp-config.php"
+        if [ -z "$SITE_URL" ] && ! grep -q 'WP_SITEURL' "$CFG"; then
+          SNIP='if (isset($_SERVER["HTTP_HOST"])) { $eryph_s = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off") ? "https" : "http"; define("WP_HOME", $eryph_s . "://" . $_SERVER["HTTP_HOST"]); define("WP_SITEURL", $eryph_s . "://" . $_SERVER["HTTP_HOST"]); }'
+          awk -v snip="$SNIP" '/stop editing/ && !ins {print snip; ins=1} {print}' "$CFG" > "$CFG.eryph" && mv "$CFG.eryph" "$CFG"
+          chown "$WEB_USER":"$WEB_USER" "$CFG"
         fi
 
         # Re-apply SELinux contexts to files written during install

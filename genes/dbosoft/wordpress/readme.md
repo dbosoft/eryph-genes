@@ -11,9 +11,10 @@ family).
 
 ## Usage
 
-Use two catlets: one database catlet with the `dbosoft/mariadb` gene and one application catlet
-with the WordPress gene. `db_host` of the WordPress catlet must point at the address of the
-database catlet.
+Deploy two catlets: a database catlet with the `dbosoft/mariadb` gene and an application catlet
+with the WordPress gene. Set the application's `db_host` to the **name** of the database catlet —
+eryph's internal DNS resolves catlet names within the project, so you don't need to look up its
+IP address.
 
 ``` yaml
 name: wordpress-db
@@ -42,7 +43,7 @@ fodder:
  - source: gene:dbosoft/wordpress:server
    variables:
      - name: db_host
-       value: 10.0.0.10
+       value: wordpress-db
      - name: db_name
        value: wordpress
      - name: db_user
@@ -50,8 +51,6 @@ fodder:
      - name: db_password
        value: change-me-please
        secret: true
-     - name: site_url
-       value: http://10.0.0.30
      - name: admin_password
        value: change-me-too
        secret: true
@@ -69,6 +68,8 @@ The fodder:
   `httpd_sys_rw_content_t` on wp-content)
 - installs WP-CLI to `/usr/local/bin/wp`
 - writes `wp-config.php` and runs `wp core install`
+- when `site_url` is empty, makes WordPress follow the request host (works via a NAT/forwarded
+  address out of the box)
 - opens port 80 when `firewalld` or `ufw` is active
 
 WordPress is served over plain HTTP on port 80. For production use, put a TLS-terminating reverse
@@ -81,7 +82,8 @@ The following variables can be used to configure the `server` fodder:
 - **db_host**  
   required, no default value
 
-  The address of the database server.
+  The database server. Use the **name** of the database catlet (eryph's internal DNS resolves it
+  within the project); an IP address or any resolvable hostname also works.
 
 - **db_name**  
   default value: wordpress
@@ -99,11 +101,13 @@ The following variables can be used to configure the `server` fodder:
   The password of the database user.
 
 - **site_url**  
-  default value: http://localhost
+  optional, default value: empty
 
-  The site URL WordPress is installed with. Set it to the address or domain users will reach,
-  e.g. `http://10.0.0.30` or `https://blog.example.com`. WordPress stores this URL in the
-  database.
+  The fixed site URL WordPress uses. When left empty (the default), WordPress follows the host the
+  client used for each request, so the site works through a NAT/forwarded address out of the box
+  without knowing that address in advance. Set it to a fixed address or domain (e.g.
+  `https://blog.example.com`) for a stable canonical URL in production; WordPress then stores and
+  always redirects to that URL.
 
 - **site_title**  
   default value: WordPress
