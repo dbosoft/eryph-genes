@@ -16,13 +16,18 @@ with the WordPress gene. Set the application's `db_host` to the **name** of the 
 eryph's internal DNS resolves catlet names within the project, so you don't need to look up its
 IP address.
 
-The application catlet needs a **second drive** for its persistent state (the `wp-content`
-directory and `wp-config.php`): see [Persistent state](#persistent-state) below. Without it the
-provisioning fails on purpose rather than storing state that a redeploy would silently lose.
+Both catlets need a **second drive** for their persistent state — the database on the DB catlet,
+and WordPress's `wp-content` directory and `wp-config.php` on the application catlet: see
+[Persistent state](#persistent-state) below. Without it the provisioning fails on purpose rather
+than storing state that a redeploy would silently lose.
 
 ``` yaml
 name: wordpress-db
 parent: dbosoft/debian-13/starter
+
+drives:
+ - name: sdb
+   size: 10
 
 fodder:
  - source: gene:dbosoft/mariadb:server
@@ -88,15 +93,18 @@ proxy (e.g. the `dbosoft/caddy` gene) in front of it and set `site_url` to the p
 
 WordPress keeps state the database does not: the `wp-content` directory (uploads, installed
 plugins and themes) and `wp-config.php` with the database credentials and the generated auth keys
-and salts. The OS disk is recreated from the gene on every deploy, so that state must live on a
-**separate, persistent drive**.
+and salts. The database keeps its own state too, so **both catlets need their own persistent
+drive** (the `dbosoft/mariadb` gene requires a drive for its data directory for the same reason).
+The OS disk is recreated from the gene on every deploy, so that state must live on a **separate,
+persistent drive**.
 
-Give the application catlet a second drive (any name/size; the example uses `sdb`, 20 GB). The
-fodder formats it on first use (ext4, label `wordpress`), mounts it at `/var/wordpress`, and keeps
-`wp-content` and `wp-config.php` there (symlinked into the webroot). On a **redeploy** the drive is
-kept, so WordPress re-attaches to the existing installation instead of reinstalling. If no empty
-drive is present, provisioning stops with a clear error rather than storing state that would not
-survive.
+Give each catlet a second drive (any name/size; the examples use `sdb`, 10 GB for the database and
+20 GB for the application). The application fodder formats it on first use (ext4, label
+`wordpress`), mounts it at `/var/wordpress`, and keeps `wp-content` and `wp-config.php` there
+(symlinked into the webroot); the MariaDB fodder does the same for its data directory. On a
+**redeploy** the drives are kept, so WordPress re-attaches to the existing installation instead of
+reinstalling. If no empty drive is present, provisioning stops with a clear error rather than
+storing state that would not survive.
 
 ## Configuration
 

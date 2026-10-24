@@ -15,13 +15,18 @@ with the Nextcloud gene. Set the application's `db_host` to the **name** of the 
 eryph's internal DNS resolves catlet names within the project, so you don't need to look up its
 IP address.
 
-The application catlet needs a **second drive** for its persistent state (the data directory and
-the generated `config.php`): see [Persistent state](#persistent-state) below. Without it the
-provisioning fails on purpose rather than storing state that a redeploy would silently lose.
+Both catlets need a **second drive** for their persistent state — the database on the DB catlet,
+and Nextcloud's data directory and generated `config.php` on the application catlet: see
+[Persistent state](#persistent-state) below. Without it the provisioning fails on purpose rather
+than storing state that a redeploy would silently lose.
 
 ``` yaml
 name: nextcloud-db
 parent: dbosoft/debian-13/starter
+
+drives:
+ - name: sdb
+   size: 10
 
 fodder:
  - source: gene:dbosoft/mariadb:server
@@ -86,18 +91,21 @@ proxy in front of it.
 
 ## Persistent state
 
-Nextcloud's state is split between the database and the application catlet: the catlet holds the
-**data directory** (user files) and `config.php` with the generated `instanceid`, `secret` and
-`passwordsalt`. The OS disk is recreated from the gene on every deploy, so that state must live on
-a **separate, persistent drive** — otherwise a redeploy would lose it while the database keeps the
+Nextcloud's state is split between the database and the application catlet, so **both catlets need
+their own persistent drive**. The application catlet holds the **data directory** (user files) and
+`config.php` with the generated `instanceid`, `secret` and `passwordsalt`; the database catlet
+holds the MariaDB data directory (the `dbosoft/mariadb` gene requires a drive of its own for the
+same reason). The OS disk is recreated from the gene on every deploy, so that state must live on a
+**separate, persistent drive** — otherwise a redeploy would lose it while the database keeps the
 old installation, and provisioning would fail with *"The Login is already being used"*.
 
-Give the application catlet a second drive (any name/size; the example uses `sdb`, 20 GB). The
-fodder formats it on first use (ext4, label `nextcloud`), mounts it at `/var/nextcloud`, and stores
-the data directory and `config.php` there. On a **redeploy** the drive is kept, so the fodder
-re-attaches to the existing installation and runs `occ upgrade` instead of re-installing. If no
-empty drive is present, provisioning stops with a clear error rather than storing state that would
-not survive.
+Give each catlet a second drive (any name/size; the examples use `sdb`, 10 GB for the database and
+20 GB for the application). The application fodder formats it on first use (ext4, label
+`nextcloud`), mounts it at `/var/nextcloud`, and stores the data directory and `config.php` there;
+the MariaDB fodder does the same for its data directory. On a **redeploy** the drives are kept, so
+the fodder re-attaches to the existing installation and runs `occ upgrade` instead of re-installing.
+If no empty drive is present, provisioning stops with a clear error rather than storing state that
+would not survive.
 
 ## Configuration
 
