@@ -130,6 +130,13 @@ failure**. Retry transient (bounded); never retry-fix real ones.
   alone** (cheap — the `.packed` already exists):
   `Test-PackedBaseCatlet.ps1 -Geneset <dbosoft/name/tag> -GenepoolPath <gp>
   -OsType <os>`. Retry the test **at most once or twice**, then treat as real.
+  - **Linux caveat:** on Linux, EGS is the *only* transport into the guest, so a
+    `Wait-EGSReady` timeout that **persists across one cheap re-test is almost
+    never transient** — it means the egs-service is crash-looping in the image
+    (classic cause: the .NET agent FailFasts on missing **libicu**; check the
+    guest journal / build log for "valid ICU package"). Treat a repeated Linux
+    EGS timeout as a **real image failure**, leave the geneset unstaged, and do
+    **not** publish it. Do not wave it through as "host under load".
 
 **Real (do NOT retry, do NOT fix):**
 - Pester assertions failing (e.g. "Should have datasource_list", "…egs-services

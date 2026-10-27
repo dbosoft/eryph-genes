@@ -350,6 +350,19 @@ Describe "Linux Base Catlet Validation" {
         }
     }
     
+    Context "Eryph Guest Services" {
+        It "Should have eryph-guest-services active" {
+            # The .NET-based egs-service is the eryph guest agent. It FailFasts at
+            # startup without a valid ICU package (libicu); on images that ship no
+            # libicu the unit crash-loops and guest services never come up. This
+            # test only runs once the harness has reached the guest *over* EGS, so
+            # it guards against a degraded/half-broken agent; a fully dead agent is
+            # caught earlier by the host-side Wait-EGSReady timeout.
+            $svc = (Invoke-LinuxCommand "systemctl is-active eryph-guest-services") -join "`n"
+            $svc.Trim() | Should -Be "active" -Because "eryph-guest-services must be running (missing libicu makes the .NET egs-service crash-loop)"
+        }
+    }
+
     Context "Security Configuration" {
         It "Should have firewall available (Ubuntu)" -Skip:$script:isRHEL {
             # Ubuntu/Debian: Check for UFW (Uncomplicated Firewall)
